@@ -77,25 +77,22 @@ where
         let mut vec_up = vec![0; vec_size as usize];
         for i in 0..=(total_span / 2 + total_span % 2) {
             for &inverse in &[true, false][..] {
-                let (dollar_c, dollar_d) = if inverse {
+                let (v1, v2) = if inverse {
                     (&mut vec_down, &mut vec_up)
                 } else {
                     (&mut vec_up, &mut vec_down)
                 };
-                let (k0, k1) = {
-                    let (m, n) = (new_span as isize, old_span as isize);
-                    (-(i - 2 * max(0, i - m)), i - 2 * max(0, i - n) + 1)
-                };
-                for k in (k0..k1).step_by(2) {
-                    let mut a: usize = if k == -i
-                        || k != i
-                            && dollar_c[modulo(k - 1, vec_size)] < dollar_c[modulo(k + 1, vec_size)]
+                let j_start = -(i - 2 * max(0, i - new_span as isize));
+                let j_end = i - 2 * max(0, i - old_span as isize) + 1;
+                for j in (j_start..j_end).step_by(2) {
+                    let mut a: usize = if j == -i
+                        || j != i && v1[modulo(j - 1, vec_size)] < v1[modulo(j + 1, vec_size)]
                     {
-                        dollar_c[modulo(k + 1, vec_size)]
+                        v1[modulo(j + 1, vec_size)]
                     } else {
-                        dollar_c[modulo(k - 1, vec_size)] + 1
+                        v1[modulo(j - 1, vec_size)] + 1
                     };
-                    let mut b = (a as isize - k) as usize;
+                    let mut b = (a as isize - j) as usize;
                     let (s, t) = (a, b);
                     while a < old_span && b < new_span && {
                         let (e_i, f_i) = if inverse {
@@ -108,13 +105,12 @@ where
                         a += 1;
                         b += 1;
                     }
-                    dollar_c[modulo(k, vec_size)] = a;
+                    v1[modulo(j, vec_size)] = a;
                     let bound = if inverse { i - 1 } else { i };
                     if (total_span % 2 == 1) == inverse
-                        && w - k >= -bound
-                        && w - k <= bound
-                        && dollar_c[modulo(k, vec_size)] + dollar_d[modulo(w - k, vec_size)]
-                            >= old_span
+                        && w - j >= -bound
+                        && w - j <= bound
+                        && v1[modulo(j, vec_size)] + v2[modulo(w - j, vec_size)] >= old_span
                     {
                         let (x, y, u, v) = if inverse {
                             (s, t, a, b)
