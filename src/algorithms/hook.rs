@@ -1,5 +1,4 @@
 use std::convert::Infallible;
-use std::mem;
 
 /// A trait for reacting to an edit script from the "old" version to
 /// the "new" version.
@@ -141,14 +140,6 @@ impl CaptureHook {
     /// Creates a new capture hook.
     pub fn new() -> CaptureHook {
         CaptureHook::default()
-    }
-
-    /// Removes all replace operations.
-    pub fn resolve_replace(&mut self) {
-        self.0 = mem::replace(&mut self.0, Vec::new())
-            .into_iter()
-            .filter_map(|op| Some(op))
-            .collect();
     }
 
     /// Converts the capture hook into a vector.
