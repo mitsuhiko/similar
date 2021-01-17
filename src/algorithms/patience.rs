@@ -180,52 +180,50 @@ fn test_patience() {
     let a: &[usize] = &[11, 1, 2, 2, 3, 4, 4, 4, 5, 47, 19];
     let b: &[usize] = &[10, 1, 2, 2, 8, 9, 4, 4, 7, 47, 18];
 
-    struct D(Vec<(usize, usize, usize, usize)>);
-    impl DiffHook for D {
-        type Error = ();
-        fn delete(&mut self, o: usize, len: usize, new: usize) -> Result<(), ()> {
-            self.0.push((o, len, new, 0));
-            Ok(())
-        }
-        fn insert(&mut self, o: usize, n: usize, len: usize) -> Result<(), ()> {
-            self.0.push((o, 0, n, len));
-            Ok(())
-        }
-        fn replace(&mut self, o: usize, l: usize, n: usize, nl: usize) -> Result<(), ()> {
-            self.0.push((o, l, n, nl));
-            Ok(())
-        }
-    }
-    let mut d = Replace::new(D(Vec::new()));
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
-    let d: D = d.into_inner();
+    let mut d = Replace::new(crate::algorithms::CaptureHook::new());
+    diff_slices(&mut d, a, b).unwrap();
 
-    insta::assert_json_snapshot!(&d.0.as_slice(), @r###"
+    insta::assert_debug_snapshot!(d.into_inner().ops(), @r###"
     [
-      [
-        0,
-        1,
-        0,
-        1
-      ],
-      [
-        4,
-        2,
-        4,
-        2
-      ],
-      [
-        8,
-        1,
-        8,
-        1
-      ],
-      [
-        10,
-        1,
-        10,
-        1
-      ]
+        Replace {
+            old_index: 0,
+            old_len: 1,
+            new_index: 0,
+            new_len: 1,
+        },
+        Equal {
+            old_index: 1,
+            new_index: 1,
+            len: 3,
+        },
+        Replace {
+            old_index: 4,
+            old_len: 2,
+            new_index: 4,
+            new_len: 2,
+        },
+        Equal {
+            old_index: 6,
+            new_index: 6,
+            len: 2,
+        },
+        Replace {
+            old_index: 8,
+            old_len: 1,
+            new_index: 8,
+            new_len: 1,
+        },
+        Equal {
+            old_index: 9,
+            new_index: 9,
+            len: 1,
+        },
+        Replace {
+            old_index: 10,
+            old_len: 1,
+            new_index: 10,
+            new_len: 1,
+        },
     ]
     "###);
 }

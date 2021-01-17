@@ -183,59 +183,34 @@ fn test_diff() {
     let a: &[usize] = &[0, 1, 2, 3, 4];
     let b: &[usize] = &[0, 1, 2, 9, 4];
 
-    struct D;
-    impl DiffHook for D {
-        type Error = ();
-        fn delete(&mut self, o: usize, len: usize, new: usize) -> Result<(), ()> {
-            assert_eq!(o, 3);
-            assert_eq!(len, 1);
-            assert_eq!(new, 3);
-            println!("delete");
-            Ok(())
-        }
-        fn insert(&mut self, o: usize, n: usize, len: usize) -> Result<(), ()> {
-            assert_eq!(o, 3);
-            assert_eq!(n, 3);
-            assert_eq!(len, 1);
-            println!("insert");
-            Ok(())
-        }
-    }
-
-    let mut d = crate::algorithms::Replace::new(D);
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap()
+    let mut d = crate::algorithms::Replace::new(crate::algorithms::CaptureHook::new());
+    diff_slices(&mut d, a, b).unwrap();
+    insta::assert_debug_snapshot!(d.into_inner().ops(), @r###"
+    [
+        Equal {
+            old_index: 0,
+            new_index: 0,
+            len: 3,
+        },
+        Replace {
+            old_index: 3,
+            old_len: 1,
+            new_index: 3,
+            new_len: 1,
+        },
+        Equal {
+            old_index: 4,
+            new_index: 4,
+            len: 1,
+        },
+    ]
+    "###);
 }
 
 #[test]
 fn test_contiguous() {
     let a: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
     let b: &[usize] = &[0, 1, 2, 8, 9, 4, 4, 7];
-    struct D;
-
-    impl DiffHook for D {
-        type Error = ();
-        fn delete(&mut self, _o: usize, _len: usize, _new: usize) -> Result<(), ()> {
-            panic!("Should not delete")
-        }
-        fn insert(&mut self, _o: usize, _n: usize, _len: usize) -> Result<(), ()> {
-            panic!("Should not insert")
-        }
-        fn replace(&mut self, o: usize, l: usize, n: usize, nl: usize) -> Result<(), ()> {
-            assert!(o != 3 || (l == 2 && nl == 2));
-            assert!(o != 7 || (l == 1 && nl == 1));
-            println!("replace {:?} {:?} {:?} {:?}", o, l, n, nl);
-            Ok(())
-        }
-    }
-
-    let mut d = crate::algorithms::Replace::new(D);
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
-}
-
-#[test]
-fn test_replace() {
-    let a: &[usize] = &[0, 1, 2, 3, 4];
-    let b: &[usize] = &[0, 1, 2, 7, 8, 9];
 
     let mut d = crate::algorithms::Replace::new(crate::algorithms::CaptureHook::new());
     diff_slices(&mut d, a, b).unwrap();
@@ -250,7 +225,18 @@ fn test_replace() {
             old_index: 3,
             old_len: 2,
             new_index: 3,
-            new_len: 3,
+            new_len: 2,
+        },
+        Equal {
+            old_index: 5,
+            new_index: 5,
+            len: 2,
+        },
+        Replace {
+            old_index: 7,
+            old_len: 1,
+            new_index: 7,
+            new_len: 1,
         },
     ]
     "###);
