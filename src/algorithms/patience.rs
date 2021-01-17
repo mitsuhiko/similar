@@ -13,8 +13,8 @@ use std::ops::{Index, Range};
 use crate::algorithms::{myers, DiffHook, Replace};
 
 struct Indexable<'a, T: ?Sized> {
-    p: &'a T,
-    i: usize,
+    value: &'a T,
+    index: usize,
 }
 
 impl<'a, T: Index<usize> + 'a> std::fmt::Debug for Indexable<'a, T>
@@ -22,7 +22,7 @@ where
     T::Output: std::fmt::Debug,
 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(fmt, "{:?}", &self.p[self.i])
+        write!(fmt, "{:?}", &self.value[self.index])
     }
 }
 
@@ -33,36 +33,96 @@ where
     B::Output: PartialEq<A::Output>,
 {
     fn eq(&self, b: &Indexable<'a, A>) -> bool {
-        self.p[self.i] == b.p[b.i]
+        self.value[self.index] == b.value[b.index]
     }
 }
 
-fn unique<T>(p: &T, e0: usize, e1: usize) -> Vec<Indexable<T>>
+fn unique<T>(seq: &T, lower: usize, upper: usize) -> Vec<Indexable<T>>
 where
     T: Index<usize> + ?Sized,
     T::Output: Hash + Eq,
 {
-    let mut aa = HashMap::new();
-    for i in e0..e1 {
-        match aa.entry(&p[i]) {
-            Entry::Vacant(e) => {
-                e.insert(Some(i));
+    let mut by_item = HashMap::new();
+    for index in lower..upper {
+        match by_item.entry(&seq[index]) {
+            Entry::Vacant(entry) => {
+                entry.insert(Some(index));
             }
-            Entry::Occupied(mut e) => {
-                let e = e.get_mut();
-                if e.is_some() {
-                    *e = None
+            Entry::Occupied(mut entry) => {
+                let entry = entry.get_mut();
+                if entry.is_some() {
+                    *entry = None
                 }
             }
         }
     }
-    let mut v: Vec<_> = aa
+    let mut rv = by_item
         .into_iter()
         .filter_map(|(_, x)| x)
-        .map(|i| Indexable { p, i })
-        .collect();
-    v.sort_by(|a, b| a.i.cmp(&b.i));
-    v
+        .map(|index| Indexable { value: seq, index })
+        .collect::<Vec<_>>();
+    rv.sort_by(|a, b| a.index.cmp(&b.index));
+    rv
+}
+
+struct Patience<'old, 'new, 'd, Old: ?Sized, New: ?Sized, D> {
+    current_old: usize,
+    current_new: usize,
+    end_old: usize,
+    end_new: usize,
+    old: &'old Old,
+    new: &'new New,
+    d: &'d mut D,
+    unique_old: &'old [Indexable<'old, Old>],
+    unique_new: &'new [Indexable<'new, New>],
+}
+
+impl<'old, 'new, 'd, Old, New, D> DiffHook for Patience<'old, 'new, 'd, Old, New, D>
+where
+    D: DiffHook + 'd,
+    Old: Index<usize> + ?Sized + 'old,
+    New: Index<usize> + ?Sized + 'new,
+    New::Output: PartialEq<Old::Output>,
+{
+    type Error = D::Error;
+    fn equal(&mut self, old: usize, new: usize, len: usize) -> Result<(), D::Error> {
+        for (old, new) in (old..old + len).zip(new..new + len) {
+            let a0 = self.current_old;
+            let b0 = self.current_new;
+            while self.current_old < self.unique_old[old].index
+                && self.current_new < self.unique_new[new].index
+                && self.new[self.current_new] == self.old[self.current_old]
+            {
+                self.current_old += 1;
+                self.current_new += 1;
+            }
+            if self.current_old > a0 {
+                self.d.equal(a0, b0, self.current_old - a0)?
+            }
+            myers::diff_offsets(
+                self.d,
+                self.old,
+                self.current_old,
+                self.unique_old[old].index,
+                self.new,
+                self.current_new,
+                self.unique_new[new].index,
+            )?;
+            self.current_old = self.unique_old[old].index;
+            self.current_new = self.unique_new[new].index;
+        }
+        Ok(())
+    }
+
+    fn finish(&mut self) -> Result<(), D::Error> {
+        myers::diff(
+            self.d,
+            self.old,
+            self.current_old..self.end_old,
+            self.new,
+            self.current_new..self.end_new,
+        )
+    }
 }
 
 /// Patience diff algorithm.
@@ -85,85 +145,16 @@ where
     let au = unique(old, old_range.start, old_range.end);
     let bu = unique(new, old_range.start, old_range.end);
 
-    struct Patience<
-        'a,
-        'b,
-        'd,
-        S: 'a + Index<usize> + ?Sized,
-        T: 'b + Index<usize> + ?Sized,
-        D: DiffHook + 'd,
-    > {
-        current_a: usize,
-        current_b: usize,
-        a1: usize,
-        b1: usize,
-        a: &'a S,
-        b: &'b T,
-        d: &'d mut D,
-        au: &'a [Indexable<'a, S>],
-        bu: &'b [Indexable<'b, T>],
-    }
-    impl<
-            'a,
-            'b,
-            'd,
-            S: 'a + Index<usize> + ?Sized,
-            T: 'b + Index<usize> + ?Sized,
-            D: DiffHook + 'd,
-        > DiffHook for Patience<'a, 'b, 'd, S, T, D>
-    where
-        T::Output: PartialEq<S::Output>,
-    {
-        type Error = D::Error;
-        fn equal(&mut self, old: usize, new: usize, len: usize) -> Result<(), D::Error> {
-            for (old, new) in (old..old + len).zip(new..new + len) {
-                let a0 = self.current_a;
-                let b0 = self.current_b;
-                while self.current_a < self.au[old].i
-                    && self.current_b < self.bu[new].i
-                    && self.b[self.current_b] == self.a[self.current_a]
-                {
-                    self.current_a += 1;
-                    self.current_b += 1;
-                }
-                if self.current_a > a0 {
-                    self.d.equal(a0, b0, self.current_a - a0)?
-                }
-                myers::diff_offsets(
-                    self.d,
-                    self.a,
-                    self.current_a,
-                    self.au[old].i,
-                    self.b,
-                    self.current_b,
-                    self.bu[new].i,
-                )?;
-                self.current_a = self.au[old].i;
-                self.current_b = self.bu[new].i;
-            }
-            Ok(())
-        }
-
-        fn finish(&mut self) -> Result<(), D::Error> {
-            myers::diff(
-                self.d,
-                self.a,
-                self.current_a..self.a1,
-                self.b,
-                self.current_b..self.b1,
-            )
-        }
-    }
     let mut d = Replace::new(Patience {
-        current_a: old_range.start,
-        current_b: new_range.start,
-        a: old,
-        a1: old_range.end,
-        b: new,
-        b1: new_range.end,
+        current_old: old_range.start,
+        current_new: new_range.start,
+        old,
+        end_old: old_range.end,
+        new,
+        end_new: new_range.end,
         d,
-        au: &au,
-        bu: &bu,
+        unique_old: &au,
+        unique_new: &bu,
     });
     myers::diff(&mut d, &au, 0..au.len(), &bu, 0..bu.len())?;
     Ok(())

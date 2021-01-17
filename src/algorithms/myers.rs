@@ -52,20 +52,20 @@ where
     diff(d, old, 0..old.len(), new, 0..new.len())
 }
 
-pub(crate) fn diff_offsets<D, S, T>(
+pub(crate) fn diff_offsets<D, Old, New>(
     diff: &mut D,
-    e: &S,
+    old: &Old,
     i: usize,
     i_: usize,
-    f: &T,
+    new: &New,
     j: usize,
     j_: usize,
 ) -> Result<(), D::Error>
 where
     D: DiffHook + ?Sized,
-    S: Index<usize> + ?Sized,
-    T: Index<usize> + ?Sized,
-    T::Output: PartialEq<S::Output>,
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    New::Output: PartialEq<Old::Output>,
 {
     if i_ > i && j_ > j {
         let n = i_ - i;
@@ -92,7 +92,7 @@ where
                         let (s, t) = (a, b);
                         while a < n && b < m && {
                             let (e_i, f_i) = if $e { (a, b) } else { (n - a - 1, m - b - 1) };
-                            f[j + f_i] == e[i + e_i]
+                            new[j + f_i] == old[i + e_i]
                         } {
                             a += 1;
                             b += 1;
@@ -109,11 +109,11 @@ where
                                 (n-a, m-b, n-s, m-t)
                             };
                             if h + bound > 1 || (x != u && y != v) {
-                                diff_offsets(diff, e, i, i+x, f, j, j+y)?;
+                                diff_offsets(diff, old, i, i+x, new, j, j+y)?;
                                 if x != u {
                                     diff.equal(i + x, j + y, u-x)?;
                                 }
-                                diff_offsets(diff, e, i+u, i_, f, j+v, j_)?;
+                                diff_offsets(diff, old, i+u, i_, new, j+v, j_)?;
                                 return Ok(())
                             } else if m > n {
                                 diff.equal(i, j, n)?;
