@@ -68,58 +68,60 @@ where
     New::Output: PartialEq<Old::Output>,
 {
     if old_end > old_current && new_end > new_current {
-        let n = old_end - old_current;
-        let m = new_end - new_current;
-        let l = (n + m) as isize;
-        let z = (2 * min(n, m) + 2) as usize;
-        let w = n as isize - m as isize;
-        let mut g = vec![0; z as usize];
-        let mut p = vec![0; z as usize];
-        for h in 0..=(l / 2 + l % 2) {
+        let old_span = old_end - old_current;
+        let new_span = new_end - new_current;
+        let total_span = (old_span + new_span) as isize;
+        let vec_size = (2 * min(old_span, new_span) + 2) as usize;
+        let w = old_span as isize - new_span as isize;
+        let mut vec_down = vec![0; vec_size as usize];
+        let mut vec_up = vec![0; vec_size as usize];
+        for i in 0..=(total_span / 2 + total_span % 2) {
             for &inverse in &[true, false][..] {
                 let (dollar_c, dollar_d) = if inverse {
-                    (&mut g, &mut p)
+                    (&mut vec_down, &mut vec_up)
                 } else {
-                    (&mut p, &mut g)
+                    (&mut vec_up, &mut vec_down)
                 };
                 let (k0, k1) = {
-                    let (m, n) = (m as isize, n as isize);
-                    (-(h - 2 * max(0, h - m)), h - 2 * max(0, h - n) + 1)
+                    let (m, n) = (new_span as isize, old_span as isize);
+                    (-(i - 2 * max(0, i - m)), i - 2 * max(0, i - n) + 1)
                 };
                 for k in (k0..k1).step_by(2) {
-                    let mut a: usize = if k == -h
-                        || k != h && dollar_c[modulo(k - 1, z)] < dollar_c[modulo(k + 1, z)]
+                    let mut a: usize = if k == -i
+                        || k != i
+                            && dollar_c[modulo(k - 1, vec_size)] < dollar_c[modulo(k + 1, vec_size)]
                     {
-                        dollar_c[modulo(k + 1, z)]
+                        dollar_c[modulo(k + 1, vec_size)]
                     } else {
-                        dollar_c[modulo(k - 1, z)] + 1
+                        dollar_c[modulo(k - 1, vec_size)] + 1
                     };
                     let mut b = (a as isize - k) as usize;
                     let (s, t) = (a, b);
-                    while a < n && b < m && {
+                    while a < old_span && b < new_span && {
                         let (e_i, f_i) = if inverse {
                             (a, b)
                         } else {
-                            (n - a - 1, m - b - 1)
+                            (old_span - a - 1, new_span - b - 1)
                         };
                         new[new_current + f_i] == old[old_current + e_i]
                     } {
                         a += 1;
                         b += 1;
                     }
-                    dollar_c[modulo(k, z)] = a;
-                    let bound = if inverse { h - 1 } else { h };
-                    if (l % 2 == 1) == inverse
+                    dollar_c[modulo(k, vec_size)] = a;
+                    let bound = if inverse { i - 1 } else { i };
+                    if (total_span % 2 == 1) == inverse
                         && w - k >= -bound
                         && w - k <= bound
-                        && dollar_c[modulo(k, z)] + dollar_d[modulo(w - k, z)] >= n
+                        && dollar_c[modulo(k, vec_size)] + dollar_d[modulo(w - k, vec_size)]
+                            >= old_span
                     {
                         let (x, y, u, v) = if inverse {
                             (s, t, a, b)
                         } else {
-                            (n - a, m - b, n - s, m - t)
+                            (old_span - a, new_span - b, old_span - s, new_span - t)
                         };
-                        if h + bound > 1 || (x != u && y != v) {
+                        if i + bound > 1 || (x != u && y != v) {
                             diff_offsets(
                                 diff,
                                 old,
@@ -142,13 +144,21 @@ where
                                 new_end,
                             )?;
                             return Ok(());
-                        } else if m > n {
-                            diff.equal(old_current, new_current, n)?;
-                            diff.insert(old_current + n, new_current + n, m - n)?;
+                        } else if new_span > old_span {
+                            diff.equal(old_current, new_current, old_span)?;
+                            diff.insert(
+                                old_current + old_span,
+                                new_current + old_span,
+                                new_span - old_span,
+                            )?;
                             return Ok(());
-                        } else if m < n {
-                            diff.equal(old_current, new_current, m)?;
-                            diff.delete(old_current + m, n - m, new_current + m)?;
+                        } else if new_span < old_span {
+                            diff.equal(old_current, new_current, new_span)?;
+                            diff.delete(
+                                old_current + new_span,
+                                old_span - new_span,
+                                new_current + new_span,
+                            )?;
                             return Ok(());
                         } else {
                             return Ok(());
