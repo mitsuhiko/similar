@@ -76,62 +76,70 @@ where
         let mut g = vec![0; z as usize];
         let mut p = vec![0; z as usize];
         for h in 0..=(l / 2 + l % 2) {
-            macro_rules! search {
-                ($e: expr, $c: expr, $d: expr) => {
-                    let (k0, k1) = {
-                        let (m, n) = (m as isize, n as isize);
-                        (-(h - 2*max(0, h - m)), h-2*max(0, h-n)+1)
+            for &inverse in &[true, false][..] {
+                let (dollar_c, dollar_d) = if inverse {
+                    (&mut g, &mut p)
+                } else {
+                    (&mut p, &mut g)
+                };
+                let (k0, k1) = {
+                    let (m, n) = (m as isize, n as isize);
+                    (-(h - 2 * max(0, h - m)), h - 2 * max(0, h - n) + 1)
+                };
+                for k in (k0..k1).step_by(2) {
+                    let mut a: usize = if k == -h
+                        || k != h && dollar_c[modulo(k - 1, z)] < dollar_c[modulo(k + 1, z)]
+                    {
+                        dollar_c[modulo(k + 1, z)]
+                    } else {
+                        dollar_c[modulo(k - 1, z)] + 1
                     };
-                    for k in (k0..k1).step_by(2) {
-                        let mut a: usize = if k == -h || k != h && $c[modulo(k-1, z)] < $c[modulo(k+1, z)] {
-                            $c[modulo(k+1, z)]
+                    let mut b = (a as isize - k) as usize;
+                    let (s, t) = (a, b);
+                    while a < n && b < m && {
+                        let (e_i, f_i) = if inverse {
+                            (a, b)
                         } else {
-                            $c[modulo(k-1, z)] + 1
+                            (n - a - 1, m - b - 1)
                         };
-                        let mut b = (a as isize - k) as usize;
-                        let (s, t) = (a, b);
-                        while a < n && b < m && {
-                            let (e_i, f_i) = if $e { (a, b) } else { (n - a - 1, m - b - 1) };
-                            new[j + f_i] == old[i + e_i]
-                        } {
-                            a += 1;
-                            b += 1;
-                        }
-                        $c[modulo(k, z)] = a;
-                        let bound = if $e { h-1 } else { h };
-                        if (l%2 == 1) == $e
-                            && w-k >= -bound && w-k <= bound
-                            && $c[modulo(k, z)]+$d[modulo(w-k, z)] >= n
-                        {
-                            let (x, y, u, v) = if $e {
-                                (s, t, a, b)
-                            } else {
-                                (n-a, m-b, n-s, m-t)
-                            };
-                            if h + bound > 1 || (x != u && y != v) {
-                                diff_offsets(diff, old, i, i+x, new, j, j+y)?;
-                                if x != u {
-                                    diff.equal(i + x, j + y, u-x)?;
-                                }
-                                diff_offsets(diff, old, i+u, i_, new, j+v, j_)?;
-                                return Ok(())
-                            } else if m > n {
-                                diff.equal(i, j, n)?;
-                                diff.insert(i+n, j+n, m-n)?;
-                                return Ok(())
-                            } else if m < n {
-                                diff.equal(i, j, m)?;
-                                diff.delete(i+m, n-m, j+m)?;
-                                return Ok(())
-                            } else {
-                                return Ok(())
+                        new[j + f_i] == old[i + e_i]
+                    } {
+                        a += 1;
+                        b += 1;
+                    }
+                    dollar_c[modulo(k, z)] = a;
+                    let bound = if inverse { h - 1 } else { h };
+                    if (l % 2 == 1) == inverse
+                        && w - k >= -bound
+                        && w - k <= bound
+                        && dollar_c[modulo(k, z)] + dollar_d[modulo(w - k, z)] >= n
+                    {
+                        let (x, y, u, v) = if inverse {
+                            (s, t, a, b)
+                        } else {
+                            (n - a, m - b, n - s, m - t)
+                        };
+                        if h + bound > 1 || (x != u && y != v) {
+                            diff_offsets(diff, old, i, i + x, new, j, j + y)?;
+                            if x != u {
+                                diff.equal(i + x, j + y, u - x)?;
                             }
+                            diff_offsets(diff, old, i + u, i_, new, j + v, j_)?;
+                            return Ok(());
+                        } else if m > n {
+                            diff.equal(i, j, n)?;
+                            diff.insert(i + n, j + n, m - n)?;
+                            return Ok(());
+                        } else if m < n {
+                            diff.equal(i, j, m)?;
+                            diff.delete(i + m, n - m, j + m)?;
+                            return Ok(());
+                        } else {
+                            return Ok(());
                         }
                     }
                 }
             }
-            search!(true, g, p);
-            search!(false, p, g);
         }
     } else if i_ > i {
         diff.delete(i, i_ - i, j)?
