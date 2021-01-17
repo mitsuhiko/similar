@@ -3,49 +3,59 @@
 pub trait DiffHook: Sized {
     type Error;
 
-    /// Called when lines with indices `old` (in the old version) and
-    /// `new` (in the new version) start an section equal in both
+    /// Called when lines with indices `old_index` (in the old version) and
+    /// `new_index` (in the new version) start an section equal in both
     /// versions, of length `len`.
-    fn equal(&mut self, old: usize, new: usize, len: usize) -> Result<(), Self::Error> {
-        let _old = old;
-        let _new = new;
-        let _len = len;
+    fn equal(&mut self, old_index: usize, new_index: usize, len: usize) -> Result<(), Self::Error> {
+        let _ = old_index;
+        let _ = new_index;
+        let _ = len;
         Ok(())
     }
 
-    /// Called when a section of length `len`, starting at `old`,
+    /// Called when a section of length `old_len`, starting at `old_index`,
     /// needs to be deleted from the old version.
-    fn delete(&mut self, old: usize, old_len: usize, new: usize) -> Result<(), Self::Error> {
-        let _old = old;
-        let _old_len = old_len;
-        let _new = new;
+    fn delete(
+        &mut self,
+        old_index: usize,
+        old_len: usize,
+        new_index: usize,
+    ) -> Result<(), Self::Error> {
+        let _ = old_index;
+        let _ = old_len;
+        let _ = new_index;
         Ok(())
     }
 
     /// Called when a section of the new version, of length `new_len`
-    /// and starting at `new`, needs to be inserted at position `old'.
-    fn insert(&mut self, old: usize, new: usize, new_len: usize) -> Result<(), Self::Error> {
-        let _old = old;
-        let _new = new;
-        let _new_len = new_len;
+    /// and starting at `new_index`, needs to be inserted at position `old_index'.
+    fn insert(
+        &mut self,
+        old_index: usize,
+        new_index: usize,
+        new_len: usize,
+    ) -> Result<(), Self::Error> {
+        let _ = old_index;
+        let _ = new_index;
+        let _ = new_len;
         Ok(())
     }
 
     /// Called when a section of the old version, starting at index
-    /// `old` and of length `old_len`, needs to be replaced with a
-    /// section of length `new_len`, starting at `new`, of the new
+    /// `old_index` and of length `old_len`, needs to be replaced with a
+    /// section of length `new_len`, starting at `new_index`, of the new
     /// version.
     ///
     /// The default implementations invokes `delete` and `insert`.
     fn replace(
         &mut self,
-        old: usize,
+        old_index: usize,
         old_len: usize,
-        new: usize,
+        new_index: usize,
         new_len: usize,
     ) -> Result<(), Self::Error> {
-        self.delete(old, old_len, new)?;
-        self.insert(old, new, new_len)
+        self.delete(old_index, old_len, new_index)?;
+        self.insert(old_index, new_index, new_len)
     }
 
     /// Always called at the end of the algorithm.
@@ -57,16 +67,26 @@ pub trait DiffHook: Sized {
 impl<'a, D: DiffHook + 'a> DiffHook for &'a mut D {
     type Error = D::Error;
 
-    fn equal(&mut self, old: usize, new: usize, len: usize) -> Result<(), Self::Error> {
-        (*self).equal(old, new, len)
+    fn equal(&mut self, old_index: usize, new_index: usize, len: usize) -> Result<(), Self::Error> {
+        (*self).equal(old_index, new_index, len)
     }
 
-    fn delete(&mut self, old: usize, len: usize, new: usize) -> Result<(), Self::Error> {
-        (*self).delete(old, len, new)
+    fn delete(
+        &mut self,
+        old_index: usize,
+        old_len: usize,
+        new_index: usize,
+    ) -> Result<(), Self::Error> {
+        (*self).delete(old_index, old_len, new_index)
     }
 
-    fn insert(&mut self, old: usize, new: usize, new_len: usize) -> Result<(), Self::Error> {
-        (*self).insert(old, new, new_len)
+    fn insert(
+        &mut self,
+        old_index: usize,
+        new_index: usize,
+        new_len: usize,
+    ) -> Result<(), Self::Error> {
+        (*self).insert(old_index, new_index, new_len)
     }
 
     fn replace(

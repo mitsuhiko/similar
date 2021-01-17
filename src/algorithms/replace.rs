@@ -10,6 +10,7 @@ pub struct Replace<D: DiffHook> {
 }
 
 impl<D: DiffHook> Replace<D> {
+    /// Creates a new replace hook wrapping another hook.
     pub fn new(d: D) -> Self {
         Replace {
             d,
@@ -18,8 +19,31 @@ impl<D: DiffHook> Replace<D> {
             eq: None,
         }
     }
+
+    /// Extracts the inner hook.
     pub fn into_inner(self) -> D {
         self.d
+    }
+
+    fn flush_eq(&mut self) -> Result<(), D::Error> {
+        if let Some((eq_old_index, eq_new_index, eq_len)) = self.eq.take() {
+            self.d.equal(eq_old_index, eq_new_index, eq_len)?
+        }
+        Ok(())
+    }
+
+    fn flush_del_ins(&mut self) -> Result<(), D::Error> {
+        if let Some((del_old_index, del_old_len, del_new_index)) = self.del.take() {
+            if let Some((_, ins_new_index, ins_new_len)) = self.ins.take() {
+                self.d
+                    .replace(del_old_index, del_old_len, ins_new_index, ins_new_len)?;
+            } else {
+                self.d.delete(del_old_index, del_old_len, del_new_index)?;
+            }
+        } else if let Some((ins_old_index, ins_new_index, ins_new_len)) = self.ins.take() {
+            self.d.insert(ins_old_index, ins_new_index, ins_new_len)?;
+        }
+        Ok(())
     }
 }
 
@@ -37,76 +61,68 @@ impl<D: DiffHook> AsMut<D> for Replace<D> {
 
 impl<D: DiffHook> DiffHook for Replace<D> {
     type Error = D::Error;
-    fn equal(&mut self, old: usize, new: usize, len: usize) -> Result<(), D::Error> {
-        if let Some((old0, len0, new0)) = self.del.take() {
-            if let Some((_, new1, new_len1)) = self.ins.take() {
-                self.d.replace(old0, len0, new1, new_len1)?
-            } else {
-                self.d.delete(old0, len0, new0)?
-            }
-        } else if let Some((old0, new0, new_len0)) = self.ins.take() {
-            self.d.insert(old0, new0, new_len0)?
-        }
 
-        if let Some((a, b, c)) = self.eq.take() {
-            self.eq = Some((a, b, c + len))
+    fn equal(&mut self, old_index: usize, new_index: usize, len: usize) -> Result<(), D::Error> {
+        self.flush_del_ins()?;
+
+        self.eq = if let Some((eq_old_index, eq_new_index, eq_len)) = self.eq.take() {
+            Some((eq_old_index, eq_new_index, eq_len + len))
         } else {
-            self.eq = Some((old, new, len))
-        }
-        Ok(())
-    }
-    fn delete(&mut self, old: usize, len: usize, new: usize) -> Result<(), D::Error> {
-        if let Some((a, b, c)) = self.eq.take() {
-            self.d.equal(a, b, c)?
-        }
-        if let Some((old0, len0, new0)) = self.del.take() {
-            assert_eq!(old, old0 + len0);
-            self.del = Some((old0, len0 + len, new0))
-        } else {
-            self.del = Some((old, len, new))
-        }
+            Some((old_index, new_index, len))
+        };
+
         Ok(())
     }
 
-    fn insert(&mut self, old: usize, new: usize, new_len: usize) -> Result<(), D::Error> {
+    fn delete(
+        &mut self,
+        old_index: usize,
+        old_len: usize,
+        new_index: usize,
+    ) -> Result<(), D::Error> {
         if let Some((a, b, c)) = self.eq.take() {
-            self.d.equal(a, b, c)?
+            self.d.equal(a, b, c)?;
         }
-        if let Some((old1, new1, new_len1)) = self.ins.take() {
-            assert_eq!(new1 + new_len1, new);
-            self.ins = Some((old1, new1, new_len + new_len1))
+        if let Some((del_old_index, del_old_len, del_new_index)) = self.del.take() {
+            assert_eq!(old_index, del_old_index + del_old_len);
+            self.del = Some((del_old_index, del_old_len + old_len, del_new_index));
         } else {
-            self.ins = Some((old, new, new_len))
+            self.del = Some((old_index, old_len, new_index));
         }
+        Ok(())
+    }
+
+    fn insert(
+        &mut self,
+        old_index: usize,
+        new_index: usize,
+        new_len: usize,
+    ) -> Result<(), D::Error> {
+        self.flush_eq()?;
+        self.ins = if let Some((ins_old_index, ins_new_index, ins_new_len)) = self.ins.take() {
+            debug_assert_eq!(ins_new_index + ins_new_len, new_index);
+            Some((ins_old_index, ins_new_index, new_len + ins_new_len))
+        } else {
+            Some((old_index, new_index, new_len))
+        };
+
         Ok(())
     }
 
     fn replace(
         &mut self,
-        old: usize,
+        old_index: usize,
         old_len: usize,
-        new: usize,
+        new_index: usize,
         new_len: usize,
     ) -> Result<(), D::Error> {
-        if let Some((a, b, c)) = self.eq.take() {
-            self.d.equal(a, b, c)?
-        }
-        self.d.replace(old, old_len, new, new_len)
+        self.flush_eq()?;
+        self.d.replace(old_index, old_len, new_index, new_len)
     }
 
     fn finish(&mut self) -> Result<(), D::Error> {
-        if let Some((a, b, c)) = self.eq.take() {
-            self.d.equal(a, b, c)?
-        }
-        if let Some((old0, len0, new0)) = self.del.take() {
-            if let Some((_, new1, new_len1)) = self.ins.take() {
-                self.d.replace(old0, len0, new1, new_len1)?
-            } else {
-                self.d.delete(old0, len0, new0)?
-            }
-        } else if let Some((old0, new0, new_len0)) = self.ins.take() {
-            self.d.insert(old0, new0, new_len0)?
-        }
+        self.flush_eq()?;
+        self.flush_del_ins()?;
         self.d.finish()
     }
 }
