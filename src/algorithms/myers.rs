@@ -55,11 +55,11 @@ where
 pub(crate) fn diff_offsets<D, Old, New>(
     diff: &mut D,
     old: &Old,
-    i: usize,
-    i_: usize,
+    old_current: usize,
+    old_end: usize,
     new: &New,
-    j: usize,
-    j_: usize,
+    new_current: usize,
+    new_end: usize,
 ) -> Result<(), D::Error>
 where
     D: DiffHook + ?Sized,
@@ -67,9 +67,9 @@ where
     New: Index<usize> + ?Sized,
     New::Output: PartialEq<Old::Output>,
 {
-    if i_ > i && j_ > j {
-        let n = i_ - i;
-        let m = j_ - j;
+    if old_end > old_current && new_end > new_current {
+        let n = old_end - old_current;
+        let m = new_end - new_current;
         let l = (n + m) as isize;
         let z = (2 * min(n, m) + 2) as usize;
         let w = n as isize - m as isize;
@@ -102,7 +102,7 @@ where
                         } else {
                             (n - a - 1, m - b - 1)
                         };
-                        new[j + f_i] == old[i + e_i]
+                        new[new_current + f_i] == old[old_current + e_i]
                     } {
                         a += 1;
                         b += 1;
@@ -120,19 +120,35 @@ where
                             (n - a, m - b, n - s, m - t)
                         };
                         if h + bound > 1 || (x != u && y != v) {
-                            diff_offsets(diff, old, i, i + x, new, j, j + y)?;
+                            diff_offsets(
+                                diff,
+                                old,
+                                old_current,
+                                old_current + x,
+                                new,
+                                new_current,
+                                new_current + y,
+                            )?;
                             if x != u {
-                                diff.equal(i + x, j + y, u - x)?;
+                                diff.equal(old_current + x, new_current + y, u - x)?;
                             }
-                            diff_offsets(diff, old, i + u, i_, new, j + v, j_)?;
+                            diff_offsets(
+                                diff,
+                                old,
+                                old_current + u,
+                                old_end,
+                                new,
+                                new_current + v,
+                                new_end,
+                            )?;
                             return Ok(());
                         } else if m > n {
-                            diff.equal(i, j, n)?;
-                            diff.insert(i + n, j + n, m - n)?;
+                            diff.equal(old_current, new_current, n)?;
+                            diff.insert(old_current + n, new_current + n, m - n)?;
                             return Ok(());
                         } else if m < n {
-                            diff.equal(i, j, m)?;
-                            diff.delete(i + m, n - m, j + m)?;
+                            diff.equal(old_current, new_current, m)?;
+                            diff.delete(old_current + m, n - m, new_current + m)?;
                             return Ok(());
                         } else {
                             return Ok(());
@@ -141,10 +157,10 @@ where
                 }
             }
         }
-    } else if i_ > i {
-        diff.delete(i, i_ - i, j)?
-    } else if j_ > j {
-        diff.insert(i, j, j_ - j)?
+    } else if old_end > old_current {
+        diff.delete(old_current, old_end - old_current, new_current)?
+    } else if new_end > new_current {
+        diff.insert(old_current, new_current, new_end - new_current)?
     }
     Ok(())
 }
