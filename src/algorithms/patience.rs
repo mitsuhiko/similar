@@ -12,6 +12,56 @@ use std::ops::{Index, Range};
 
 use crate::algorithms::{myers, DiffHook, Replace};
 
+/// Patience diff algorithm.
+///
+/// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
+pub fn diff<Old, New, D>(
+    d: &mut D,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
+    D: DiffHook,
+{
+    let old_indexes = unique(old, old_range.start, old_range.end);
+    let new_indexes = unique(new, old_range.start, old_range.end);
+
+    let mut d = Replace::new(Patience {
+        d,
+        old,
+        old_current: old_range.start,
+        old_end: old_range.end,
+        old_indexes: &old_indexes,
+        new,
+        new_current: new_range.start,
+        new_end: new_range.end,
+        new_indexes: &new_indexes,
+    });
+    myers::diff(
+        &mut d,
+        &old_indexes,
+        0..old_indexes.len(),
+        &new_indexes,
+        0..new_indexes.len(),
+    )?;
+    Ok(())
+}
+
+/// Shortcut for diffing slices.
+pub fn diff_slices<D, T>(d: &mut D, old: &[T], new: &[T]) -> Result<(), D::Error>
+where
+    D: DiffHook,
+    T: Eq + Hash,
+{
+    diff(d, old, 0..old.len(), new, 0..new.len())
+}
+
 struct Indexable<'a, T: ?Sized> {
     value: &'a T,
     index: usize,
@@ -123,56 +173,6 @@ where
             self.new_current..self.new_end,
         )
     }
-}
-
-/// Patience diff algorithm.
-///
-/// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
-pub fn diff<Old, New, D>(
-    d: &mut D,
-    old: &Old,
-    old_range: Range<usize>,
-    new: &New,
-    new_range: Range<usize>,
-) -> Result<(), D::Error>
-where
-    Old: Index<usize> + ?Sized,
-    New: Index<usize> + ?Sized,
-    Old::Output: Hash + Eq,
-    New::Output: PartialEq<Old::Output> + Hash + Eq,
-    D: DiffHook,
-{
-    let old_indexes = unique(old, old_range.start, old_range.end);
-    let new_indexes = unique(new, old_range.start, old_range.end);
-
-    let mut d = Replace::new(Patience {
-        d,
-        old,
-        old_current: old_range.start,
-        old_end: old_range.end,
-        old_indexes: &old_indexes,
-        new,
-        new_current: new_range.start,
-        new_end: new_range.end,
-        new_indexes: &new_indexes,
-    });
-    myers::diff(
-        &mut d,
-        &old_indexes,
-        0..old_indexes.len(),
-        &new_indexes,
-        0..new_indexes.len(),
-    )?;
-    Ok(())
-}
-
-/// Shortcut for diffing slices.
-pub fn diff_slices<D, T>(d: &mut D, old: &[T], new: &[T]) -> Result<(), D::Error>
-where
-    D: DiffHook,
-    T: Eq + Hash,
-{
-    diff(d, old, 0..old.len(), new, 0..new.len())
 }
 
 #[test]

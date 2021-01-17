@@ -11,10 +11,6 @@ use std::ops::{Index, Range};
 
 use crate::algorithms::DiffHook;
 
-fn modulo(a: isize, b: usize) -> usize {
-    a.rem_euclid(b as isize) as usize
-}
-
 /// Myers' diff algorithm.
 ///
 /// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
@@ -50,6 +46,10 @@ where
     T: PartialEq,
 {
     diff(d, old, 0..old.len(), new, 0..new.len())
+}
+
+fn modulo(a: isize, b: usize) -> usize {
+    a.rem_euclid(b as isize) as usize
 }
 
 pub(crate) fn diff_offsets<D, Old, New>(
