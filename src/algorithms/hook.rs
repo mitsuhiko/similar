@@ -49,6 +49,9 @@ pub trait DiffHook: Sized {
     /// version.
     ///
     /// The default implementations invokes `delete` and `insert`.
+    ///
+    /// You can use the [`Replace`](crate::algorithms::Replace) hook to
+    /// automatically generate these.
     fn replace(
         &mut self,
         old_index: usize,
@@ -107,23 +110,29 @@ impl<'a, D: DiffHook + 'a> DiffHook for &'a mut D {
 }
 
 /// Utility enum to capture a diff operation.
+///
+/// This is used by [`CaptureHook`].
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum DiffOp {
+    /// A segment is equal (see [`DiffHook::equal`])
     Equal {
         old_index: usize,
         new_index: usize,
         len: usize,
     },
+    /// A segment was deleted (see [`DiffHook::delete`])
     Delete {
         old_index: usize,
         old_len: usize,
         new_index: usize,
     },
+    /// A segment was inserted (see [`DiffHook::insert`])
     Insert {
         old_index: usize,
         new_index: usize,
         new_len: usize,
     },
+    /// A segment was replaced (see [`DiffHook::replace`])
     Replace {
         old_index: usize,
         old_len: usize,
@@ -132,7 +141,7 @@ pub enum DiffOp {
     },
 }
 
-/// Captures diff operations.
+/// A [`DiffHook`] that captures all diff operations.
 #[derive(Default, Clone)]
 pub struct CaptureHook(Vec<DiffOp>);
 
