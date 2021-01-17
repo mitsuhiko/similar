@@ -1,3 +1,6 @@
+use std::convert::Infallible;
+use std::mem;
+
 /// A trait for reacting to an edit script from the "old" version to
 /// the "new" version.
 pub trait DiffHook: Sized {
@@ -101,5 +104,117 @@ impl<'a, D: DiffHook + 'a> DiffHook for &'a mut D {
 
     fn finish(&mut self) -> Result<(), Self::Error> {
         (*self).finish()
+    }
+}
+
+/// Utility enum to capture a diff operation.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum DiffOp {
+    Equal {
+        old_index: usize,
+        new_index: usize,
+        len: usize,
+    },
+    Delete {
+        old_index: usize,
+        old_len: usize,
+        new_index: usize,
+    },
+    Insert {
+        old_index: usize,
+        new_index: usize,
+        new_len: usize,
+    },
+    Replace {
+        old_index: usize,
+        old_len: usize,
+        new_index: usize,
+        new_len: usize,
+    },
+}
+
+/// Captures diff operations.
+#[derive(Default, Clone)]
+pub struct CaptureHook(Vec<DiffOp>);
+
+impl CaptureHook {
+    /// Creates a new capture hook.
+    pub fn new() -> CaptureHook {
+        CaptureHook::default()
+    }
+
+    /// Removes all replace operations.
+    pub fn resolve_replace(&mut self) {
+        self.0 = mem::replace(&mut self.0, Vec::new())
+            .into_iter()
+            .filter_map(|op| Some(op))
+            .collect();
+    }
+
+    /// Converts the capture hook into a vector.
+    pub fn into_vec(self) -> Vec<DiffOp> {
+        self.0
+    }
+
+    /// Accesses the captured operations.
+    pub fn ops(&self) -> &[DiffOp] {
+        &self.0
+    }
+}
+
+impl DiffHook for CaptureHook {
+    type Error = Infallible;
+
+    fn equal(&mut self, old_index: usize, new_index: usize, len: usize) -> Result<(), Self::Error> {
+        self.0.push(DiffOp::Equal {
+            old_index,
+            new_index,
+            len,
+        });
+        Ok(())
+    }
+
+    fn delete(
+        &mut self,
+        old_index: usize,
+        old_len: usize,
+        new_index: usize,
+    ) -> Result<(), Self::Error> {
+        self.0.push(DiffOp::Delete {
+            old_index,
+            old_len,
+            new_index,
+        });
+        Ok(())
+    }
+
+    fn insert(
+        &mut self,
+        old_index: usize,
+        new_index: usize,
+        new_len: usize,
+    ) -> Result<(), Self::Error> {
+        self.0.push(DiffOp::Insert {
+            old_index,
+            new_index,
+            new_len,
+        });
+        Ok(())
+    }
+
+    fn replace(
+        &mut self,
+        old_index: usize,
+        old_len: usize,
+        new_index: usize,
+        new_len: usize,
+    ) -> Result<(), Self::Error> {
+        self.0.push(DiffOp::Replace {
+            old_index,
+            old_len,
+            new_index,
+            new_len,
+        });
+        Ok(())
     }
 }

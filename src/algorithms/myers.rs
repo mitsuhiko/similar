@@ -237,21 +237,23 @@ fn test_replace() {
     let a: &[usize] = &[0, 1, 2, 3, 4];
     let b: &[usize] = &[0, 1, 2, 7, 8, 9];
 
-    struct D;
-    impl DiffHook for D {
-        type Error = ();
-        fn delete(&mut self, _o: usize, _len: usize, _new: usize) -> Result<(), ()> {
-            panic!("should not delete")
-        }
-        fn insert(&mut self, _o: usize, _n: usize, _len: usize) -> Result<(), ()> {
-            panic!("should not insert")
-        }
-        fn replace(&mut self, _o: usize, _l: usize, _n: usize, _nl: usize) -> Result<(), ()> {
-            Ok(())
-        }
-    }
-    let mut d = crate::algorithms::Replace::new(D);
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+    let mut d = crate::algorithms::Replace::new(crate::algorithms::CaptureHook::new());
+    diff_slices(&mut d, a, b).unwrap();
+    insta::assert_debug_snapshot!(d.into_inner().ops(), @r###"
+    [
+        Equal {
+            old_index: 0,
+            new_index: 0,
+            len: 3,
+        },
+        Replace {
+            old_index: 3,
+            old_len: 2,
+            new_index: 3,
+            new_len: 3,
+        },
+    ]
+    "###);
 }
 
 #[test]
@@ -259,23 +261,35 @@ fn test_pat() {
     let a: &[usize] = &[0, 1, 3, 4, 5];
     let b: &[usize] = &[0, 1, 4, 5, 8, 9];
 
-    struct D;
-    impl DiffHook for D {
-        type Error = ();
-        fn delete(&mut self, _o: usize, _len: usize, _new: usize) -> Result<(), ()> {
-            println!("delete {:?} {:?} {:?}", _o, _len, _new);
-            Ok(())
-        }
-        fn insert(&mut self, _o: usize, _n: usize, _len: usize) -> Result<(), ()> {
-            println!("insert {:?} {:?} {:?}", _o, _n, _len);
-            Ok(())
-        }
-        fn replace(&mut self, _o: usize, _l: usize, _n: usize, _nl: usize) -> Result<(), ()> {
-            println!("replace {:?} {:?} {:?} {:?}", _o, _l, _n, _nl);
-            Ok(())
-        }
-    }
-
-    let mut d = crate::algorithms::Replace::new(D);
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+    let mut d = crate::algorithms::CaptureHook::new();
+    diff_slices(&mut d, a, b).unwrap();
+    insta::assert_debug_snapshot!(d.ops(), @r###"
+    [
+        Equal {
+            old_index: 0,
+            new_index: 0,
+            len: 2,
+        },
+        Delete {
+            old_index: 2,
+            old_len: 1,
+            new_index: 2,
+        },
+        Equal {
+            old_index: 3,
+            new_index: 2,
+            len: 2,
+        },
+        Insert {
+            old_index: 5,
+            new_index: 4,
+            new_len: 1,
+        },
+        Insert {
+            old_index: 5,
+            new_index: 5,
+            new_len: 1,
+        },
+    ]
+    "###);
 }

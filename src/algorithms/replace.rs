@@ -128,7 +128,7 @@ impl<D: DiffHook> DiffHook for Replace<D> {
 }
 
 #[test]
-fn myers() {
+fn test_mayers_replace() {
     use crate::algorithms::myers;
     let a: &[&str] = &[
         ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n",
@@ -153,36 +153,62 @@ fn myers() {
         "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n",
     ];
 
-    struct D(Vec<String>);
-    impl DiffHook for D {
-        type Error = ();
-        fn equal(&mut self, o: usize, n: usize, len: usize) -> Result<(), ()> {
-            self.0.push(format!("equal {:?} {:?} {:?}", o, n, len));
-            Ok(())
-        }
-        fn delete(&mut self, o: usize, len: usize, new: usize) -> Result<(), ()> {
-            self.0.push(format!("delete {:?} {:?} {:?}", o, len, new));
-            Ok(())
-        }
-        fn insert(&mut self, o: usize, n: usize, len: usize) -> Result<(), ()> {
-            self.0.push(format!("insert {:?} {:?} {:?}", o, n, len));
-            Ok(())
-        }
-        fn replace(&mut self, o: usize, l: usize, n: usize, nl: usize) -> Result<(), ()> {
-            self.0
-                .push(format!("replace {:?} {:?} {:?} {:?}", o, l, n, nl));
-            Ok(())
-        }
-    }
-    let mut d = Replace::new(D(Vec::new()));
-    myers::diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+    let mut d = Replace::new(crate::algorithms::CaptureHook::new());
+    myers::diff_slices(&mut d, a, b).unwrap();
 
-    insta::assert_yaml_snapshot!(&d.into_inner().0, @r###"
-    ---
-    - equal 0 0 1
-    - replace 1 1 1 1
-    - equal 2 2 3
-    - replace 5 1 5 1
-    - equal 6 6 3
+    insta::assert_debug_snapshot!(&d.into_inner().ops(), @r###"
+    [
+        Equal {
+            old_index: 0,
+            new_index: 0,
+            len: 1,
+        },
+        Replace {
+            old_index: 1,
+            old_len: 1,
+            new_index: 1,
+            new_len: 1,
+        },
+        Equal {
+            old_index: 2,
+            new_index: 2,
+            len: 3,
+        },
+        Replace {
+            old_index: 5,
+            old_len: 1,
+            new_index: 5,
+            new_len: 1,
+        },
+        Equal {
+            old_index: 6,
+            new_index: 6,
+            len: 3,
+        },
+    ]
+    "###);
+}
+
+#[test]
+fn test_replace() {
+    let a: &[usize] = &[0, 1, 2, 3, 4];
+    let b: &[usize] = &[0, 1, 2, 7, 8, 9];
+
+    let mut d = Replace::new(crate::algorithms::CaptureHook::new());
+    crate::algorithms::myers::diff_slices(&mut d, a, b).unwrap();
+    insta::assert_debug_snapshot!(d.into_inner().ops(), @r###"
+    [
+        Equal {
+            old_index: 0,
+            new_index: 0,
+            len: 3,
+        },
+        Replace {
+            old_index: 3,
+            old_len: 2,
+            new_index: 3,
+            new_len: 3,
+        },
+    ]
     "###);
 }
