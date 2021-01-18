@@ -2,6 +2,13 @@ use crate::algorithms::DiffHook;
 
 /// A [`DiffHook`] that combines deletions and insertions to give blocks
 /// of maximal length, and replacements when appropriate.
+///
+/// It will replace [`DiffHook::insert`] and [`DiffHook::delete`] events when
+/// possible with [`DiffHook::replace`] events.  Note that even though the
+/// text processing in the crate does not use replace events and always resolves
+/// then back to delete and insert, it's useful to always use the replacer to
+/// ensure a consistent order of inserts and deletes.  This is why for instance
+/// the text diffing automatically uses this hook internally.
 pub struct Replace<D: DiffHook> {
     d: D,
     del: Option<(usize, usize, usize)>,
@@ -153,7 +160,7 @@ fn test_mayers_replace() {
         "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n",
     ];
 
-    let mut d = Replace::new(crate::algorithms::CaptureHook::new());
+    let mut d = Replace::new(crate::algorithms::Capture::new());
     myers::diff_slices(&mut d, a, b).unwrap();
 
     insta::assert_debug_snapshot!(&d.into_inner().ops(), @r###"
@@ -194,7 +201,7 @@ fn test_replace() {
     let a: &[usize] = &[0, 1, 2, 3, 4];
     let b: &[usize] = &[0, 1, 2, 7, 8, 9];
 
-    let mut d = Replace::new(crate::algorithms::CaptureHook::new());
+    let mut d = Replace::new(crate::algorithms::Capture::new());
     crate::algorithms::myers::diff_slices(&mut d, a, b).unwrap();
     insta::assert_debug_snapshot!(d.into_inner().ops(), @r###"
     [

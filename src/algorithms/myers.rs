@@ -183,7 +183,7 @@ fn test_diff() {
     let a: &[usize] = &[0, 1, 2, 3, 4];
     let b: &[usize] = &[0, 1, 2, 9, 4];
 
-    let mut d = crate::algorithms::Replace::new(crate::algorithms::CaptureHook::new());
+    let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
     diff_slices(&mut d, a, b).unwrap();
     insta::assert_debug_snapshot!(d.into_inner().ops(), @r###"
     [
@@ -212,7 +212,7 @@ fn test_contiguous() {
     let a: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
     let b: &[usize] = &[0, 1, 2, 8, 9, 4, 4, 7];
 
-    let mut d = crate::algorithms::Replace::new(crate::algorithms::CaptureHook::new());
+    let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
     diff_slices(&mut d, a, b).unwrap();
     insta::assert_debug_snapshot!(d.into_inner().ops(), @r###"
     [
@@ -247,7 +247,7 @@ fn test_pat() {
     let a: &[usize] = &[0, 1, 3, 4, 5];
     let b: &[usize] = &[0, 1, 4, 5, 8, 9];
 
-    let mut d = crate::algorithms::CaptureHook::new();
+    let mut d = crate::algorithms::Capture::new();
     diff_slices(&mut d, a, b).unwrap();
     insta::assert_debug_snapshot!(d.ops(), @r###"
     [
