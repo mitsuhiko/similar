@@ -1,5 +1,6 @@
 use crate::algorithms::hook::DiffHook;
 use std::convert::Infallible;
+use std::ops::Range;
 
 /// Utility enum to capture a diff operation.
 ///
@@ -33,6 +34,78 @@ pub enum DiffOp {
     },
 }
 
+/// The tag of a diff operation.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
+pub enum DiffTag {
+    Equal,
+    Delete,
+    Insert,
+    Replace,
+}
+
+impl DiffOp {
+    /// Returns the tag of the operation.
+    pub fn tag(self) -> DiffTag {
+        match self {
+            DiffOp::Equal { .. } => DiffTag::Equal,
+            DiffOp::Delete { .. } => DiffTag::Delete,
+            DiffOp::Insert { .. } => DiffTag::Insert,
+            DiffOp::Replace { .. } => DiffTag::Replace,
+        }
+    }
+
+    /// Transform the op into a tuple of diff tag and ranges.
+    ///
+    /// This is useful when operating on slices.  The returned format is
+    /// `(tag, i1..i2, j1..j2)`:
+    ///
+    /// * `Replace`: `a[i1..i2]` should be replaced by `b[j1..j2]`
+    /// * `Delete`: `a[i1..i2]` should be deleted (`j1 == j2` in this case).
+    /// * `Insert`: `b[j1..j2]` should be inserted at `a[i1..i2]` (`i1 == i2` in this case).
+    /// * `Equal`: `a[i1..i2]` is equal to `b[j1..j2]`.
+    pub fn as_tag_tuple(self) -> (DiffTag, Range<usize>, Range<usize>) {
+        match self {
+            DiffOp::Equal {
+                old_index,
+                new_index,
+                len,
+            } => (
+                DiffTag::Equal,
+                old_index..old_index + len,
+                new_index..new_index + len,
+            ),
+            DiffOp::Delete {
+                old_index,
+                new_index,
+                old_len,
+            } => (
+                DiffTag::Delete,
+                old_index..old_index + old_len,
+                new_index..new_index,
+            ),
+            DiffOp::Insert {
+                old_index,
+                new_index,
+                new_len,
+            } => (
+                DiffTag::Insert,
+                old_index..old_index,
+                new_index..new_index + new_len,
+            ),
+            DiffOp::Replace {
+                old_index,
+                old_len,
+                new_index,
+                new_len,
+            } => (
+                DiffTag::Replace,
+                old_index..old_index + old_len,
+                new_index..new_index + new_len,
+            ),
+        }
+    }
+}
+
 /// A [`DiffHook`] that captures all diff operations.
 #[derive(Default, Clone)]
 pub struct Capture(Vec<DiffOp>);
@@ -43,15 +116,82 @@ impl Capture {
         Capture::default()
     }
 
-    /// Converts the capture hook into a vector.
-    pub fn into_vec(self) -> Vec<DiffOp> {
+    /// Converts the capture hook into a vector of ops.
+    pub fn into_ops(self) -> Vec<DiffOp> {
         self.0
+    }
+
+    /// Isolate change clusters by eliminating ranges with no changes.
+    ///
+    /// This will leave holes behind in long periods of equal ranges so that
+    /// you can build things like unified diffs.
+    pub fn into_grouped_ops(self, n: usize) -> Vec<Vec<DiffOp>> {
+        group_diff_ops(self.into_ops(), n)
     }
 
     /// Accesses the captured operations.
     pub fn ops(&self) -> &[DiffOp] {
         &self.0
     }
+}
+
+fn group_diff_ops(mut ops: Vec<DiffOp>, n: usize) -> Vec<Vec<DiffOp>> {
+    if ops.is_empty() {
+        return vec![];
+    }
+
+    let mut pending_group = Vec::new();
+    let mut rv = Vec::new();
+
+    if let Some(DiffOp::Equal {
+        old_index,
+        new_index,
+        len,
+    }) = ops.first_mut()
+    {
+        let offset = (*len).saturating_sub(n);
+        *old_index += offset;
+        *new_index += offset;
+        *len -= offset;
+    }
+
+    if let Some(DiffOp::Equal { len, .. }) = ops.last_mut() {
+        *len -= (*len).saturating_sub(n);
+    }
+
+    for op in ops.into_iter() {
+        if let DiffOp::Equal {
+            old_index,
+            new_index,
+            len,
+        } = op
+        {
+            // End the current group and start a new one whenever
+            // there is a large range with no changes.
+            if len > n * 2 {
+                pending_group.push(DiffOp::Equal {
+                    old_index,
+                    new_index,
+                    len: n,
+                });
+                rv.push(pending_group);
+                let offset = len.saturating_sub(n);
+                pending_group = vec![DiffOp::Equal {
+                    old_index: old_index + offset,
+                    new_index: new_index + offset,
+                    len: len - offset,
+                }];
+                continue;
+            }
+        }
+        pending_group.push(op);
+    }
+
+    if !pending_group.is_empty() {
+        rv.push(pending_group);
+    }
+
+    rv
 }
 
 impl DiffHook for Capture {
@@ -109,4 +249,147 @@ impl DiffHook for Capture {
         });
         Ok(())
     }
+}
+
+#[test]
+fn test_capture_hook_grouping() {
+    use crate::algorithms::{myers, Replace};
+
+    let rng = (1..100).collect::<Vec<_>>();
+    let mut rng_new = rng.clone();
+    rng_new[10] = 1000;
+    rng_new[13] = 1000;
+    rng_new[16] = 1000;
+    rng_new[34] = 1000;
+
+    let mut d = Replace::new(Capture::new());
+    myers::diff_slices(&mut d, &rng, &rng_new).unwrap();
+
+    let ops = d.into_inner().into_grouped_ops(3);
+    let tags = ops
+        .iter()
+        .map(|group| group.iter().map(|x| x.as_tag_tuple()).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+
+    insta::assert_debug_snapshot!(ops, @r###"
+    [
+        [
+            Equal {
+                old_index: 7,
+                new_index: 7,
+                len: 3,
+            },
+            Replace {
+                old_index: 10,
+                old_len: 1,
+                new_index: 10,
+                new_len: 1,
+            },
+            Equal {
+                old_index: 11,
+                new_index: 11,
+                len: 2,
+            },
+            Replace {
+                old_index: 13,
+                old_len: 1,
+                new_index: 13,
+                new_len: 1,
+            },
+            Equal {
+                old_index: 14,
+                new_index: 14,
+                len: 2,
+            },
+            Replace {
+                old_index: 16,
+                old_len: 1,
+                new_index: 16,
+                new_len: 1,
+            },
+            Equal {
+                old_index: 17,
+                new_index: 17,
+                len: 3,
+            },
+        ],
+        [
+            Equal {
+                old_index: 31,
+                new_index: 31,
+                len: 3,
+            },
+            Replace {
+                old_index: 34,
+                old_len: 1,
+                new_index: 34,
+                new_len: 1,
+            },
+            Equal {
+                old_index: 35,
+                new_index: 35,
+                len: 3,
+            },
+        ],
+    ]
+    "###);
+
+    insta::assert_debug_snapshot!(tags, @r###"
+    [
+        [
+            (
+                Equal,
+                7..10,
+                7..10,
+            ),
+            (
+                Replace,
+                10..11,
+                10..11,
+            ),
+            (
+                Equal,
+                11..13,
+                11..13,
+            ),
+            (
+                Replace,
+                13..14,
+                13..14,
+            ),
+            (
+                Equal,
+                14..16,
+                14..16,
+            ),
+            (
+                Replace,
+                16..17,
+                16..17,
+            ),
+            (
+                Equal,
+                17..20,
+                17..20,
+            ),
+        ],
+        [
+            (
+                Equal,
+                31..34,
+                31..34,
+            ),
+            (
+                Replace,
+                34..35,
+                34..35,
+            ),
+            (
+                Equal,
+                35..38,
+                35..38,
+            ),
+        ],
+    ]
+    "###);
 }
