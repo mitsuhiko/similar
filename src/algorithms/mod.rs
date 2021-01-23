@@ -101,7 +101,7 @@ where
 }
 
 /// Creates a diff between old and new with the given algorithm capturing the ops.
-pub fn capture_diff_slices<D, T>(alg: Algorithm, old: &[T], new: &[T]) -> Vec<DiffOp>
+pub fn capture_diff_slices<T>(alg: Algorithm, old: &[T], new: &[T]) -> Vec<DiffOp>
 where
     T: Eq + Hash + Ord,
 {
