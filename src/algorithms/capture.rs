@@ -123,8 +123,7 @@ impl Capture {
 
     /// Isolate change clusters by eliminating ranges with no changes.
     ///
-    /// This will leave holes behind in long periods of equal ranges so that
-    /// you can build things like unified diffs.
+    /// This is equivalent to calling [`group_diff_ops`] on [`Capture::into_ops`].
     pub fn into_grouped_ops(self, n: usize) -> Vec<Vec<DiffOp>> {
         group_diff_ops(self.into_ops(), n)
     }
@@ -135,7 +134,11 @@ impl Capture {
     }
 }
 
-fn group_diff_ops(mut ops: Vec<DiffOp>, n: usize) -> Vec<Vec<DiffOp>> {
+/// Isolate change clusters by eliminating ranges with no changes.
+///
+/// This will leave holes behind in long periods of equal ranges so that
+/// you can build things like unified diffs.
+pub fn group_diff_ops(mut ops: Vec<DiffOp>, n: usize) -> Vec<Vec<DiffOp>> {
     if ops.is_empty() {
         return vec![];
     }
