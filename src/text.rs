@@ -267,39 +267,6 @@ impl<'old, 'new, 'bufs> DiffHook for TextDiffer<'old, 'new, 'bufs> {
     }
 }
 
-/// Simple utility function to calculate differences between old and new.
-pub fn diff_strings<'old, 'new, 'bufs>(
-    alg: Algorithm,
-    old: &'bufs [&'old str],
-    new: &'bufs [&'new str],
-) -> Vec<DiffOp<'old, 'new>> {
-    let mut differ = TextDiffer::new_from_slices(old, new);
-    differ.set_algorithm(alg);
-    differ.diff()
-}
-
-/// Simple utility function to calculate line differences between old and new.
-pub fn diff_lines<'old, 'new>(
-    alg: Algorithm,
-    old: &'old str,
-    new: &'new str,
-) -> Vec<DiffOp<'old, 'new>> {
-    let mut differ = TextDiffer::new_from_lines(old, new);
-    differ.set_algorithm(alg);
-    differ.diff()
-}
-
-/// Simple utility function to calculate word differences between old and new.
-pub fn diff_words<'old, 'new>(
-    alg: Algorithm,
-    old: &'old str,
-    new: &'new str,
-) -> Vec<DiffOp<'old, 'new>> {
-    let mut differ = TextDiffer::new_from_words(old, new);
-    differ.set_algorithm(alg);
-    differ.diff()
-}
-
 /// Given a string splits it into lines.
 ///
 /// This operation will preserve the newline separation character at the end.
@@ -390,7 +357,8 @@ fn test_split_words() {
 
 #[test]
 fn test_line_diff() {
-    insta::assert_debug_snapshot!(diff_lines(Algorithm::Myers, "foo\nbar\nbaz", "foo\nblah\nbaz"), @r###"
+    let differ = TextDiffer::new_from_lines("foo\nbar\nbaz", "foo\nblah\nbaz");
+    insta::assert_debug_snapshot!(differ.diff(), @r###"
     [
         Equal {
             old_index: 0,

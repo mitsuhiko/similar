@@ -1,17 +1,6 @@
 //! This crate implements diffing utilities.  It attempts to provide an abstraction
 //! interface over different types of diffing algorithms.
 //!
-//! # Example
-//!
-//! ```rust
-//! use similar::{text::diff_lines, algorithms::Algorithm};
-//! let old = "Hello World!\nMore stuff here.";
-//! let new = "Oh well World!\nMore stuff here.";
-//! for op in diff_lines(Algorithm::Myers, old, new) {
-//!     println!("{}", op);
-//! }
-//! ```
-//!
 //! # Components
 //!
 //! The crate is split into two components:
