@@ -1,9 +1,7 @@
 //! This crate implements diffing utilities.  It attempts to provide an abstraction
 //! interface over different types of diffing algorithms.
 //!
-//! # Components
-//!
-//! The crate is split into two components:
+//! The crate is split into two levels:
 //!
 //! * [`algorithms`]: This implements the different types of diffing algorithms.
 //!   It provides both low level access to the algorithms with the minimal

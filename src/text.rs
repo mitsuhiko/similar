@@ -1,7 +1,39 @@
 //! Text diffing utilities.
 //!
 //! This provides helpful utilities for text (and more specifically line) diff
-//! operations.
+//! operations.  The main type you want to work with is [`TextDiff`] which
+//! uses the underlying diff algorithms to expose a convenient API to work with
+//! texts.
+//!
+//! It can produce a unified diff and also let you iterate over the changeset
+//! directly if you want.
+//!
+//! ## Examples
+//!
+//! A super simple example for how to generate a unified diff with three lines
+//! off context around the changes:
+//!
+//! ```rust
+//! # use similar::text::TextDiff;
+//! # let old_text = "";
+//! # let new_text = "";
+//! let diff = TextDiff::from_lines(old_text, new_text);
+//! let unified_diff = diff.unified_diff(3, Some(("old_file", "new_file")));
+//! ```
+//!
+//! This is another example that iterates over the actual changes:
+//!
+//! ```rust
+//! # use similar::text::TextDiff;
+//! # let old_text = "";
+//! # let new_text = "";
+//! let diff = TextDiff::from_lines(old_text, new_text);
+//! for op in diff.ops() {
+//!     for change in diff.iter_changes(op) {
+//!         println!("{:?}", change);
+//!     }
+//! }
+//! ```
 use std::borrow::Cow;
 use std::fmt;
 use std::io;
