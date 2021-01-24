@@ -8,6 +8,9 @@
 //! It can produce a unified diff and also let you iterate over the changeset
 //! directly if you want.
 //!
+//! Text diffing is available by default but can be disabled by turning off the
+//! default features.  The feature to enable to get it back is `text`.
+//!
 //! ## Examples
 //!
 //! A super simple example for how to generate a unified diff with three lines
@@ -49,7 +52,8 @@
 //! this even works for very long files if paired with this method.
 #![cfg(feature = "text")]
 use std::borrow::Cow;
-use std::collections::BinaryHeap;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap};
 use std::fmt;
 use std::io;
 use std::ops::Range;
@@ -253,21 +257,29 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     }
 
     /// Creates a diff of lines.
+    ///
+    /// Equivalent to `TextDiff::configure().diff_lines(old, new)`.
     pub fn from_lines(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
         Self::configure().diff_lines(old, new)
     }
 
     /// Creates a diff of words.
+    ///
+    /// Equivalent to `TextDiff::configure().diff_words(old, new)`.
     pub fn from_words(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
         Self::configure().diff_words(old, new)
     }
 
     /// Creates a diff of chars.
+    ///
+    /// Equivalent to `TextDiff::configure().diff_chars(old, new)`.
     pub fn from_chars(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
         Self::configure().diff_chars(old, new)
     }
 
     /// Creates a diff of graphemes.
+    ///
+    /// Equivalent to `TextDiff::configure().diff_graphemes(old, new)`.
     ///
     /// This requires the `unicode` feature.
     #[cfg(feature = "unicode")]
@@ -276,6 +288,8 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     }
 
     /// Creates a diff of arbitrary slices.
+    ///
+    /// Equivalent to `TextDiff::configure().diff_slices(old, new)`.
     pub fn from_slices(
         old: &'bufs [&'old str],
         new: &'bufs [&'new str],
@@ -289,6 +303,9 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     }
 
     /// Returns `true` if items in the slice are newline terminated.
+    ///
+    /// This flag is used by the unified diff writer to determine if extra
+    /// newlines have to be added.
     pub fn newline_terminated(&self) -> bool {
         self.newline_terminated
     }
@@ -304,6 +321,15 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     }
 
     /// Return a measure of the sequences' similarity in the range `0..=1`.
+    ///
+    /// A ratio of `1.0` means the two sequences are a complete match, a
+    /// ratio of `0.0` would indicate completely distinct sequences.
+    ///
+    /// ```rust
+    /// # use similar::text::TextDiff;
+    /// let diff = TextDiff::from_chars("abcd", "bcde");
+    /// assert_eq!(diff.ratio(), 0.75);
+    /// ```
     pub fn ratio(&self) -> f32 {
         let matches = self
             .ops()
@@ -581,6 +607,47 @@ fn upper_seq_ratio<T: PartialEq>(seq1: &[T], seq2: &[T]) -> f32 {
     }
 }
 
+/// Internal utility to calculate an upper bound for a ratio for
+/// [`get_close_matches`].  This is based on Python's difflib approach
+/// of considering the two sets to be multisets.
+///
+/// It counts the number of matches without regard to order, which is an
+/// obvious upper bound.
+struct QuickSeqRatio<'a>(HashMap<&'a str, i32>);
+
+impl<'a> QuickSeqRatio<'a> {
+    pub fn new(seq: &[&'a str]) -> QuickSeqRatio<'a> {
+        let mut counts = HashMap::new();
+        for &word in seq {
+            *counts.entry(word).or_insert(0) += 1;
+        }
+        QuickSeqRatio(counts)
+    }
+
+    pub fn calc(&self, seq: &[&str]) -> f32 {
+        let n = self.0.len() + seq.len();
+        if n == 0 {
+            return 1.0;
+        }
+
+        let mut available = HashMap::new();
+        let mut matches = 0;
+        for &word in seq {
+            let x = if let Some(count) = available.get(&word) {
+                *count
+            } else {
+                self.0.get(&word).copied().unwrap_or(0)
+            };
+            available.insert(word, x - 1);
+            if x > 0 {
+                matches += 1;
+            }
+        }
+
+        2.0 * matches as f32 / n as f32
+    }
+}
+
 /// Quick way to get a unified diff as string.
 pub fn unified_diff<'old, 'new>(
     alg: Algorithm,
@@ -618,25 +685,33 @@ pub fn get_close_matches<'a>(
 ) -> Vec<&'a str> {
     let mut matches = BinaryHeap::new();
     let seq1 = split_chars(word).collect::<Vec<_>>();
+    let quick_ratio = QuickSeqRatio::new(&seq1);
+
     for &possibility in possibilities {
         let seq2 = split_chars(possibility).collect::<Vec<_>>();
-        if upper_seq_ratio(&seq1, &seq2) < cutoff {
+
+        if upper_seq_ratio(&seq1, &seq2) < cutoff || quick_ratio.calc(&seq2) < cutoff {
             continue;
         }
+
         let diff = TextDiff::from_slices(&seq1, &seq2);
         let ratio = diff.ratio();
         if ratio >= cutoff {
-            matches.push(((ratio * u32::MAX as f32) as u32, possibility));
+            // we're putting the word iself in reverse in so that matches with
+            // the same ratio are ordered lexicographically.
+            matches.push(((ratio * u32::MAX as f32) as u32, Reverse(possibility)));
         }
     }
+
     let mut rv = vec![];
     for _ in 0..n {
         if let Some((_, elt)) = matches.pop() {
-            rv.push(elt);
+            rv.push(elt.0);
         } else {
             break;
         }
     }
+
     rv
 }
 
@@ -728,4 +803,13 @@ fn test_ratio() {
 fn test_get_close_matches() {
     let matches = get_close_matches("appel", &["ape", "apple", "peach", "puppy"][..], 3, 0.6);
     assert_eq!(matches, vec!["apple", "ape"]);
+    let matches = get_close_matches(
+        "hulo",
+        &[
+            "hi", "hulu", "hali", "hoho", "amaz", "zulo", "blah", "hopp", "uulo", "aulo",
+        ][..],
+        5,
+        0.7,
+    );
+    assert_eq!(matches, vec!["aulo", "hulu", "uulo", "zulo"]);
 }

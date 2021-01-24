@@ -2,6 +2,11 @@
 
 All notable changes to similar are documented here.
 
+## 0.4.0
+
+* Change `get_close_matches` to use Python's quick ratio optimization
+  and order lexicographically when tied.
+
 ## 0.3.0
 
 * Added grapheme and character level diffing utilities.

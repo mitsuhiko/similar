@@ -1,6 +1,7 @@
 //! This crate implements diffing utilities.  It attempts to provide an abstraction
 //! interface over different types of diffing algorithms.  It's based on the
 //! the diff algorithm implementations of [pijul](https://pijul.org/).
+//!
 //! ```rust
 //! # #[cfg(feature = "text")] {
 //! use similar::text::TextDiff;
