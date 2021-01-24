@@ -46,12 +46,17 @@ pub enum DiffTag {
 impl DiffOp {
     /// Returns the tag of the operation.
     pub fn tag(self) -> DiffTag {
-        match self {
-            DiffOp::Equal { .. } => DiffTag::Equal,
-            DiffOp::Delete { .. } => DiffTag::Delete,
-            DiffOp::Insert { .. } => DiffTag::Insert,
-            DiffOp::Replace { .. } => DiffTag::Replace,
-        }
+        self.as_tag_tuple().0
+    }
+
+    /// Returns the old range.
+    pub fn old_range(&self) -> Range<usize> {
+        self.as_tag_tuple().1
+    }
+
+    /// Returns the new range.
+    pub fn new_range(&self) -> Range<usize> {
+        self.as_tag_tuple().2
     }
 
     /// Transform the op into a tuple of diff tag and ranges.
