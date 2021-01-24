@@ -2,6 +2,10 @@
 
 All notable changes to similar are documented here.
 
+## 0.3.0
+
+* Added grapheme and character level diffing utilities.
+
 ## 0.2.0
 
 * Fixed a bug in the patience algorithm causing it not not work.

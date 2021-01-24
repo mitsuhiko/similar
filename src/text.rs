@@ -54,7 +54,7 @@ use std::ops::Range;
 
 use crate::algorithms::{capture_diff_slices, group_diff_ops, Algorithm, DiffOp, DiffTag};
 
-/// A builder for more complex uses of [`TextDiff`].
+/// A builder type config for more complex uses of [`TextDiff`].
 #[derive(Clone, Debug)]
 pub struct TextDiffConfig {
     algorithm: Algorithm,
@@ -72,6 +72,8 @@ impl Default for TextDiffConfig {
 
 impl TextDiffConfig {
     /// Changes the algorithm.
+    ///
+    /// The default algorithm is [`Algorithm::Myers`].
     pub fn algorithm(&mut self, alg: Algorithm) -> &mut Self {
         self.algorithm = alg;
         self
@@ -79,13 +81,20 @@ impl TextDiffConfig {
 
     /// Changes the newlnine termination flag.
     ///
-    /// The default is automatic based on input.
+    /// The default is automatic based on input.  This flag controls the
+    /// behavior of the [`TextDiff::write_unified_diff`] method with regards
+    /// to newlines.  When the flag is set to `false` (which is the default)
+    /// then newlines are added.  Otherwise the newlines from the source
+    /// sequences are reused.
     pub fn newline_terminated(&mut self, yes: bool) -> &mut Self {
         self.newline_terminated = Some(yes);
         self
     }
 
     /// Creates a diff of lines.
+    ///
+    /// This splits the text `old` and `new` into lines preserving newlines
+    /// in the input.
     pub fn diff_lines<'old, 'new, 'bufs>(
         &self,
         old: &'old str,
@@ -107,6 +116,35 @@ impl TextDiffConfig {
         self.diff(
             Cow::Owned(split_words(old).collect()),
             Cow::Owned(split_words(new).collect()),
+            false,
+        )
+    }
+
+    /// Creates a diff of characters.
+    pub fn diff_chars<'old, 'new, 'bufs>(
+        &self,
+        old: &'old str,
+        new: &'new str,
+    ) -> TextDiff<'old, 'new, 'bufs> {
+        self.diff(
+            Cow::Owned(split_chars(old).collect()),
+            Cow::Owned(split_chars(new).collect()),
+            false,
+        )
+    }
+
+    /// Creates a diff of graphemes.
+    ///
+    /// This requires the `unicode` feature.
+    #[cfg(feature = "unicode")]
+    pub fn diff_graphemes<'old, 'new, 'bufs>(
+        &self,
+        old: &'old str,
+        new: &'new str,
+    ) -> TextDiff<'old, 'new, 'bufs> {
+        self.diff(
+            Cow::Owned(split_graphemes(old).collect()),
+            Cow::Owned(split_graphemes(new).collect()),
             false,
         )
     }
@@ -220,6 +258,19 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     /// Creates a diff of words.
     pub fn from_words(&self, old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
         Self::configure().diff_words(old, new)
+    }
+
+    /// Creates a diff of chars.
+    pub fn from_chars(&self, old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
+        Self::configure().diff_chars(old, new)
+    }
+
+    /// Creates a diff of graphemes.
+    ///
+    /// This requires the `unicode` feature.
+    #[cfg(feature = "unicode")]
+    pub fn from_graphemes(&self, old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
+        Self::configure().diff_graphemes(old, new)
     }
 
     /// Creates a diff of arbitrary slices.
@@ -487,6 +538,17 @@ fn split_words(s: &str) -> impl Iterator<Item = &str> {
     .flatten()
 }
 
+/// Splits text into characters.
+fn split_chars(s: &str) -> impl Iterator<Item = &str> {
+    s.char_indices().map(move |(i, c)| &s[i..i + c.len_utf8()])
+}
+
+/// Splits text into graphemes.
+#[cfg(feature = "unicode")]
+fn split_graphemes(s: &str) -> impl Iterator<Item = &str> {
+    unicode_segmentation::UnicodeSegmentation::graphemes(s, true)
+}
+
 /// Quick way to get a unified diff as string.
 pub fn unified_diff<'old, 'new>(
     alg: Algorithm,
@@ -517,6 +579,23 @@ fn test_split_words() {
     assert_eq!(
         split_words("foo    bar baz\n\n  aha").collect::<Vec<_>>(),
         ["foo    ", "bar ", "baz\n\n  ", "aha"]
+    );
+}
+
+#[test]
+fn test_split_chars() {
+    assert_eq!(
+        split_chars("abcfö❄️").collect::<Vec<_>>(),
+        vec!["a", "b", "c", "f", "ö", "❄", "\u{fe0f}"]
+    );
+}
+
+#[test]
+#[cfg(feature = "unicode")]
+fn test_split_graphemes() {
+    assert_eq!(
+        split_graphemes("abcfö❄️").collect::<Vec<_>>(),
+        vec!["a", "b", "c", "f", "ö", "❄️"]
     );
 }
 

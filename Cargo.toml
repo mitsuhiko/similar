@@ -9,5 +9,15 @@ repository = "https://github.com/mitsuhiko/similar"
 keywords = ["diff", "difference", "patience", "compare", "changes"]
 readme = "README.md"
 
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = []
+unicode = ["unicode-segmentation"]
+
 [dev-dependencies]
 insta = "1.5.2"
+
+[dependencies]
+unicode-segmentation = { version = "1.7.1", optional = true }
