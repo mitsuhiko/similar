@@ -6,11 +6,12 @@
 [![Documentation](https://docs.rs/similar/badge.svg)](https://docs.rs/similar)
 
 Similar is a dependency free crate for Rust that implements different diffing
-algorithms and high level interfaces for it.
+algorithms and high level interfaces for it.  It is based on the [pijul](https://pijul.org/)
+implementation of the Myer's and Patience algorithms and inherits some ideas
+from there.
 
-It provides both low level implementations of Myer's and the Patience diff
-algorithm as well as high level text diffing utilities (such as the ability
-to generate unified diffs).
+It's intended to be replacement for the popular but unmaintained
+[difference] crate.
 
 ```rust
 use similar::algorithms::Algorithm;

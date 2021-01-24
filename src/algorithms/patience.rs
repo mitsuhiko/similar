@@ -30,7 +30,7 @@ where
     D: DiffHook,
 {
     let old_indexes = unique(old, old_range.start, old_range.end);
-    let new_indexes = unique(new, old_range.start, old_range.end);
+    let new_indexes = unique(new, new_range.start, new_range.end);
 
     let mut d = Replace::new(Patience {
         d,
@@ -223,6 +223,30 @@ fn test_patience() {
             old_len: 1,
             new_index: 10,
             new_len: 1,
+        },
+    ]
+    "###);
+}
+
+#[test]
+fn test_patience_out_of_bounds_bug() {
+    let a: &[usize] = &[1, 2, 3, 4];
+    let b: &[usize] = &[1, 2, 3];
+
+    let mut d = Replace::new(crate::algorithms::Capture::new());
+    diff_slices(&mut d, a, b).unwrap();
+
+    insta::assert_debug_snapshot!(d.into_inner().ops(), @r###"
+    [
+        Equal {
+            old_index: 0,
+            new_index: 0,
+            len: 3,
+        },
+        Delete {
+            old_index: 3,
+            old_len: 1,
+            new_index: 3,
         },
     ]
     "###);
