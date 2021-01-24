@@ -1,8 +1,8 @@
 # similar
 
-[![Build Status](https://github.com/mitsuhiko/similar/workflows/Tests/badge.svg?branch=master)](https://github.com/mitsuhiko/similar/actions?query=workflow%3ATests)
+[![Build Status](https://github.com/mitsuhiko/similar/workflows/Tests/badge.svg?branch=main)](https://github.com/mitsuhiko/similar/actions?query=workflow%3ATests)
 [![Crates.io](https://img.shields.io/crates/d/similar.svg)](https://crates.io/crates/similar)
-[![License](https://img.shields.io/github/license/mitsuhiko/similar)](https://github.com/mitsuhiko/similar/blob/master/LICENSE)
+[![License](https://img.shields.io/github/license/mitsuhiko/similar)](https://github.com/mitsuhiko/similar/blob/main/LICENSE)
 [![Documentation](https://docs.rs/similar/badge.svg)](https://docs.rs/similar)
 
 Similar is a dependency free crate for Rust that implements different diffing
@@ -30,5 +30,5 @@ println!("{}", udiff);
 
 - [Documentation](https://docs.rs/similar/)
 - [Issue Tracker](https://github.com/mitsuhiko/similar/issues)
-- License: [Apache-2.0](https://github.com/mitsuhiko/similar/blob/master/LICENSE)
+- License: [Apache-2.0](https://github.com/mitsuhiko/similar/blob/main/LICENSE)
 
