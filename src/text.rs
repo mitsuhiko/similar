@@ -303,6 +303,27 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
         &self.new
     }
 
+    /// Return a measure of the sequences' similarity in the range `0..=1`.
+    pub fn ratio(&self) -> f32 {
+        let matches = self
+            .ops()
+            .iter()
+            .map(|op| {
+                if let DiffOp::Equal { len, .. } = *op {
+                    len
+                } else {
+                    0
+                }
+            })
+            .sum::<usize>();
+        let len = self.old.len() + self.new.len();
+        if len == 0 {
+            1.0
+        } else {
+            2.0 * matches as f32 / len as f32
+        }
+    }
+
     /// Iterates over the changes the op expands to.
     ///
     /// This method is a convenient way to automatically resolve the different
@@ -638,4 +659,12 @@ fn test_line_ops() {
 fn test_char_diff() {
     let diff = TextDiff::from_chars("Hello World", "Hallo Welt");
     insta::assert_debug_snapshot!(diff.ops());
+}
+
+#[test]
+fn test_ratio() {
+    let diff = TextDiff::from_chars("abcd", "bcde");
+    assert_eq!(diff.ratio(), 0.75);
+    let diff = TextDiff::from_chars("", "");
+    assert_eq!(diff.ratio(), 1.0);
 }
