@@ -101,20 +101,62 @@ pub struct TextDiff<'old, 'new, 'bufs> {
     algorithm: Algorithm,
 }
 
+/// The tag of a change.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
-pub enum Change {
+pub enum ChangeTag {
     Equal,
     Delete,
     Insert,
 }
 
-impl Change {
+/// Represents the expanded textual change.
+///
+/// This type is returned from the [`TextDiff::iter_changes`] method.  It
+/// exists so that it's more convenient to work with textual differences as
+/// the underlying [`DiffOp`] does not know anything about strings.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
+pub struct Change<'s> {
+    tag: ChangeTag,
+    old_index: Option<usize>,
+    new_index: Option<usize>,
+    value: &'s str,
+}
+
+impl<'s> Change<'s> {
+    /// Returns the change tag.
+    pub fn tag(&self) -> ChangeTag {
+        self.tag
+    }
+
+    /// Returns the old index if available.
+    pub fn old_index(&self) -> Option<usize> {
+        self.old_index
+    }
+
+    /// Returns the new index if available.
+    pub fn new_index(&self) -> Option<usize> {
+        self.new_index
+    }
+
+    /// Returns the changed value.
+    pub fn value(&self) -> &'s str {
+        self.value
+    }
+}
+
+impl ChangeTag {
     /// Returns the unified sign of this change.
+    ///
+    /// This is the prefix rendered into a unified diff:
+    ///
+    /// * `Equal`: an empty space (` `)
+    /// * `Delete: a minus sign (`-`)
+    /// * `Insert: a plus sign (`+`)
     pub fn unified_sign(self) -> char {
         match self {
-            Change::Equal => ' ',
-            Change::Delete => '-',
-            Change::Insert => '+',
+            ChangeTag::Equal => ' ',
+            ChangeTag::Delete => '-',
+            ChangeTag::Insert => '+',
         }
     }
 }
@@ -164,28 +206,18 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
         &self.new
     }
 
-    /// Return the old slices for an op.
-    pub fn old_slices_for_op(&self, op: &DiffOp) -> &[&'old str] {
-        &self.old_slices()[op.old_range()]
-    }
-
-    /// Return the new slices for an op.
-    pub fn new_slices_for_op(&self, op: &DiffOp) -> &[&'new str] {
-        &self.new_slices()[op.new_range()]
-    }
-
     /// Iterates over the changes the op expands to.
     ///
-    /// The fields are in the form `(change, old_index, new_index, string)`.
-    pub fn iter_op(
-        &self,
-        op: &DiffOp,
-    ) -> impl Iterator<Item = (Change, Option<usize>, Option<usize>, &str)> {
+    /// This method is a convenient way to automatically resolve the different
+    /// ways in which a change could be encoded (insert/delete vs replace), look
+    /// up the value from the appropriate slice and also handle correct index
+    /// handling.
+    pub fn iter_changes(&self, op: &DiffOp) -> impl Iterator<Item = Change> {
         let (tag, old_range, new_range) = op.as_tag_tuple();
         let mut old_index = old_range.start;
         let mut new_index = new_range.start;
-        let mut old_slices = self.old_slices_for_op(op);
-        let mut new_slices = self.new_slices_for_op(op);
+        let mut old_slices = &self.old_slices()[op.old_range()];
+        let mut new_slices = &self.new_slices()[op.new_range()];
 
         std::iter::from_fn(move || match tag {
             DiffTag::Equal => {
@@ -193,12 +225,12 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                     old_slices = rest;
                     old_index += 1;
                     new_index += 1;
-                    Some((
-                        Change::Equal,
-                        Some(old_index - 1),
-                        Some(new_index - 1),
-                        first,
-                    ))
+                    Some(Change {
+                        tag: ChangeTag::Equal,
+                        old_index: Some(old_index - 1),
+                        new_index: Some(new_index - 1),
+                        value: first,
+                    })
                 } else {
                     None
                 }
@@ -207,7 +239,12 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                 if let Some((&first, rest)) = old_slices.split_first() {
                     old_slices = rest;
                     old_index += 1;
-                    Some((Change::Delete, Some(old_index - 1), None, first))
+                    Some(Change {
+                        tag: ChangeTag::Delete,
+                        old_index: Some(old_index - 1),
+                        new_index: None,
+                        value: first,
+                    })
                 } else {
                     None
                 }
@@ -216,7 +253,12 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                 if let Some((&first, rest)) = new_slices.split_first() {
                     new_slices = rest;
                     new_index += 1;
-                    Some((Change::Insert, None, Some(new_index - 1), first))
+                    Some(Change {
+                        tag: ChangeTag::Insert,
+                        old_index: None,
+                        new_index: Some(new_index - 1),
+                        value: first,
+                    })
                 } else {
                     None
                 }
@@ -225,11 +267,21 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                 if let Some((&first, rest)) = old_slices.split_first() {
                     old_slices = rest;
                     old_index += 1;
-                    Some((Change::Delete, Some(old_index - 1), None, first))
+                    Some(Change {
+                        tag: ChangeTag::Delete,
+                        old_index: Some(old_index - 1),
+                        new_index: None,
+                        value: first,
+                    })
                 } else if let Some((&first, rest)) = new_slices.split_first() {
                     new_slices = rest;
                     new_index += 1;
-                    Some((Change::Insert, None, Some(new_index - 1), first))
+                    Some(Change {
+                        tag: ChangeTag::Insert,
+                        old_index: None,
+                        new_index: Some(new_index - 1),
+                        value: first,
+                    })
                 } else {
                     None
                 }
@@ -306,8 +358,14 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                 UnifiedRange(group[group.len() - 1].new_range()),
             )?;
             for op in group {
-                for (change, _, _, s) in self.iter_op(&op) {
-                    write!(&mut w, "{}{}{}", change.unified_sign(), s, nl)?;
+                for change in self.iter_changes(&op) {
+                    write!(
+                        &mut w,
+                        "{}{}{}",
+                        change.tag().unified_sign(),
+                        change.value(),
+                        nl
+                    )?;
                 }
             }
         }
@@ -473,46 +531,46 @@ fn test_line_ops() {
     let changes = diff
         .ops()
         .iter()
-        .flat_map(|op| diff.iter_op(op))
+        .flat_map(|op| diff.iter_changes(op))
         .collect::<Vec<_>>();
     insta::assert_debug_snapshot!(&changes, @r###"
     [
-        (
-            Equal,
-            Some(
+        Change {
+            tag: Equal,
+            old_index: Some(
                 0,
             ),
-            Some(
+            new_index: Some(
                 0,
             ),
-            "Hello World\n",
-        ),
-        (
-            Delete,
-            Some(
+            value: "Hello World\n",
+        },
+        Change {
+            tag: Delete,
+            old_index: Some(
                 1,
             ),
-            None,
-            "some stuff here\n",
-        ),
-        (
-            Insert,
-            None,
-            Some(
+            new_index: None,
+            value: "some stuff here\n",
+        },
+        Change {
+            tag: Insert,
+            old_index: None,
+            new_index: Some(
                 1,
             ),
-            "some amazing stuff here\n",
-        ),
-        (
-            Equal,
-            Some(
+            value: "some amazing stuff here\n",
+        },
+        Change {
+            tag: Equal,
+            old_index: Some(
                 2,
             ),
-            Some(
+            new_index: Some(
                 2,
             ),
-            "some more stuff here\n",
-        ),
+            value: "some more stuff here\n",
+        },
     ]
     "###);
 }
