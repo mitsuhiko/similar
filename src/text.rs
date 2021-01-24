@@ -256,12 +256,12 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     }
 
     /// Creates a diff of words.
-    pub fn from_words(&self, old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
+    pub fn from_words(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
         Self::configure().diff_words(old, new)
     }
 
     /// Creates a diff of chars.
-    pub fn from_chars(&self, old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
+    pub fn from_chars(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
         Self::configure().diff_chars(old, new)
     }
 
