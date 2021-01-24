@@ -12,6 +12,20 @@ It provides both low level implementations of Myer's and the Patience diff
 algorithm as well as high level text diffing utilities (such as the ability
 to generate unified diffs).
 
+```rust
+use similar::algorithms::Algorithm;
+use similar::text::unified_diff;
+
+let unified_diff = unified_diff(
+    Algorithm::Patience,
+    old_text,
+    new_text,
+    3,
+    Some(("old.txt", "new.text"))
+);
+println!("{}", unified_diff);
+```
+
 ## License and Links
 
 - [Documentation](https://docs.rs/similar/)
