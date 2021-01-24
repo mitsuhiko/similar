@@ -47,6 +47,7 @@
 //!
 //! Because the [`TextDiff::grouped_ops`] method can isolate clusters of changes
 //! this even works for very long files if paired with this method.
+#![cfg(feature = "text")]
 use std::borrow::Cow;
 use std::fmt;
 use std::io;

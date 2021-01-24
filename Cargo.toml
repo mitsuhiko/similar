@@ -13,7 +13,8 @@ readme = "README.md"
 all-features = true
 
 [features]
-default = []
+default = ["text"]
+text = []
 unicode = ["unicode-segmentation"]
 
 [dev-dependencies]
