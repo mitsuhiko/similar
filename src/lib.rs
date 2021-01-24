@@ -28,5 +28,6 @@
 //!   gains the ability to diff on a grapheme instead of character level.  This
 //!   is particularly useful when working with text containing emojis.
 //! * `text`: this feature is enabled by default and enables the [`text`] module.
+//!   If the crate is used without default features it's removed.
 pub mod algorithms;
 pub mod text;

@@ -68,8 +68,8 @@ impl DiffOp {
     /// * `Delete`: `a[i1..i2]` should be deleted (`j1 == j2` in this case).
     /// * `Insert`: `b[j1..j2]` should be inserted at `a[i1..i2]` (`i1 == i2` in this case).
     /// * `Equal`: `a[i1..i2]` is equal to `b[j1..j2]`.
-    pub fn as_tag_tuple(self) -> (DiffTag, Range<usize>, Range<usize>) {
-        match self {
+    pub fn as_tag_tuple(&self) -> (DiffTag, Range<usize>, Range<usize>) {
+        match *self {
             DiffOp::Equal {
                 old_index,
                 new_index,
