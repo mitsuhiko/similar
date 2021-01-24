@@ -1,0 +1,11 @@
+---
+source: src/text.rs
+expression: "&diff.unified_diff(3, Some((\"old\", \"new\")))"
+---
+--- old
++++ new
+@@ -0 +2 @@
+ Hello World
+-some stuff here
++some amazing stuff here
+ some more stuff here

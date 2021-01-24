@@ -605,26 +605,7 @@ fn test_captured_ops() {
         "Hello World\nsome stuff here\nsome more stuff here\n",
         "Hello World\nsome amazing stuff here\nsome more stuff here\n",
     );
-    insta::assert_debug_snapshot!(&diff.ops(), @r###"
-    [
-        Equal {
-            old_index: 0,
-            new_index: 0,
-            len: 1,
-        },
-        Replace {
-            old_index: 1,
-            old_len: 1,
-            new_index: 1,
-            new_len: 1,
-        },
-        Equal {
-            old_index: 2,
-            new_index: 2,
-            len: 1,
-        },
-    ]
-    "###);
+    insta::assert_debug_snapshot!(&diff.ops());
 }
 
 #[test]
@@ -634,15 +615,7 @@ fn test_unified_diff() {
         "Hello World\nsome amazing stuff here\nsome more stuff here\n",
     );
     assert_eq!(diff.newline_terminated(), true);
-    insta::assert_snapshot!(&diff.unified_diff(3, Some(("old", "new"))), @r###"
-    --- old
-    +++ new
-    @@ -0 +2 @@
-     Hello World
-    -some stuff here
-    +some amazing stuff here
-     some more stuff here
-    "###);
+    insta::assert_snapshot!(&diff.unified_diff(3, Some(("old", "new"))));
 }
 
 #[test]
@@ -657,44 +630,11 @@ fn test_line_ops() {
         .iter()
         .flat_map(|op| diff.iter_changes(op))
         .collect::<Vec<_>>();
-    insta::assert_debug_snapshot!(&changes, @r###"
-    [
-        Change {
-            tag: Equal,
-            old_index: Some(
-                0,
-            ),
-            new_index: Some(
-                0,
-            ),
-            value: "Hello World\n",
-        },
-        Change {
-            tag: Delete,
-            old_index: Some(
-                1,
-            ),
-            new_index: None,
-            value: "some stuff here\n",
-        },
-        Change {
-            tag: Insert,
-            old_index: None,
-            new_index: Some(
-                1,
-            ),
-            value: "some amazing stuff here\n",
-        },
-        Change {
-            tag: Equal,
-            old_index: Some(
-                2,
-            ),
-            new_index: Some(
-                2,
-            ),
-            value: "some more stuff here\n",
-        },
-    ]
-    "###);
+    insta::assert_debug_snapshot!(&changes);
+}
+
+#[test]
+fn test_char_diff() {
+    let diff = TextDiff::from_chars("Hello World", "Hallo Welt");
+    insta::assert_debug_snapshot!(diff.ops());
 }

@@ -183,71 +183,17 @@ fn test_patience() {
     let mut d = Replace::new(crate::algorithms::Capture::new());
     diff_slices(&mut d, a, b).unwrap();
 
-    insta::assert_debug_snapshot!(d.into_inner().ops(), @r###"
-    [
-        Replace {
-            old_index: 0,
-            old_len: 1,
-            new_index: 0,
-            new_len: 1,
-        },
-        Equal {
-            old_index: 1,
-            new_index: 1,
-            len: 3,
-        },
-        Replace {
-            old_index: 4,
-            old_len: 2,
-            new_index: 4,
-            new_len: 2,
-        },
-        Equal {
-            old_index: 6,
-            new_index: 6,
-            len: 2,
-        },
-        Replace {
-            old_index: 8,
-            old_len: 1,
-            new_index: 8,
-            new_len: 1,
-        },
-        Equal {
-            old_index: 9,
-            new_index: 9,
-            len: 1,
-        },
-        Replace {
-            old_index: 10,
-            old_len: 1,
-            new_index: 10,
-            new_len: 1,
-        },
-    ]
-    "###);
+    insta::assert_debug_snapshot!(d.into_inner().ops());
 }
 
 #[test]
 fn test_patience_out_of_bounds_bug() {
+    // this used to be a bug
     let a: &[usize] = &[1, 2, 3, 4];
     let b: &[usize] = &[1, 2, 3];
 
     let mut d = Replace::new(crate::algorithms::Capture::new());
     diff_slices(&mut d, a, b).unwrap();
 
-    insta::assert_debug_snapshot!(d.into_inner().ops(), @r###"
-    [
-        Equal {
-            old_index: 0,
-            new_index: 0,
-            len: 3,
-        },
-        Delete {
-            old_index: 3,
-            old_len: 1,
-            new_index: 3,
-        },
-    ]
-    "###);
+    insta::assert_debug_snapshot!(d.into_inner().ops());
 }
