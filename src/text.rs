@@ -34,6 +34,19 @@
 //!     }
 //! }
 //! ```
+//!
+//! ## Ops vs Changes
+//!
+//! Because very commonly two compared sequences will largely match this module
+//! splits it's functionality into two layers.  The first is inherited from the
+//! general [`algorithms`](crate::algorithms) module: changes are encoded as
+//! [diff operations](crate::algorithms::DiffOp).  These are ranges of the
+//! differences by index in the source sequence.  Because this can be cumbersome
+//! to work with a separate method [`TextDiff::iter_changes`] is provided which
+//! expands all the changes on an item by item level encoded in an operation.
+//!
+//! Because the [`TextDiff::grouped_ops`] method can isolate clusters of changes
+//! this even works for very long files if paired with this method.
 use std::borrow::Cow;
 use std::fmt;
 use std::io;

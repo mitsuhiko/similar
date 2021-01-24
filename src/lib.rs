@@ -2,7 +2,7 @@
 //! interface over different types of diffing algorithms.  It's based on the
 //! the diff algorithm implementations of [pijul](https://pijul.org/).
 //!
-//! The crate is split into two levels:
+//! The crate is split into two modules:
 //!
 //! * [`algorithms`]: This implements the different types of diffing algorithms.
 //!   It provides both low level access to the algorithms with the minimal
