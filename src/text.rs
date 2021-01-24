@@ -49,6 +49,7 @@
 //! this even works for very long files if paired with this method.
 #![cfg(feature = "text")]
 use std::borrow::Cow;
+use std::collections::BinaryHeap;
 use std::fmt;
 use std::io;
 use std::ops::Range;
@@ -270,13 +271,12 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     ///
     /// This requires the `unicode` feature.
     #[cfg(feature = "unicode")]
-    pub fn from_graphemes(&self, old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
+    pub fn from_graphemes(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
         Self::configure().diff_graphemes(old, new)
     }
 
     /// Creates a diff of arbitrary slices.
     pub fn from_slices(
-        &self,
         old: &'bufs [&'old str],
         new: &'bufs [&'new str],
     ) -> TextDiff<'old, 'new, 'bufs> {
@@ -571,6 +571,16 @@ fn split_graphemes(s: &str) -> impl Iterator<Item = &str> {
     unicode_segmentation::UnicodeSegmentation::graphemes(s, true)
 }
 
+// quick and dirty way to get an upper sequence ratio.
+fn upper_seq_ratio<T: PartialEq>(seq1: &[T], seq2: &[T]) -> f32 {
+    let n = seq1.len() + seq2.len();
+    if n == 0 {
+        1.0
+    } else {
+        2.0 * seq1.len().min(seq2.len()) as f32 / n as f32
+    }
+}
+
 /// Quick way to get a unified diff as string.
 pub fn unified_diff<'old, 'new>(
     alg: Algorithm,
@@ -583,6 +593,51 @@ pub fn unified_diff<'old, 'new>(
         .algorithm(alg)
         .diff_lines(old, new)
         .unified_diff(n, header)
+}
+
+/// Use the text differ to find `n` close matches.
+///
+/// `cutoff` defines the threshold which needs to be reached for a word
+/// to be considered similar.  See [`TextDiff::ratio`] for more information.
+///
+/// ```
+/// # use similar::text::get_close_matches;
+/// let matches = get_close_matches(
+///     "appel",
+///     &["ape", "apple", "peach", "puppy"][..],
+///     3,
+///     0.6
+/// );
+/// assert_eq!(matches, vec!["apple", "ape"]);
+/// ```
+pub fn get_close_matches<'a>(
+    word: &str,
+    possibilities: &[&'a str],
+    n: usize,
+    cutoff: f32,
+) -> Vec<&'a str> {
+    let mut matches = BinaryHeap::new();
+    let seq1 = split_chars(word).collect::<Vec<_>>();
+    for &possibility in possibilities {
+        let seq2 = split_chars(possibility).collect::<Vec<_>>();
+        if upper_seq_ratio(&seq1, &seq2) < cutoff {
+            continue;
+        }
+        let diff = TextDiff::from_slices(&seq1, &seq2);
+        let ratio = diff.ratio();
+        if ratio >= cutoff {
+            matches.push(((ratio * u32::MAX as f32) as u32, possibility));
+        }
+    }
+    let mut rv = vec![];
+    for _ in 0..n {
+        if let Some((_, elt)) = matches.pop() {
+            rv.push(elt);
+        } else {
+            break;
+        }
+    }
+    rv
 }
 
 #[test]
@@ -667,4 +722,10 @@ fn test_ratio() {
     assert_eq!(diff.ratio(), 0.75);
     let diff = TextDiff::from_chars("", "");
     assert_eq!(diff.ratio(), 1.0);
+}
+
+#[test]
+fn test_get_close_matches() {
+    let matches = get_close_matches("appel", &["ape", "apple", "peach", "puppy"][..], 3, 0.6);
+    assert_eq!(matches, vec!["apple", "ape"]);
 }
