@@ -16,14 +16,14 @@ to generate unified diffs).
 use similar::algorithms::Algorithm;
 use similar::text::unified_diff;
 
-let unified_diff = unified_diff(
+let udiff = unified_diff(
     Algorithm::Patience,
     old_text,
     new_text,
     3,
     Some(("old.txt", "new.text"))
 );
-println!("{}", unified_diff);
+println!("{}", udiff);
 ```
 
 ## License and Links
