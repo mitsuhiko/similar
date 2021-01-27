@@ -109,6 +109,33 @@ impl DiffOp {
             ),
         }
     }
+
+    /// Apply this operation to a diff hook.
+    pub fn apply_to_hook<D: DiffHook>(&self, d: &mut D) -> Result<(), D::Error> {
+        match *self {
+            DiffOp::Equal {
+                old_index,
+                new_index,
+                len,
+            } => d.equal(old_index, new_index, len),
+            DiffOp::Delete {
+                old_index,
+                old_len,
+                new_index,
+            } => d.delete(old_index, old_len, new_index),
+            DiffOp::Insert {
+                old_index,
+                new_index,
+                new_len,
+            } => d.insert(old_index, new_index, new_len),
+            DiffOp::Replace {
+                old_index,
+                old_len,
+                new_index,
+                new_len,
+            } => d.replace(old_index, old_len, new_index, new_len),
+        }
+    }
 }
 
 /// A [`DiffHook`] that captures all diff operations.

@@ -2,6 +2,10 @@
 
 All notable changes to similar are documented here.
 
+## 0.5.0
+
+* Add `DiffOp::apply_to_hook` to apply a captured op to a diff hook.
+
 ## 0.4.0
 
 * Change `get_close_matches` to use Python's quick ratio optimization
