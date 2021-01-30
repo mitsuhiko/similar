@@ -89,12 +89,15 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiff<'diff, 'old, 'new, 'bufs> {
     pub fn from_text_diff(diff: &'diff TextDiff<'old, 'new, 'bufs>) -> Self {
         UnifiedDiff {
             diff,
-            context_radius: 5,
+            context_radius: 3,
             header: None,
         }
     }
 
-    /// Changes the context radius.  Defaults to `5`.
+    /// Changes the context radius.
+    ///
+    /// The context radius is the number of lines between changes that should
+    /// be emitted.  This defaults to `3`.
     pub fn context_radius(&mut self, n: usize) -> &mut Self {
         self.context_radius = n;
         self
@@ -208,6 +211,9 @@ impl<'diff, 'old, 'new, 'bufs> fmt::Display for UnifiedDiff<'diff, 'old, 'new, '
 }
 
 /// Quick way to get a unified diff as string.
+///
+/// `n` configures [`UnifiedDiff::context_radius`] and
+/// `header` configures [`UnifiedDiff::header`] when not `None`.
 pub fn unified_diff<'old, 'new>(
     alg: Algorithm,
     old: &'old str,
@@ -222,4 +228,13 @@ pub fn unified_diff<'old, 'new>(
         .context_radius(n)
         .header_opt(header)
         .to_string()
+}
+
+#[test]
+fn test_unified_diff() {
+    let diff = TextDiff::from_lines(
+        "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no\np\nq\nr\ns\nt\nu\nv\nw\nx\ny\nz\nA\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP\nQ\nR\nS\nT\nU\nV\nW\nX\nY\nZ",
+        "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no\np\nq\nr\nS\nt\nu\nv\nw\nx\ny\nz\nA\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\no\nP\nQ\nR\nS\nT\nU\nV\nW\nX\nY\nZ",
+    );
+    insta::assert_snapshot!(&diff.unified_diff().header("a.txt", "b.txt").to_string());
 }
