@@ -101,6 +101,11 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiff<'diff, 'old, 'new, 'bufs> {
     }
 
     /// Sets a header to the diff.
+    ///
+    /// `a` and `b` are the file names that are added to the top of the unified
+    /// file format.  The names are accepted verbaitim which lets you encode
+    /// a timestamp into it when separated by a tab (`\t`).  For more information
+    /// see [the unified diff format specification](https://pubs.opengroup.org/onlinepubs/9699919799/utilities/diff.html#tag_20_34_10_07)
     pub fn header(&mut self, a: &str, b: &str) -> &mut Self {
         self.header = Some((a.to_string(), b.to_string()));
         self
