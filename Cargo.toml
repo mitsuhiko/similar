@@ -23,3 +23,11 @@ console = "0.14.0"
 
 [dependencies]
 unicode-segmentation = { version = "1.7.1", optional = true }
+
+[[example]]
+name = "terminal"
+required-features = ["text"]
+
+[[example]]
+name = "udiff"
+required-features = ["text"]
