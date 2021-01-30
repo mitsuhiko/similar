@@ -29,7 +29,7 @@ fn main() {
                 ChangeTag::Insert => "+",
                 ChangeTag::Equal => " ",
             };
-            print!("{}{}", sign, change);
+            print!("{}{}", sign, change.value());
         }
     }
 }

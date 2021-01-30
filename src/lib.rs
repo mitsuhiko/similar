@@ -4,10 +4,23 @@
 //!
 //! ```rust
 //! # #[cfg(feature = "text")] {
-//! use similar::text::TextDiff;
-//! # let old_text = "";
-//! # let new_text = "";
-//! let diff = TextDiff::from_chars("Hello World", "Hallo Welt");
+//! use similar::text::{ChangeTag, TextDiff};
+//!
+//! let diff = TextDiff::from_lines(
+//!     "Hello World\nThis is the second line.\nThis is the third.",
+//!     "Hallo Welt\nThis is the second line.\nThis is life.\nMoar and more",
+//! );
+//!
+//! for op in diff.ops() {
+//!     for change in diff.iter_changes(op) {
+//!         let sign = match change.tag() {
+//!             ChangeTag::Delete => "-",
+//!             ChangeTag::Insert => "+",
+//!             ChangeTag::Equal => " ",
+//!         };
+//!         print!("{}{}", sign, change.value());
+//!     }
+//! }
 //! # }
 //! ```
 //!
