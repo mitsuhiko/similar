@@ -14,18 +14,33 @@ It's intended to be replacement for the popular but unmaintained
 [difference] crate.
 
 ```rust
-use similar::algorithms::Algorithm;
-use similar::text::unified_diff;
+use similar::text::{ChangeTag, TextDiff};
 
-let udiff = unified_diff(
-    Algorithm::Patience,
-    old_text,
-    new_text,
-    3,
-    Some(("old.txt", "new.text"))
-);
-println!("{}", udiff);
+fn main() {
+    let diff = TextDiff::from_lines(
+        "Hello World\nThis is the second line.\nThis is the third.",
+        "Hallo Welt\nThis is the second line.\nThis is life.\nMoar and more",
+    );
+
+    for op in diff.ops() {
+        for change in diff.iter_changes(op) {
+            let sign = match change.tag() {
+                ChangeTag::Delete => "-",
+                ChangeTag::Insert => "+",
+                ChangeTag::Equal => " ",
+            };
+            print!("{}{}", sign, change);
+        }
+    }
+}
 ```
+
+## What's in the box?
+
+* Myer's diff
+* Patience diff
+* Line, word, character and grapheme level diffing
+* Unified diff generation
 
 ## License and Links
 
