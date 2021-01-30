@@ -19,7 +19,7 @@ use std::fmt;
 use std::ops::Range;
 
 use crate::algorithms::{Algorithm, DiffOp};
-use crate::text::{ChangeTag, TextDiff};
+use crate::text::{Change, ChangeTag, TextDiff};
 
 /// Represents a range of a unified diff hunk.
 #[derive(Copy, Clone, Debug)]
@@ -153,6 +153,17 @@ impl<'diff, 'old, 'new, 'bufs> Hunk<'diff, 'old, 'new, 'bufs> {
     pub fn ops(&self) -> &[DiffOp] {
         &self.ops
     }
+
+    /// Iterates over all changes in a hunk.
+    pub fn iter_changes(&self) -> impl Iterator<Item = Change<'_>> {
+        // unclear why this needs Box::new here.  It seems to infer some really
+        // odd lifetimes I can't figure out how to work with.
+        (Box::new(
+            self.ops()
+                .iter()
+                .flat_map(move |op| self.diff.iter_changes(op)),
+        )) as Box<dyn Iterator<Item = _>>
+    }
 }
 
 impl<'diff, 'old, 'new, 'bufs> fmt::Display for Hunk<'diff, 'old, 'new, 'bufs> {
@@ -163,20 +174,18 @@ impl<'diff, 'old, 'new, 'bufs> fmt::Display for Hunk<'diff, 'old, 'new, 'bufs> {
             "\n"
         };
         writeln!(f, "{}", self.header())?;
-        for op in self.ops() {
-            for change in self.diff.iter_changes(&op) {
-                write!(
-                    f,
-                    "{}{}{}",
-                    match change.tag() {
-                        ChangeTag::Equal => ' ',
-                        ChangeTag::Delete => '-',
-                        ChangeTag::Insert => '+',
-                    },
-                    change.value(),
-                    nl
-                )?;
-            }
+        for change in self.iter_changes() {
+            write!(
+                f,
+                "{}{}{}",
+                match change.tag() {
+                    ChangeTag::Equal => ' ',
+                    ChangeTag::Delete => '-',
+                    ChangeTag::Insert => '+',
+                },
+                change.value(),
+                nl
+            )?;
         }
         Ok(())
     }
