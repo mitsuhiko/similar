@@ -31,3 +31,7 @@ required-features = ["text"]
 [[example]]
 name = "udiff"
 required-features = ["text"]
+
+[[example]]
+name = "close-matches"
+required-features = ["text"]
