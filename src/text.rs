@@ -21,7 +21,7 @@
 //! # let old_text = "";
 //! # let new_text = "";
 //! let diff = TextDiff::from_lines(old_text, new_text);
-//! let unified_diff = diff.unified_diff(3, Some(("old_file", "new_file")));
+//! let unified_diff = diff.unified_diff().header("old_file", "new_file").to_string();
 //! ```
 //!
 //! This is another example that iterates over the actual changes:
@@ -54,11 +54,9 @@
 use std::borrow::Cow;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
-use std::fmt;
-use std::io;
-use std::ops::Range;
 
 use crate::algorithms::{capture_diff_slices, group_diff_ops, Algorithm, DiffOp, DiffTag};
+use crate::udiff::UnifiedDiff;
 
 /// A builder type config for more complex uses of [`TextDiff`].
 #[derive(Clone, Debug)]
@@ -85,13 +83,13 @@ impl TextDiffConfig {
         self
     }
 
-    /// Changes the newlnine termination flag.
+    /// Changes the newline termination flag.
     ///
     /// The default is automatic based on input.  This flag controls the
-    /// behavior of the [`TextDiff::write_unified_diff`] method with regards
-    /// to newlines.  When the flag is set to `false` (which is the default)
-    /// then newlines are added.  Otherwise the newlines from the source
-    /// sequences are reused.
+    /// behavior of [`TextDiff::iter_changes`] and unified diff generation
+    /// with regards to newlines.  When the flag is set to `false` (which
+    /// is the default) then newlines are added.  Otherwise the newlines
+    /// from the source sequences are reused.
     pub fn newline_terminated(&mut self, yes: bool) -> &mut Self {
         self.newline_terminated = Some(yes);
         self
@@ -254,23 +252,6 @@ const VIRTUAL_NEWLINE_CHANGE: Change<'static> = Change {
     new_index: None,
     value: "\n",
 };
-
-impl ChangeTag {
-    /// Returns the unified sign of this change.
-    ///
-    /// This is the prefix rendered into a unified diff:
-    ///
-    /// * `Equal`: an empty space (` `)
-    /// * `Delete: a minus sign (`-`)
-    /// * `Insert: a plus sign (`+`)
-    pub fn unified_sign(self) -> char {
-        match self {
-            ChangeTag::Equal => ' ',
-            ChangeTag::Delete => '-',
-            ChangeTag::Insert => '+',
-        }
-    }
-}
 
 impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     /// Configures a text differ before diffing.
@@ -495,75 +476,9 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
         group_diff_ops(self.ops().to_vec(), n)
     }
 
-    /// Format a unified diff as string.
-    ///
-    /// This is more or less equivalent to using [`TextDiff::write_unified_diff`] just
-    /// that a string is produced.  Additionally if line diffs are printed
-    /// a single trailing newline is removed automatically.
-    pub fn unified_diff(&self, n: usize, header: Option<(&str, &str)>) -> String {
-        let mut rv = Vec::<u8>::new();
-        self.write_unified_diff(&mut rv, n, header).unwrap();
-        if self.newline_terminated && rv.last() == Some(&b'\n') {
-            rv.truncate(rv.len() - 1);
-        }
-        unsafe { String::from_utf8_unchecked(rv) }
-    }
-
-    /// Write a unified diff.
-    ///
-    /// This takes a writer `w` and the number of context lines `n` which should
-    /// be shown around changes.  Optionally a `header` can be provided which
-    /// will be written.  The header should be two file names.
-    pub fn write_unified_diff<W: io::Write>(
-        &self,
-        mut w: W,
-        n: usize,
-        mut header: Option<(&str, &str)>,
-    ) -> Result<(), io::Error> {
-        struct UnifiedRange(Range<usize>);
-
-        impl fmt::Display for UnifiedRange {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                let mut beginning = self.0.start;
-                let len = self.0.end - self.0.start;
-                if len == 1 {
-                    write!(f, "{}", beginning)
-                } else {
-                    if len == 0 {
-                        // empty ranges begin at line just before the range
-                        beginning -= 1;
-                    }
-                    write!(f, "{},{}", beginning, len)
-                }
-            }
-        }
-
-        let nl = if self.newline_terminated { "" } else { "\n" };
-
-        for group in self.grouped_ops(n) {
-            if let Some((old_file, new_file)) = header.take() {
-                writeln!(&mut w, "--- {}", old_file)?;
-                writeln!(&mut w, "+++ {}", new_file)?;
-            }
-            writeln!(
-                &mut w,
-                "@@ -{} +{} @@",
-                UnifiedRange(group[0].old_range()),
-                UnifiedRange(group[group.len() - 1].new_range()),
-            )?;
-            for op in group {
-                for change in self.iter_changes(&op) {
-                    write!(
-                        &mut w,
-                        "{}{}{}",
-                        change.tag().unified_sign(),
-                        change.value(),
-                        nl
-                    )?;
-                }
-            }
-        }
-        Ok(())
+    /// Utility to return a unified diff formatter.
+    pub fn unified_diff<'diff>(&'diff self) -> UnifiedDiff<'diff, 'old, 'new, 'bufs> {
+        UnifiedDiff::from_text_diff(self)
     }
 }
 
@@ -698,20 +613,6 @@ impl<'a> QuickSeqRatio<'a> {
     }
 }
 
-/// Quick way to get a unified diff as string.
-pub fn unified_diff<'old, 'new>(
-    alg: Algorithm,
-    old: &'old str,
-    new: &'new str,
-    n: usize,
-    header: Option<(&str, &str)>,
-) -> String {
-    TextDiff::configure()
-        .algorithm(alg)
-        .diff_lines(old, new)
-        .unified_diff(n, header)
-}
-
 /// Use the text differ to find `n` close matches.
 ///
 /// `cutoff` defines the threshold which needs to be reached for a word
@@ -817,7 +718,11 @@ fn test_unified_diff() {
         "Hello World\nsome amazing stuff here\nsome more stuff here\n",
     );
     assert_eq!(diff.newline_terminated(), true);
-    insta::assert_snapshot!(&diff.unified_diff(3, Some(("old", "new"))));
+    insta::assert_snapshot!(&diff
+        .unified_diff()
+        .context_radius(3)
+        .header("old", "new")
+        .to_string());
 }
 
 #[test]
