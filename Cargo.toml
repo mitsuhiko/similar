@@ -19,6 +19,7 @@ unicode = ["text", "unicode-segmentation"]
 
 [dev-dependencies]
 insta = "1.5.2"
+console = "0.14.0"
 
 [dependencies]
 unicode-segmentation = { version = "1.7.1", optional = true }
