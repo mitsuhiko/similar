@@ -6,7 +6,8 @@ All notable changes to similar are documented here.
 
 * Add `DiffOp::apply_to_hook` to apply a captured op to a diff hook.
 * Added virtual newline handling to `iter_changes`.
-* Moved unified diff support into separate module `udiff`.
+* Made unified diff support more flexible through the introduction of
+  the `UnifiedDiff` type.
 
 ## 0.4.0
 

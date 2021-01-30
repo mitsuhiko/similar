@@ -13,7 +13,6 @@
 //!     .context_radius(10)
 //!     .header("old_file", "new_file"));
 //! ```
-#![cfg(feature = "text")]
 
 use std::fmt;
 use std::ops::Range;
@@ -21,13 +20,12 @@ use std::ops::Range;
 use crate::algorithms::{Algorithm, DiffOp};
 use crate::text::{Change, ChangeTag, TextDiff};
 
-/// Represents a range of a unified diff hunk.
 #[derive(Copy, Clone, Debug)]
-struct HunkRange(usize, usize);
+struct UnifiedDiffHunkRange(usize, usize);
 
-impl HunkRange {
-    fn new(range: Range<usize>) -> HunkRange {
-        HunkRange(range.start, range.end)
+impl UnifiedDiffHunkRange {
+    fn new(range: Range<usize>) -> UnifiedDiffHunkRange {
+        UnifiedDiffHunkRange(range.start, range.end)
     }
 
     fn start(&self) -> usize {
@@ -39,7 +37,7 @@ impl HunkRange {
     }
 }
 
-impl fmt::Display for HunkRange {
+impl fmt::Display for UnifiedDiffHunkRange {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut beginning = self.start();
         let len = self.end() - self.start();
@@ -55,29 +53,29 @@ impl fmt::Display for HunkRange {
     }
 }
 
-/// Formats a unified diff hunk header for a group of diff operations.
-pub struct HunkHeader {
-    old_range: HunkRange,
-    new_range: HunkRange,
+/// Unified diff hunk header formatter.
+pub struct UnifiedHunkHeader {
+    old_range: UnifiedDiffHunkRange,
+    new_range: UnifiedDiffHunkRange,
 }
 
-impl HunkHeader {
+impl UnifiedHunkHeader {
     /// Creates a hunk header from a (non empty) slice of diff ops.
-    pub fn new(ops: &[DiffOp]) -> HunkHeader {
-        HunkHeader {
-            old_range: HunkRange::new(ops[0].old_range()),
-            new_range: HunkRange::new(ops[ops.len() - 1].new_range()),
+    pub fn new(ops: &[DiffOp]) -> UnifiedHunkHeader {
+        UnifiedHunkHeader {
+            old_range: UnifiedDiffHunkRange::new(ops[0].old_range()),
+            new_range: UnifiedDiffHunkRange::new(ops[ops.len() - 1].new_range()),
         }
     }
 }
 
-impl fmt::Display for HunkHeader {
+impl fmt::Display for UnifiedHunkHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "@@ -{} +{} @@", &self.old_range, &self.new_range)
     }
 }
 
-/// A unified diff formatter.
+/// Unified diff formatter.
 ///
 /// The `Display` implementation renders a unified diff.
 pub struct UnifiedDiff<'diff, 'old, 'new, 'bufs> {
@@ -109,13 +107,13 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiff<'diff, 'old, 'new, 'bufs> {
     }
 
     /// Iterates over all hunks as configured.
-    pub fn iter_hunks(&self) -> impl Iterator<Item = Hunk<'diff, 'old, 'new, 'bufs>> {
+    pub fn iter_hunks(&self) -> impl Iterator<Item = UnifiedDiffHunk<'diff, 'old, 'new, 'bufs>> {
         let diff = self.diff;
         self.diff
             .grouped_ops(self.context_radius)
             .into_iter()
             .filter(|ops| !ops.is_empty())
-            .map(move |ops| Hunk::new(ops, diff))
+            .map(move |ops| UnifiedDiffHunk::new(ops, diff))
     }
 
     fn header_opt(&mut self, header: Option<(&str, &str)>) -> &mut Self {
@@ -126,27 +124,26 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiff<'diff, 'old, 'new, 'bufs> {
     }
 }
 
-/// Represents a single hunk in a unified diff.
+/// Unified diff hunk formatter.
 ///
-/// When formatted with `Display` this renders out a single unified diff's
-/// hunk.
-pub struct Hunk<'diff, 'old, 'new, 'bufs> {
+/// The `Display` this renders out a single unified diff's hunk.
+pub struct UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
     diff: &'diff TextDiff<'old, 'new, 'bufs>,
     ops: Vec<DiffOp>,
 }
 
-impl<'diff, 'old, 'new, 'bufs> Hunk<'diff, 'old, 'new, 'bufs> {
+impl<'diff, 'old, 'new, 'bufs> UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
     /// Creates a new hunk for some operations.
     pub fn new(
         ops: Vec<DiffOp>,
         diff: &'diff TextDiff<'old, 'new, 'bufs>,
-    ) -> Hunk<'diff, 'old, 'new, 'bufs> {
-        Hunk { diff, ops }
+    ) -> UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
+        UnifiedDiffHunk { diff, ops }
     }
 
     /// Returns the header for the hunk.
-    pub fn header(&self) -> HunkHeader {
-        HunkHeader::new(&self.ops)
+    pub fn header(&self) -> UnifiedHunkHeader {
+        UnifiedHunkHeader::new(&self.ops)
     }
 
     /// Returns all operations in the hunk.
@@ -155,7 +152,7 @@ impl<'diff, 'old, 'new, 'bufs> Hunk<'diff, 'old, 'new, 'bufs> {
     }
 
     /// Iterates over all changes in a hunk.
-    pub fn iter_changes(&self) -> impl Iterator<Item = Change<'_>> {
+    pub fn iter_changes(&self) -> impl Iterator<Item = Change<'_>> + '_ {
         // unclear why this needs Box::new here.  It seems to infer some really
         // odd lifetimes I can't figure out how to work with.
         (Box::new(
@@ -166,7 +163,7 @@ impl<'diff, 'old, 'new, 'bufs> Hunk<'diff, 'old, 'new, 'bufs> {
     }
 }
 
-impl<'diff, 'old, 'new, 'bufs> fmt::Display for Hunk<'diff, 'old, 'new, 'bufs> {
+impl<'diff, 'old, 'new, 'bufs> fmt::Display for UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let nl = if self.diff.newline_terminated() {
             ""

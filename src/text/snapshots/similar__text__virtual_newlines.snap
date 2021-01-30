@@ -1,5 +1,5 @@
 ---
-source: src/text.rs
+source: src/text/mod.rs
 expression: "&changes"
 ---
 [
@@ -11,7 +11,7 @@ expression: "&changes"
         new_index: Some(
             0,
         ),
-        value: "Hello World\n",
+        value: "a\n",
     },
     Change {
         tag: Delete,
@@ -19,7 +19,13 @@ expression: "&changes"
             1,
         ),
         new_index: None,
-        value: "some stuff here\n",
+        value: "b",
+    },
+    Change {
+        tag: Equal,
+        old_index: None,
+        new_index: None,
+        value: "\n",
     },
     Change {
         tag: Insert,
@@ -27,16 +33,6 @@ expression: "&changes"
         new_index: Some(
             1,
         ),
-        value: "some amazing stuff here\n",
-    },
-    Change {
-        tag: Equal,
-        old_index: Some(
-            2,
-        ),
-        new_index: Some(
-            2,
-        ),
-        value: "some more stuff here\n",
+        value: "c\n",
     },
 ]

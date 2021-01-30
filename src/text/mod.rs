@@ -55,8 +55,10 @@ use std::borrow::Cow;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
+mod udiff;
+pub use self::udiff::*;
+
 use crate::algorithms::{capture_diff_slices, group_diff_ops, Algorithm, DiffOp, DiffTag};
-use crate::udiff::UnifiedDiff;
 
 /// A builder type config for more complex uses of [`TextDiff`].
 #[derive(Clone, Debug)]

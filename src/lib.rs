@@ -18,7 +18,6 @@
 //!   trait bounds necessary, as well as a generic interface.
 //! * [`text`]: This extends the general diffing functionality to text (and more
 //!   specifically line) based diff operations.
-//! * [`udiff`]: Unified diff functionality.
 //!
 //! ## Features
 //!
@@ -33,4 +32,3 @@
 //!   If the crate is used without default features it's removed.
 pub mod algorithms;
 pub mod text;
-pub mod udiff;
