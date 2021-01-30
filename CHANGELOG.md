@@ -8,6 +8,8 @@ All notable changes to similar are documented here.
 * Added virtual newline handling to `iter_changes`.
 * Made unified diff support more flexible through the introduction of
   the `UnifiedDiff` type.
+* Fixed grouped diff operation to return an empty result if the diff
+  does not show any changes.
 
 ## 0.4.0
 

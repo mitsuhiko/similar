@@ -222,8 +222,9 @@ pub fn group_diff_ops(mut ops: Vec<DiffOp>, n: usize) -> Vec<Vec<DiffOp>> {
         pending_group.push(op);
     }
 
-    if !pending_group.is_empty() {
-        rv.push(pending_group);
+    match &pending_group[..] {
+        &[] | &[DiffOp::Equal { .. }] => {}
+        _ => rv.push(pending_group),
     }
 
     rv

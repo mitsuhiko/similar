@@ -1,0 +1,25 @@
+---
+source: src/text/udiff.rs
+expression: "&diff.unified_diff().header(\"a.txt\", \"b.txt\").to_string()"
+---
+--- a.txt
++++ b.txt
+@@ -15,3 +19,3 @@
+ p
+ q
+ r
+-s
++S
+ t
+ u
+ v
+@@ -37,3 +41,3 @@
+ L
+ M
+ N
+-O
++o
+ P
+ Q
+ R
+

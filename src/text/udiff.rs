@@ -178,8 +178,12 @@ impl<'diff, 'old, 'new, 'bufs> fmt::Display for UnifiedDiffHunk<'diff, 'old, 'ne
         } else {
             "\n"
         };
-        writeln!(f, "{}", self.header())?;
+        let mut wrote_header = false;
         for change in self.iter_changes() {
+            if !wrote_header {
+                writeln!(f, "{}", self.header())?;
+                wrote_header = true;
+            }
             write!(
                 f,
                 "{}{}{}",
@@ -237,4 +241,9 @@ fn test_unified_diff() {
         "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no\np\nq\nr\nS\nt\nu\nv\nw\nx\ny\nz\nA\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\no\nP\nQ\nR\nS\nT\nU\nV\nW\nX\nY\nZ",
     );
     insta::assert_snapshot!(&diff.unified_diff().header("a.txt", "b.txt").to_string());
+}
+#[test]
+fn test_empty_unified_diff() {
+    let diff = TextDiff::from_lines("abc", "abc");
+    assert_eq!(diff.unified_diff().header("a.txt", "b.txt").to_string(), "");
 }
