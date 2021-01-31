@@ -1,6 +1,6 @@
 use std::iter;
 
-use crate::algorithms::{DiffOp, DiffTag};
+use crate::algorithms::{Algorithm, DiffOp, DiffTag};
 use crate::text::{Change, ChangeTag, TextDiff};
 
 use super::split_chars;
@@ -102,7 +102,9 @@ pub(crate) fn iter_inline_changes<'diff>(
                     let new_chars = split_chars(&new_value).collect::<Vec<_>>();
                     let old_mindex = MultiIndex::new(&old_chars, old_value);
                     let new_mindex = MultiIndex::new(&new_chars, new_value);
-                    let inline_diff = TextDiff::from_slices(&old_chars, &new_chars);
+                    let inline_diff = TextDiff::configure()
+                        .algorithm(Algorithm::Patience)
+                        .diff_slices(&old_chars, &new_chars);
 
                     if inline_diff.ratio() < 0.5 {
                         return Some(None.into_iter().chain(Some(change.into()).into_iter()));
