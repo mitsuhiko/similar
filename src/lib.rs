@@ -18,7 +18,7 @@
 //!             ChangeTag::Insert => "+",
 //!             ChangeTag::Equal => " ",
 //!         };
-//!         print!("{}{}", sign, change.value());
+//!         print!("{}{}", sign, change);
 //!     }
 //! }
 //! # }

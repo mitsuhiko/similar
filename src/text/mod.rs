@@ -475,6 +475,13 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
         })
     }
 
+    /// Iterates over the changes the op expands to with inline emphasis.
+    ///
+    /// This is very similar to [`iter_changes`] but it performs a second
+    /// level per-character diff on adjacent line replacements.  The exact
+    /// behavior of this function with regards to how it detects those
+    /// inline changes is currently not defined and will likely change
+    /// over time.
     pub fn iter_inline_changes(&self, op: &DiffOp) -> impl Iterator<Item = InlineChange> {
         iter_inline_changes(self, op)
     }
