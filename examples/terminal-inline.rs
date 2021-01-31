@@ -27,7 +27,7 @@ fn main() {
             print!("{}", style.apply_to(sign).bold(),);
             for &(emphasized, value) in change.values() {
                 if emphasized {
-                    print!("{}", style.apply_to(value).underlined());
+                    print!("{}", style.apply_to(value).underlined().on_black());
                 } else {
                     print!("{}", style.apply_to(value));
                 }
