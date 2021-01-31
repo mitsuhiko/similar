@@ -3,7 +3,7 @@ use std::{fmt, iter};
 use crate::algorithms::{Algorithm, DiffOp, DiffTag};
 use crate::text::{Change, ChangeTag, TextDiff};
 
-use super::split_chars;
+use super::split_words;
 
 use std::ops::Range;
 
@@ -75,7 +75,7 @@ impl<'s> From<Change<'s>> for InlineChange<'s> {
         InlineChange {
             tag: change.tag(),
             old_index: change.old_index(),
-            new_index: change.old_index(),
+            new_index: change.new_index(),
             values: vec![(false, change.value())],
             missing_newline: change.missing_newline(),
         }
@@ -118,8 +118,8 @@ pub(crate) fn iter_inline_changes<'diff>(
                 (ChangeTag::Delete, Some(ChangeTag::Insert)) => {
                     let old_value = change.value();
                     let new_value = next_change.unwrap().value();
-                    let old_chars = split_chars(&old_value).collect::<Vec<_>>();
-                    let new_chars = split_chars(&new_value).collect::<Vec<_>>();
+                    let old_chars = split_words(&old_value).collect::<Vec<_>>();
+                    let new_chars = split_words(&new_value).collect::<Vec<_>>();
                     let old_mindex = MultiIndex::new(&old_chars, old_value);
                     let new_mindex = MultiIndex::new(&new_chars, new_value);
                     let inline_diff = TextDiff::configure()
@@ -158,7 +158,7 @@ pub(crate) fn iter_inline_changes<'diff>(
                         Some(InlineChange {
                             tag: ChangeTag::Delete,
                             old_index: change.old_index(),
-                            new_index: change.new_index(),
+                            new_index: None,
                             values: old_values,
                             missing_newline: newline_terminated
                                 && !old_value.ends_with(&['\r', '\n'][..]),
@@ -167,8 +167,8 @@ pub(crate) fn iter_inline_changes<'diff>(
                         .chain(
                             Some(InlineChange {
                                 tag: ChangeTag::Insert,
-                                old_index: change.old_index(),
-                                new_index: change.new_index(),
+                                old_index: None,
+                                new_index: next_change.unwrap().new_index(),
                                 values: new_values,
                                 missing_newline: newline_terminated
                                     && !new_value.ends_with(&['\r', '\n'][..]),

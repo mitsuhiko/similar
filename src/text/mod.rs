@@ -483,10 +483,9 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     /// Iterates over the changes the op expands to with inline emphasis.
     ///
     /// This is very similar to [`iter_changes`] but it performs a second
-    /// level per-character diff on adjacent line replacements.  The exact
-    /// behavior of this function with regards to how it detects those
-    /// inline changes is currently not defined and will likely change
-    /// over time.
+    /// level diff on adjacent line replacements.  The exact behavior of
+    /// this function with regards to how it detects those inline changes
+    /// is currently not defined and will likely change over time.
     pub fn iter_inline_changes(&self, op: &DiffOp) -> impl Iterator<Item = InlineChange> {
         iter_inline_changes(self, op)
     }
@@ -779,6 +778,21 @@ fn test_virtual_newlines() {
         .ops()
         .iter()
         .flat_map(|op| diff.iter_changes(op))
+        .collect::<Vec<_>>();
+    insta::assert_debug_snapshot!(&changes);
+}
+
+#[test]
+fn test_line_ops_inline() {
+    let diff = TextDiff::from_lines(
+        "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
+        "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
+    );
+    assert_eq!(diff.newline_terminated(), true);
+    let changes = diff
+        .ops()
+        .iter()
+        .flat_map(|op| diff.iter_inline_changes(op))
         .collect::<Vec<_>>();
     insta::assert_debug_snapshot!(&changes);
 }
