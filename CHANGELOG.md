@@ -11,6 +11,7 @@ All notable changes to similar are documented here.
 * Fixed grouped diff operation to return an empty result if the diff
   does not show any changes.
 * Added inline diff highlighting support.
+* Changed word splitting to split into words and whitespace.
 
 ## 0.4.0
 

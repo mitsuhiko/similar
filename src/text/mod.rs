@@ -136,6 +136,8 @@ impl TextDiffConfig {
     }
 
     /// Creates a diff of words.
+    ///
+    /// This splits the text into words and whitespace.
     pub fn diff_words<'old, 'new, 'bufs>(
         &self,
         old: &'old str,
@@ -543,37 +545,27 @@ fn split_lines(s: &str) -> impl Iterator<Item = &str> {
     .flatten()
 }
 
-/// Splits text into words with whitespace attached.
+/// Partitions at whitespace.
 fn split_words(s: &str) -> impl Iterator<Item = &str> {
     let mut iter = s.char_indices().peekable();
-    let mut last_pos = 0;
 
     std::iter::from_fn(move || {
         if let Some((idx, c)) = iter.next() {
-            let mut rv = None;
-            if c.is_whitespace() {
-                let mut last = (idx, c);
-                while let Some(&(next_idx, next_char)) = iter.peek() {
-                    if !next_char.is_whitespace() {
-                        break;
-                    }
-                    iter.next();
-                    last = (next_idx, next_char);
+            let is_whitespace = c.is_whitespace();
+            let start = idx;
+            let mut end = idx + c.len_utf8();
+            while let Some(&(_, next_char)) = iter.peek() {
+                if next_char.is_whitespace() != is_whitespace {
+                    break;
                 }
-                let whitespace_end = last.0 + last.1.len_utf8();
-                rv = Some(&s[last_pos..whitespace_end]);
-                last_pos = whitespace_end;
+                iter.next();
+                end += next_char.len_utf8();
             }
-            Some(rv)
-        } else if last_pos < s.len() {
-            let tmp = &s[last_pos..];
-            last_pos = s.len();
-            Some(Some(tmp))
+            Some(&s[start..end])
         } else {
             None
         }
     })
-    .flatten()
 }
 
 /// Splits text into characters.
@@ -706,7 +698,7 @@ fn test_split_lines() {
 fn test_split_words() {
     assert_eq!(
         split_words("foo    bar baz\n\n  aha").collect::<Vec<_>>(),
-        ["foo    ", "bar ", "baz\n\n  ", "aha"]
+        ["foo", "    ", "bar", " ", "baz", "\n\n  ", "aha"]
     );
 }
 
@@ -734,6 +726,20 @@ fn test_captured_ops() {
         "Hello World\nsome amazing stuff here\nsome more stuff here\n",
     );
     insta::assert_debug_snapshot!(&diff.ops());
+}
+
+#[test]
+fn test_captured_word_ops() {
+    let diff = TextDiff::from_words(
+        "Hello World\nsome stuff here\nsome more stuff here\n",
+        "Hello World\nsome amazing stuff here\nsome more stuff here\n",
+    );
+    let changes = diff
+        .ops()
+        .iter()
+        .flat_map(|op| diff.iter_changes(op))
+        .collect::<Vec<_>>();
+    insta::assert_debug_snapshot!(&changes);
 }
 
 #[test]
