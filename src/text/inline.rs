@@ -66,7 +66,7 @@ impl<'s> InlineChange<'s> {
 
     /// Returns `true` if this change needs to be followed up by a
     /// missing newline.
-    pub fn is_missing_newline(&self) -> bool {
+    pub fn missing_newline(&self) -> bool {
         self.missing_newline
     }
 }

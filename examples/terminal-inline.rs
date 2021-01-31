@@ -51,7 +51,7 @@ fn main() {
                         print!("{}", s.apply_to(value));
                     }
                 }
-                if change.is_missing_newline() {
+                if change.missing_newline() {
                     println!();
                 }
             }

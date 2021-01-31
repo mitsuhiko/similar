@@ -155,7 +155,8 @@ impl TextDiffConfig {
     /// Creates a diff of unicode words.
     ///
     /// This splits the text into words according to unicode rules.  This is
-    /// generally recommended over [`diff_words`] but requires a dependency.
+    /// generally recommended over [`TextDiffConfig::diff_words`] but
+    /// requires a dependency.
     ///
     /// This requires the `unicode` feature.
     #[cfg(feature = "unicode")]
@@ -513,7 +514,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
 
     /// Iterates over the changes the op expands to with inline emphasis.
     ///
-    /// This is very similar to [`iter_changes`] but it performs a second
+    /// This is very similar to [`TextDiff::iter_changes`] but it performs a second
     /// level diff on adjacent line replacements.  The exact behavior of
     /// this function with regards to how it detects those inline changes
     /// is currently not defined and will likely change over time.
