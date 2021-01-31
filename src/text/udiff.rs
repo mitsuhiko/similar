@@ -223,7 +223,7 @@ impl<'diff, 'old, 'new, 'bufs> fmt::Display for UnifiedDiffHunk<'diff, 'old, 'ne
                 if self.missing_newline_hint {
                     writeln!(f, "\n\\ No newline at end of file")?;
                 } else {
-                    writeln!(f, "")?;
+                    writeln!(f)?;
                 }
             }
         }

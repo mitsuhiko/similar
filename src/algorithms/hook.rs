@@ -1,6 +1,7 @@
 /// A trait for reacting to an edit script from the "old" version to
 /// the "new" version.
 pub trait DiffHook: Sized {
+    /// The error produced from the hook methods.
     type Error;
 
     /// Called when lines with indices `old_index` (in the old version) and

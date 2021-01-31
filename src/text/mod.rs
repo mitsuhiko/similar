@@ -215,8 +215,11 @@ pub struct TextDiff<'old, 'new, 'bufs> {
 /// The tag of a change.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
 pub enum ChangeTag {
+    /// The change indicates equality (not a change)
     Equal,
+    /// The change indicates deleted text.
     Delete,
+    /// The change indicates inserted text.
     Insert,
 }
 
