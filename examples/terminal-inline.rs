@@ -3,8 +3,18 @@ use similar::text::{ChangeTag, TextDiff};
 
 fn main() {
     let diff = TextDiff::from_lines(
-        "Hello World\nThis is the second line.\nThis is the third.",
-        "Hallo Welt\nThis is the second line.\nThis is life.\nMoar and more",
+        "schtzngrmm\nschtzngrmm\nt-t-t-t\nt-t-t-t\ngrrrmmmmm\nt-t-t-t\n\
+         s---------c---------h\ntzngrmm\ntzngrmm\ntzngrmm\ngrrrmmmmm\n\
+         schtzn\nschtzn\nt-t-t-t\nt-t-t-t\nschtzngrmm\nschtzngrmm\n\
+         tssssssssssssss\ngrrt\ngrrrrrt\ngrrrrrrrrrt\nscht\nscht\n\
+         t-t-t-t-t-t-t-t-t-t\nscht\ntzngrmm\ntzngrmm\nt-t-t-t-t-t-t-t-t-t\n\
+         scht\nscht\nscht\nscht\nscht\ngrrrrrrrrrrrrrrrrrrrrrrrrrrrr\nt-tt",
+        "schützengraben\nschützengraben\nt-t-t-t\nt-t-t-t\ngrrrmmmmm\nt-t-t-t\n\
+         s---------c---------h\ntzngrmm\ntzngrmm\ntzngrmm\ngrrrmmmmm\nschützen\n\
+         schützen\nt-t-t-t\nt-t-t-t\nschützengraben\nschützengraben\n\
+         tssssssssssssss\ngrrt\ngrrrrrt\ngrrrrrrrrrt\nscht\nscht\n\
+         t-t-t-t-t-t-t-t-t-t\nscht\ntzngrmm\ntzngrmm\nt-t-t-t-t-t-t-t-t-t\n\
+         scht\nscht\nscht\nscht\nscht\ngrrrrrrrrrrrrrrrrrrrrrrrrrrrr\nt-tt",
     );
 
     for op in diff.ops() {
