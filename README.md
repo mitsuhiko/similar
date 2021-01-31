@@ -10,9 +10,6 @@ algorithms and high level interfaces for it.  It is based on the [pijul](https:/
 implementation of the Myer's and Patience algorithms and inherits some ideas
 from there.
 
-It's intended to be replacement for the popular but unmaintained
-[difference] crate.
-
 ```rust
 use similar::text::{ChangeTag, TextDiff};
 
