@@ -50,6 +50,24 @@
 //!
 //! Because the [`TextDiff::grouped_ops`] method can isolate clusters of changes
 //! this even works for very long files if paired with this method.
+//!
+//! ## Trailing Newlines
+//!
+//! When working with line diffs (and unified diffs in general) there are two
+//! "philosophies" to look at lines.  One is to diff lines without their newline
+//! character, the other is to diff with the newline character.  Typically the
+//! latter is done because text files do not _have_ to end in a newline character.
+//! As a result there is a difference between `foo\n` and `foo` as far as diffs
+//! are concerned.
+//!
+//! In similar this is handled on the [`Change`] or [`InlineChange`] level.  If
+//! a diff was created via [`TextDiff::from_lines`] the text diffing system is
+//! instructed to check if there are missing newlines encountered.  If that is
+//! the case the [`Change`] object will return true from the
+//! [`Change::missing_newline`] method so the caller knows to handle this by
+//! either rendering a virtual newline at that position or to indicate it in
+//! different ways.  For instance the unified diff code will render the special
+//! `\ No newline at end of file` marker.
 #![cfg(feature = "text")]
 use std::borrow::Cow;
 use std::cmp::Reverse;
@@ -253,7 +271,7 @@ impl<'s> Change<'s> {
     ///
     /// The [`std::fmt::Display`] implementation of [`Change`] will automatically
     /// insert a newline after the value if this is true.
-    pub fn is_missing_newline(&self) -> bool {
+    pub fn missing_newline(&self) -> bool {
         self.missing_newline
     }
 }
@@ -364,11 +382,6 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     /// ways in which a change could be encoded (insert/delete vs replace), look
     /// up the value from the appropriate slice and also handle correct index
     /// handling.
-    ///
-    /// In addition it has some custom handling to insert "virtual" newlines
-    /// for diffs where [`TextDiff::newline_terminated`] is `true` but the
-    /// diff does not end in newlines in the right places.  For more information
-    /// see [`Change::is_virtual`].
     pub fn iter_changes(&self, op: &DiffOp) -> impl Iterator<Item = Change> {
         let newline_terminated = self.newline_terminated;
         let (tag, old_range, new_range) = op.as_tag_tuple();

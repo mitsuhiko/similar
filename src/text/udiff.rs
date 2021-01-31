@@ -81,6 +81,7 @@ impl fmt::Display for UnifiedHunkHeader {
 pub struct UnifiedDiff<'diff, 'old, 'new, 'bufs> {
     diff: &'diff TextDiff<'old, 'new, 'bufs>,
     context_radius: usize,
+    missing_newline_hint: bool,
     header: Option<(String, String)>,
 }
 
@@ -90,6 +91,7 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiff<'diff, 'old, 'new, 'bufs> {
         UnifiedDiff {
             diff,
             context_radius: 3,
+            missing_newline_hint: true,
             header: None,
         }
     }
@@ -114,14 +116,25 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiff<'diff, 'old, 'new, 'bufs> {
         self
     }
 
+    /// Controls the missing newline hint.
+    ///
+    /// By default a special `\ No newline at end of file` marker is added to
+    /// the output when a file is not terminated with a final newline.  This can
+    /// be disabled with this flag.
+    pub fn missing_newline_hint(&mut self, yes: bool) -> &mut Self {
+        self.missing_newline_hint = yes;
+        self
+    }
+
     /// Iterates over all hunks as configured.
     pub fn iter_hunks(&self) -> impl Iterator<Item = UnifiedDiffHunk<'diff, 'old, 'new, 'bufs>> {
         let diff = self.diff;
+        let missing_newline_hint = self.missing_newline_hint;
         self.diff
             .grouped_ops(self.context_radius)
             .into_iter()
             .filter(|ops| !ops.is_empty())
-            .map(move |ops| UnifiedDiffHunk::new(ops, diff))
+            .map(move |ops| UnifiedDiffHunk::new(ops, diff, missing_newline_hint))
     }
 
     fn header_opt(&mut self, header: Option<(&str, &str)>) -> &mut Self {
@@ -138,6 +151,7 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiff<'diff, 'old, 'new, 'bufs> {
 pub struct UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
     diff: &'diff TextDiff<'old, 'new, 'bufs>,
     ops: Vec<DiffOp>,
+    missing_newline_hint: bool,
 }
 
 impl<'diff, 'old, 'new, 'bufs> UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
@@ -145,8 +159,13 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
     pub fn new(
         ops: Vec<DiffOp>,
         diff: &'diff TextDiff<'old, 'new, 'bufs>,
+        missing_newline_hint: bool,
     ) -> UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
-        UnifiedDiffHunk { diff, ops }
+        UnifiedDiffHunk {
+            diff,
+            ops,
+            missing_newline_hint,
+        }
     }
 
     /// Returns the header for the hunk.
@@ -157,6 +176,11 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
     /// Returns all operations in the hunk.
     pub fn ops(&self) -> &[DiffOp] {
         &self.ops
+    }
+
+    /// Returns the value of the `missing_newline_hint` flag.
+    pub fn missing_newline_hint(&self) -> bool {
+        self.missing_newline_hint
     }
 
     /// Iterates over all changes in a hunk.
@@ -192,9 +216,16 @@ impl<'diff, 'old, 'new, 'bufs> fmt::Display for UnifiedDiffHunk<'diff, 'old, 'ne
                     ChangeTag::Delete => '-',
                     ChangeTag::Insert => '+',
                 },
-                change,
+                change.value(),
                 nl
             )?;
+            if change.missing_newline() {
+                if self.missing_newline_hint {
+                    writeln!(f, "\n\\ No newline at end of file")?;
+                } else {
+                    writeln!(f, "")?;
+                }
+            }
         }
         Ok(())
     }
@@ -246,4 +277,15 @@ fn test_unified_diff() {
 fn test_empty_unified_diff() {
     let diff = TextDiff::from_lines("abc", "abc");
     assert_eq!(diff.unified_diff().header("a.txt", "b.txt").to_string(), "");
+}
+
+#[test]
+fn test_unified_diff_newline_hint() {
+    let diff = TextDiff::from_lines("a\n", "b");
+    insta::assert_snapshot!(&diff.unified_diff().header("a.txt", "b.txt").to_string());
+    insta::assert_snapshot!(&diff
+        .unified_diff()
+        .missing_newline_hint(false)
+        .header("a.txt", "b.txt")
+        .to_string());
 }

@@ -1,4 +1,4 @@
-use std::iter;
+use std::{fmt, iter};
 
 use crate::algorithms::{Algorithm, DiffOp, DiffTag};
 use crate::text::{Change, ChangeTag, TextDiff};
@@ -30,6 +30,9 @@ impl<'a, 's> MultiIndex<'a, 's> {
     }
 }
 
+/// Represents the expanded textual change with inline highlights.
+///
+/// This is like [`Change`] but with inline highlight info.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Ord, PartialOrd)]
 pub struct InlineChange<'s> {
     tag: ChangeTag,
@@ -74,8 +77,25 @@ impl<'s> From<Change<'s>> for InlineChange<'s> {
             old_index: change.old_index(),
             new_index: change.old_index(),
             values: vec![(false, change.value())],
-            missing_newline: change.is_missing_newline(),
+            missing_newline: change.missing_newline(),
         }
+    }
+}
+
+impl<'s> fmt::Display for InlineChange<'s> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for &(emphasized, value) in &self.values {
+            let marker = match (emphasized, self.tag) {
+                (false, _) | (true, ChangeTag::Equal) => "",
+                (true, ChangeTag::Delete) => "-",
+                (true, ChangeTag::Insert) => "+",
+            };
+            write!(f, "{}{}{}", marker, value, marker)?;
+        }
+        if self.missing_newline {
+            writeln!(f)?;
+        }
+        Ok(())
     }
 }
 
