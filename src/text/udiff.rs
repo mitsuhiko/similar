@@ -192,7 +192,7 @@ impl<'diff, 'old, 'new, 'bufs> fmt::Display for UnifiedDiffHunk<'diff, 'old, 'ne
                     ChangeTag::Delete => '-',
                     ChangeTag::Insert => '+',
                 },
-                change.value(),
+                change,
                 nl
             )?;
         }

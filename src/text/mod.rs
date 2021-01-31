@@ -54,8 +54,12 @@
 use std::borrow::Cow;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
+use std::fmt;
 
+mod inline;
 mod udiff;
+
+pub use self::inline::*;
 pub use self::udiff::*;
 
 use crate::algorithms::{capture_diff_slices, group_diff_ops, Algorithm, DiffOp, DiffTag};
@@ -209,6 +213,18 @@ pub struct Change<'s> {
     old_index: Option<usize>,
     new_index: Option<usize>,
     value: &'s str,
+    missing_newline: bool,
+}
+
+impl<'s> fmt::Display for Change<'s> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}{}",
+            self.value(),
+            if self.missing_newline { "\n" } else { "" }
+        )
+    }
 }
 
 impl<'s> Change<'s> {
@@ -232,28 +248,15 @@ impl<'s> Change<'s> {
         self.value
     }
 
-    /// Returns `true` for virtual changes.
+    /// Returns `true` if this change needs to be followed up by a
+    /// missing newline.
     ///
-    /// Virtual changes are changes that do not exist in either diff but are
-    /// necessary for a consistent user experience.  This currently only
-    /// applies to changes related to newline handling.  If lines are passed
-    /// to the [`TextDiff`] the [`TextDiff::newline_terminated`] flag is set
-    /// in which case newlines of the input are included in the changes.  However
-    /// if the trailing newline is missing it would mess up processing greatly.
-    /// Because of this a trailing virtual newline is automatically added for a
-    /// more consistent user experience.  This virtual newline can be detected
-    /// by explicitly checking for this flag.
-    pub fn is_virtual(&self) -> bool {
-        self.old_index.is_none() && self.new_index.is_none()
+    /// The [`std::fmt::Display`] implementation of [`Change`] will automatically
+    /// insert a newline after the value if this is true.
+    pub fn is_missing_newline(&self) -> bool {
+        self.missing_newline
     }
 }
-
-const VIRTUAL_NEWLINE_CHANGE: Change<'static> = Change {
-    tag: ChangeTag::Equal,
-    old_index: None,
-    new_index: None,
-    value: "\n",
-};
 
 impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     /// Configures a text differ before diffing.
@@ -374,21 +377,6 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
         let mut old_slices = &self.old_slices()[op.old_range()];
         let mut new_slices = &self.new_slices()[op.new_range()];
 
-        // figure out if a virtual newline has to be inserted
-        let mut virtual_newline = if newline_terminated {
-            let last_element = match tag {
-                DiffTag::Equal | DiffTag::Delete | DiffTag::Replace => old_slices.last(),
-                DiffTag::Insert => new_slices.last(),
-            };
-            if !last_element.map_or(false, |x| x.ends_with(&['\r', '\n'][..])) {
-                Some(VIRTUAL_NEWLINE_CHANGE)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
         std::iter::from_fn(move || match tag {
             DiffTag::Equal => {
                 if let Some((&first, rest)) = old_slices.split_first() {
@@ -400,9 +388,12 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                         old_index: Some(old_index - 1),
                         new_index: Some(new_index - 1),
                         value: first,
+                        missing_newline: newline_terminated
+                            && rest.is_empty()
+                            && !first.ends_with(&['\r', '\n'][..]),
                     })
                 } else {
-                    virtual_newline.take()
+                    None
                 }
             }
             DiffTag::Delete => {
@@ -414,9 +405,12 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                         old_index: Some(old_index - 1),
                         new_index: None,
                         value: first,
+                        missing_newline: newline_terminated
+                            && rest.is_empty()
+                            && !first.ends_with(&['\r', '\n'][..]),
                     })
                 } else {
-                    virtual_newline.take()
+                    None
                 }
             }
             DiffTag::Insert => {
@@ -428,9 +422,12 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                         old_index: None,
                         new_index: Some(new_index - 1),
                         value: first,
+                        missing_newline: newline_terminated
+                            && rest.is_empty()
+                            && !first.ends_with(&['\r', '\n'][..]),
                     })
                 } else {
-                    virtual_newline.take()
+                    None
                 }
             }
             DiffTag::Replace => {
@@ -442,28 +439,31 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                         old_index: Some(old_index - 1),
                         new_index: None,
                         value: first,
+                        missing_newline: newline_terminated
+                            && rest.is_empty()
+                            && !first.ends_with(&['\r', '\n'][..]),
                     })
-                } else if let Some(virtual_newline) = virtual_newline.take() {
-                    Some(virtual_newline)
                 } else if let Some((&first, rest)) = new_slices.split_first() {
                     new_slices = rest;
                     new_index += 1;
-                    // check for another virtual newline
-                    if newline_terminated && rest.is_empty() && !first.ends_with(&['\r', '\n'][..])
-                    {
-                        virtual_newline = Some(VIRTUAL_NEWLINE_CHANGE);
-                    }
                     Some(Change {
                         tag: ChangeTag::Insert,
                         old_index: None,
                         new_index: Some(new_index - 1),
                         value: first,
+                        missing_newline: newline_terminated
+                            && rest.is_empty()
+                            && !first.ends_with(&['\r', '\n'][..]),
                     })
                 } else {
                     None
                 }
             }
         })
+    }
+
+    pub fn iter_inline_changes(&self, op: &DiffOp) -> impl Iterator<Item = InlineChange> {
+        iter_inline_changes(self, op)
     }
 
     /// Returns the captured diff ops.
