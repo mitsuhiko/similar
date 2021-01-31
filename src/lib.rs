@@ -18,7 +18,7 @@
 //!             ChangeTag::Insert => "+",
 //!             ChangeTag::Equal => " ",
 //!         };
-//!         print!("{}{}", sign, change.value());
+//!         print!("{}{}", sign, change);
 //!     }
 //! }
 //! # }
@@ -43,5 +43,6 @@
 //!   is particularly useful when working with text containing emojis.
 //! * `text`: this feature is enabled by default and enables the [`text`] module.
 //!   If the crate is used without default features it's removed.
+#![warn(missing_docs)]
 pub mod algorithms;
 pub mod text;

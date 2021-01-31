@@ -8,13 +8,23 @@ fn main() {
     );
 
     for op in diff.ops() {
-        for change in diff.iter_changes(op) {
+        for change in diff.iter_inline_changes(op) {
             let (sign, style) = match change.tag() {
                 ChangeTag::Delete => ("-", Style::new().red()),
                 ChangeTag::Insert => ("+", Style::new().green()),
                 ChangeTag::Equal => (" ", Style::new()),
             };
-            print!("{}{}", style.apply_to(sign).bold(), style.apply_to(change),);
+            print!("{}", style.apply_to(sign).bold(),);
+            for &(emphasized, value) in change.values() {
+                if emphasized {
+                    print!("{}", style.apply_to(value).underlined());
+                } else {
+                    print!("{}", style.apply_to(value));
+                }
+            }
+            if change.is_missing_newline() {
+                println!();
+            }
         }
     }
 }

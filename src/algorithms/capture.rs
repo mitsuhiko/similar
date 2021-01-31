@@ -9,27 +9,40 @@ use std::ops::Range;
 pub enum DiffOp {
     /// A segment is equal (see [`DiffHook::equal`])
     Equal {
+        /// The starting index in the old sequence.
         old_index: usize,
+        /// The starting index in the new sequence.
         new_index: usize,
+        /// The length of the segment.
         len: usize,
     },
     /// A segment was deleted (see [`DiffHook::delete`])
     Delete {
+        /// The starting index in the old sequence.
         old_index: usize,
+        /// The length of the old segment.
         old_len: usize,
+        /// The starting index in the new sequence.
         new_index: usize,
     },
     /// A segment was inserted (see [`DiffHook::insert`])
     Insert {
+        /// The starting index in the old sequence.
         old_index: usize,
+        /// The starting index in the new sequence.
         new_index: usize,
+        /// The length of the new segment.
         new_len: usize,
     },
     /// A segment was replaced (see [`DiffHook::replace`])
     Replace {
+        /// The starting index in the old sequence.
         old_index: usize,
+        /// The length of the old segment.
         old_len: usize,
+        /// The starting index in the new sequence.
         new_index: usize,
+        /// The length of the new segment.
         new_len: usize,
     },
 }
@@ -37,9 +50,13 @@ pub enum DiffOp {
 /// The tag of a diff operation.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
 pub enum DiffTag {
+    /// The diff op encodes an equal segment.
     Equal,
+    /// The diff op encodes a deleted segment.
     Delete,
+    /// The diff op encodes an inserted segment.
     Insert,
+    /// The diff op encodes a replaced segment.
     Replace,
 }
 

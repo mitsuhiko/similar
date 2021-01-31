@@ -34,7 +34,9 @@ pub mod patience;
 /// An enum representing a diffing algorithm.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Algorithm {
+    /// Picks the myers algorithm from [`myers`]
     Myers,
+    /// Picks the patience algorithm from [`patience`]
     Patience,
 }
 

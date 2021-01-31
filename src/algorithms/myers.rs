@@ -67,6 +67,7 @@ where
     New: Index<usize> + ?Sized,
     New::Output: PartialEq<Old::Output>,
 {
+    #![allow(clippy::many_single_char_names)]
     if old_end > old_current && new_end > new_current {
         let old_span = old_end - old_current;
         let new_span = new_end - new_current;

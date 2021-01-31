@@ -12,6 +12,7 @@ expression: "&changes"
             0,
         ),
         value: "Hello World\n",
+        missing_newline: false,
     },
     Change {
         tag: Delete,
@@ -20,6 +21,7 @@ expression: "&changes"
         ),
         new_index: None,
         value: "some stuff here\n",
+        missing_newline: false,
     },
     Change {
         tag: Insert,
@@ -28,6 +30,7 @@ expression: "&changes"
             1,
         ),
         value: "some amazing stuff here\n",
+        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -38,5 +41,6 @@ expression: "&changes"
             2,
         ),
         value: "some more stuff here\n",
+        missing_newline: false,
     },
 ]

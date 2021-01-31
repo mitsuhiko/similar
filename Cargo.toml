@@ -29,6 +29,10 @@ name = "terminal"
 required-features = ["text"]
 
 [[example]]
+name = "terminal-inline"
+required-features = ["text"]
+
+[[example]]
 name = "udiff"
 required-features = ["text"]
 
