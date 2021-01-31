@@ -27,13 +27,16 @@ fn main() {
     let new = read_to_string(&args[2]).unwrap();
     let diff = TextDiff::from_lines(&old, &new);
 
-    for group in diff.grouped_ops(5) {
+    for (idx, group) in diff.grouped_ops(3).iter().enumerate() {
+        if idx > 0 {
+            println!("{:-^1$}", "-", 80);
+        }
         for op in group {
-            for change in diff.iter_inline_changes(&op) {
+            for change in diff.iter_inline_changes(op) {
                 let (sign, s) = match change.tag() {
                     ChangeTag::Delete => ("-", Style::new().red()),
                     ChangeTag::Insert => ("+", Style::new().green()),
-                    ChangeTag::Equal => (" ", Style::new()),
+                    ChangeTag::Equal => (" ", Style::new().dim()),
                 };
                 print!(
                     "{}{} |{}",
