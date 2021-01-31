@@ -1,9 +1,10 @@
+#![cfg(feature = "inline")]
 use std::{fmt, iter};
 
 use crate::algorithms::{Algorithm, DiffOp, DiffTag};
 use crate::text::{Change, ChangeTag, TextDiff};
 
-use super::split_words;
+use super::split_unicode_words;
 
 use std::ops::Range;
 
@@ -118,8 +119,8 @@ pub(crate) fn iter_inline_changes<'diff>(
                 (ChangeTag::Delete, Some(ChangeTag::Insert)) => {
                     let old_value = change.value();
                     let new_value = next_change.unwrap().value();
-                    let old_chars = split_words(&old_value).collect::<Vec<_>>();
-                    let new_chars = split_words(&new_value).collect::<Vec<_>>();
+                    let old_chars = split_unicode_words(&old_value).collect::<Vec<_>>();
+                    let new_chars = split_unicode_words(&new_value).collect::<Vec<_>>();
                     let old_mindex = MultiIndex::new(&old_chars, old_value);
                     let new_mindex = MultiIndex::new(&new_chars, new_value);
                     let inline_diff = TextDiff::configure()
@@ -184,4 +185,19 @@ pub(crate) fn iter_inline_changes<'diff>(
         }
     })
     .flatten()
+}
+
+#[test]
+fn test_line_ops_inline() {
+    let diff = TextDiff::from_lines(
+        "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
+        "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
+    );
+    assert_eq!(diff.newline_terminated(), true);
+    let changes = diff
+        .ops()
+        .iter()
+        .flat_map(|op| diff.iter_inline_changes(op))
+        .collect::<Vec<_>>();
+    insta::assert_debug_snapshot!(&changes);
 }

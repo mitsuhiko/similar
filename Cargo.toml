@@ -15,6 +15,7 @@ all-features = true
 [features]
 default = ["text"]
 text = []
+inline = ["unicode"]
 unicode = ["text", "unicode-segmentation"]
 
 [dev-dependencies]
@@ -30,7 +31,7 @@ required-features = ["text"]
 
 [[example]]
 name = "terminal-inline"
-required-features = ["text"]
+required-features = ["text", "inline"]
 
 [[example]]
 name = "udiff"

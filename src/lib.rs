@@ -38,11 +38,14 @@
 //! cases it's useful to pull in extra functionality.  Likewise you can turn
 //! off some functionality.
 //!
+//! * `text`: this feature is enabled by default and enables the [`text`] module.
+//!   If the crate is used without default features it's removed.
 //! * `unicode`: when this feature is enabled the text diffing functionality
 //!   gains the ability to diff on a grapheme instead of character level.  This
 //!   is particularly useful when working with text containing emojis.
-//! * `text`: this feature is enabled by default and enables the [`text`] module.
-//!   If the crate is used without default features it's removed.
+//! * `inline`: this feature gives access to additional functionality of the
+//!   `text` module to provide inline information about which values changed
+//!   in a line diff.  This currently also enables the `unicode` feature.
 #![warn(missing_docs)]
 pub mod algorithms;
 pub mod text;

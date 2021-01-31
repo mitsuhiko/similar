@@ -1,5 +1,5 @@
 ---
-source: src/text/mod.rs
+source: src/text/inline.rs
 expression: "&changes"
 ---
 [

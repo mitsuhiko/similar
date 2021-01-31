@@ -12,6 +12,7 @@ All notable changes to similar are documented here.
   does not show any changes.
 * Added inline diff highlighting support.
 * Changed word splitting to split into words and whitespace.
+* Added support for unicode based word splitting (`TextDiff::from_unicode_words`).
 
 ## 0.4.0
 

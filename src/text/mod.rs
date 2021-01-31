@@ -74,9 +74,11 @@ use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 use std::fmt;
 
+#[cfg(feature = "inline")]
 mod inline;
 mod udiff;
 
+#[cfg(feature = "inline")]
 pub use self::inline::*;
 pub use self::udiff::*;
 
@@ -146,6 +148,25 @@ impl TextDiffConfig {
         self.diff(
             Cow::Owned(split_words(old).collect()),
             Cow::Owned(split_words(new).collect()),
+            false,
+        )
+    }
+
+    /// Creates a diff of unicode words.
+    ///
+    /// This splits the text into words according to unicode rules.  This is
+    /// generally recommended over [`diff_words`] but requires a dependency.
+    ///
+    /// This requires the `unicode` feature.
+    #[cfg(feature = "unicode")]
+    pub fn diff_unicode_words<'old, 'new, 'bufs>(
+        &self,
+        old: &'old str,
+        new: &'new str,
+    ) -> TextDiff<'old, 'new, 'bufs> {
+        self.diff(
+            Cow::Owned(split_unicode_words(old).collect()),
+            Cow::Owned(split_unicode_words(new).collect()),
             false,
         )
     }
@@ -299,6 +320,16 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     /// Equivalent to `TextDiff::configure().diff_words(old, new)`.
     pub fn from_words(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
         Self::configure().diff_words(old, new)
+    }
+
+    /// Creates a diff of unicode words.
+    ///
+    /// Equivalent to `TextDiff::configure().diff_unicode_words(old, new)`.
+    ///
+    /// This requires the `unicode` feature.
+    #[cfg(feature = "unicode")]
+    pub fn from_unicode_words(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
+        Self::configure().diff_unicode_words(old, new)
     }
 
     /// Creates a diff of chars.
@@ -486,6 +517,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     /// level diff on adjacent line replacements.  The exact behavior of
     /// this function with regards to how it detects those inline changes
     /// is currently not defined and will likely change over time.
+    #[cfg(feature = "inline")]
     pub fn iter_inline_changes(&self, op: &DiffOp) -> impl Iterator<Item = InlineChange> {
         iter_inline_changes(self, op)
     }
@@ -565,6 +597,12 @@ fn split_words(s: &str) -> impl Iterator<Item = &str> {
             None
         }
     })
+}
+
+/// Splits words according to unicode rules.
+#[cfg(feature = "unicode")]
+fn split_unicode_words(s: &str) -> impl Iterator<Item = &str> {
+    unicode_segmentation::UnicodeSegmentation::split_word_bounds(s)
 }
 
 /// Splits text into characters.
@@ -778,21 +816,6 @@ fn test_virtual_newlines() {
         .ops()
         .iter()
         .flat_map(|op| diff.iter_changes(op))
-        .collect::<Vec<_>>();
-    insta::assert_debug_snapshot!(&changes);
-}
-
-#[test]
-fn test_line_ops_inline() {
-    let diff = TextDiff::from_lines(
-        "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
-        "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
-    );
-    assert_eq!(diff.newline_terminated(), true);
-    let changes = diff
-        .ops()
-        .iter()
-        .flat_map(|op| diff.iter_inline_changes(op))
         .collect::<Vec<_>>();
     insta::assert_debug_snapshot!(&changes);
 }
