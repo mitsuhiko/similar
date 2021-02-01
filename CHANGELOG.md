@@ -2,6 +2,10 @@
 
 All notable changes to similar are documented here.
 
+## 0.6.0
+
+* Add `get_diff_ratio`.
+
 ## 0.5.0
 
 * Add `DiffOp::apply_to_hook` to apply a captured op to a diff hook.

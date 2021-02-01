@@ -1,10 +1,10 @@
 #![cfg(feature = "inline")]
 use std::fmt;
 
-use crate::algorithms::{capture_diff, Algorithm, DiffOp, DiffTag};
+use crate::algorithms::{capture_diff, get_diff_ratio, Algorithm, DiffOp, DiffTag};
 use crate::text::{Change, ChangeTag, TextDiff};
 
-use super::{diff_ratio, split_unicode_words};
+use super::split_unicode_words;
 
 use std::ops::Index;
 
@@ -201,7 +201,7 @@ pub(crate) fn iter_inline_changes<'diff>(
         0..new_lookup.len(),
     );
 
-    if diff_ratio(&ops, old_lookup.len(), new_lookup.len()) < 0.5 {
+    if get_diff_ratio(&ops, old_lookup.len(), new_lookup.len()) < 0.5 {
         return Box::new(diff.iter_changes(op).map(|x| x.into())) as Box<dyn Iterator<Item = _>>;
     }
 
