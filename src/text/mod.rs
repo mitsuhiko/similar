@@ -394,23 +394,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     /// assert_eq!(diff.ratio(), 0.75);
     /// ```
     pub fn ratio(&self) -> f32 {
-        let matches = self
-            .ops()
-            .iter()
-            .map(|op| {
-                if let DiffOp::Equal { len, .. } = *op {
-                    len
-                } else {
-                    0
-                }
-            })
-            .sum::<usize>();
-        let len = self.old.len() + self.new.len();
-        if len == 0 {
-            1.0
-        } else {
-            2.0 * matches as f32 / len as f32
-        }
+        diff_ratio(self.ops(), self.old.len(), self.new.len())
     }
 
     /// Iterates over the changes the op expands to.
@@ -615,6 +599,25 @@ fn split_chars(s: &str) -> impl Iterator<Item = &str> {
 #[cfg(feature = "unicode")]
 fn split_graphemes(s: &str) -> impl Iterator<Item = &str> {
     unicode_segmentation::UnicodeSegmentation::graphemes(s, true)
+}
+
+fn diff_ratio(ops: &[DiffOp], s1_len: usize, s2_len: usize) -> f32 {
+    let matches = ops
+        .iter()
+        .map(|op| {
+            if let DiffOp::Equal { len, .. } = *op {
+                len
+            } else {
+                0
+            }
+        })
+        .sum::<usize>();
+    let len = s1_len + s2_len;
+    if len == 0 {
+        1.0
+    } else {
+        2.0 * matches as f32 / len as f32
+    }
 }
 
 // quick and dirty way to get an upper sequence ratio.

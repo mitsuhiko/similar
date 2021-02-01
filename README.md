@@ -43,5 +43,6 @@ fn main() {
 
 - [Documentation](https://docs.rs/similar/)
 - [Issue Tracker](https://github.com/mitsuhiko/similar/issues)
+- [Examples](https://github.com/mitsuhiko/similar/tree/main/examples)
 - License: [Apache-2.0](https://github.com/mitsuhiko/similar/blob/main/LICENSE)
 

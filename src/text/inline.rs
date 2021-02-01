@@ -1,33 +1,108 @@
 #![cfg(feature = "inline")]
-use std::{fmt, iter};
+use std::fmt;
 
-use crate::algorithms::{Algorithm, DiffOp, DiffTag};
+use crate::algorithms::{capture_diff, Algorithm, DiffOp, DiffTag};
 use crate::text::{Change, ChangeTag, TextDiff};
 
-use super::split_unicode_words;
+use super::{diff_ratio, split_unicode_words};
 
-use std::ops::Range;
+use std::ops::Index;
 
-struct MultiIndex<'a, 's> {
-    seq: &'a [&'s str],
-    value: &'s str,
+struct MultiLookup<'bufs, 's> {
+    strings: &'bufs [&'s str],
+    seqs: Vec<(&'s str, usize, usize)>,
 }
 
-impl<'a, 's> MultiIndex<'a, 's> {
-    pub fn new(seq: &'a [&'s str], value: &'s str) -> MultiIndex<'a, 's> {
-        MultiIndex { seq, value }
+impl<'bufs, 's> MultiLookup<'bufs, 's> {
+    fn new(strings: &'bufs [&'s str]) -> MultiLookup<'bufs, 's> {
+        let mut seqs = Vec::new();
+        for (string_idx, string) in strings.iter().enumerate() {
+            let mut offset = 0;
+            for word in split_unicode_words(string) {
+                seqs.push((word, string_idx, offset));
+                offset += word.len();
+            }
+        }
+        MultiLookup { strings, seqs }
     }
 
-    pub fn get_slice(&self, rng: Range<usize>) -> &'s str {
-        let mut start = 0;
-        for &sseq in &self.seq[..rng.start] {
-            start += sseq.len();
+    pub fn len(&self) -> usize {
+        self.seqs.len()
+    }
+
+    fn get_original_slices(&self, idx: usize, len: usize) -> Vec<(usize, &'s str)> {
+        let mut last = None;
+        let mut rv = Vec::new();
+
+        for offset in 0..len {
+            let (s, str_idx, char_idx) = self.seqs[idx + offset];
+            last = match last {
+                None => Some((str_idx, char_idx, s.len())),
+                Some((last_str_idx, start_char_idx, last_len)) => {
+                    if last_str_idx == str_idx {
+                        Some((str_idx, start_char_idx, last_len + s.len()))
+                    } else {
+                        rv.push((
+                            last_str_idx,
+                            &self.strings[last_str_idx][start_char_idx..start_char_idx + last_len],
+                        ));
+                        Some((str_idx, char_idx, s.len()))
+                    }
+                }
+            };
         }
-        let mut end = start;
-        for &sseq in &self.seq[rng.start..rng.end] {
-            end += sseq.len();
+
+        if let Some((str_idx, start_char_idx, len)) = last {
+            rv.push((
+                str_idx,
+                &self.strings[str_idx][start_char_idx..start_char_idx + len],
+            ));
         }
-        &self.value[start..end]
+
+        rv
+    }
+}
+
+impl<'bufs, 's> Index<usize> for MultiLookup<'bufs, 's> {
+    type Output = str;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.seqs[index].0
+    }
+}
+
+fn partition_newlines(s: &str) -> impl Iterator<Item = (&str, bool)> {
+    let mut iter = s.char_indices().peekable();
+
+    std::iter::from_fn(move || {
+        if let Some((idx, c)) = iter.next() {
+            let is_newline = c == '\r' || c == '\n';
+            let start = idx;
+            let mut end = idx + c.len_utf8();
+            while let Some(&(_, next_char)) = iter.peek() {
+                if (next_char == '\r' || next_char == '\n') != is_newline {
+                    break;
+                }
+                iter.next();
+                end += next_char.len_utf8();
+            }
+            Some((&s[start..end], is_newline))
+        } else {
+            None
+        }
+    })
+}
+
+fn push_values<'s>(v: &mut Vec<Vec<(bool, &'s str)>>, idx: usize, emphasized: bool, s: &'s str) {
+    v.resize_with(v.len().max(idx + 1), Vec::new);
+    // newlines cause all kinds of wacky stuff if they end up highlighted.
+    // because of this we want to unemphasize all newlines we encounter.
+    if emphasized {
+        for (seg, is_nl) in partition_newlines(s) {
+            v[idx].push((!is_nl, seg));
+        }
+    } else {
+        v[idx].push((false, s));
     }
 }
 
@@ -104,87 +179,122 @@ pub(crate) fn iter_inline_changes<'diff>(
     diff: &'diff TextDiff,
     op: &DiffOp,
 ) -> impl Iterator<Item = InlineChange<'diff>> {
-    let mut change_iter = diff.iter_changes(op).peekable();
-    let mut skip_next = false;
     let newline_terminated = diff.newline_terminated;
+    let (tag, old_range, new_range) = op.as_tag_tuple();
 
-    iter::from_fn(move || {
-        if skip_next {
-            change_iter.next();
-            skip_next = false;
-        }
-        if let Some(change) = change_iter.next() {
-            let next_change = change_iter.peek();
-            match (change.tag, next_change.map(|x| x.tag())) {
-                (ChangeTag::Delete, Some(ChangeTag::Insert)) => {
-                    let old_value = change.value();
-                    let new_value = next_change.unwrap().value();
-                    let old_chars = split_unicode_words(&old_value).collect::<Vec<_>>();
-                    let new_chars = split_unicode_words(&new_value).collect::<Vec<_>>();
-                    let old_mindex = MultiIndex::new(&old_chars, old_value);
-                    let new_mindex = MultiIndex::new(&new_chars, new_value);
-                    let inline_diff = TextDiff::configure()
-                        .algorithm(Algorithm::Patience)
-                        .diff_slices(&old_chars, &new_chars);
+    if let DiffTag::Equal | DiffTag::Insert | DiffTag::Delete = tag {
+        return Box::new(diff.iter_changes(op).map(|x| x.into())) as Box<dyn Iterator<Item = _>>;
+    }
 
-                    if inline_diff.ratio() < 0.5 {
-                        return Some(None.into_iter().chain(Some(change.into()).into_iter()));
-                    }
+    let mut old_index = old_range.start;
+    let mut new_index = new_range.start;
+    let old_slices = &diff.old_slices()[old_range];
+    let new_slices = &diff.new_slices()[new_range];
+    let old_lookup = MultiLookup::new(old_slices);
+    let new_lookup = MultiLookup::new(new_slices);
 
-                    // skip the next element as we handle it here
-                    skip_next = true;
+    let ops = capture_diff(
+        Algorithm::Patience,
+        &old_lookup,
+        0..old_lookup.len(),
+        &new_lookup,
+        0..new_lookup.len(),
+    );
 
-                    let mut old_values = vec![];
-                    let mut new_values = vec![];
-                    for op in inline_diff.ops() {
-                        match op.tag() {
-                            DiffTag::Equal => {
-                                old_values.push((false, old_mindex.get_slice(op.old_range())));
-                                new_values.push((false, old_mindex.get_slice(op.old_range())));
-                            }
-                            DiffTag::Delete => {
-                                old_values.push((true, old_mindex.get_slice(op.old_range())));
-                            }
-                            DiffTag::Insert => {
-                                new_values.push((true, new_mindex.get_slice(op.new_range())));
-                            }
-                            DiffTag::Replace => {
-                                old_values.push((true, old_mindex.get_slice(op.old_range())));
-                                new_values.push((true, new_mindex.get_slice(op.new_range())));
-                            }
-                        }
-                    }
+    if diff_ratio(&ops, old_lookup.len(), new_lookup.len()) < 0.5 {
+        return Box::new(diff.iter_changes(op).map(|x| x.into())) as Box<dyn Iterator<Item = _>>;
+    }
 
-                    Some(
-                        Some(InlineChange {
-                            tag: ChangeTag::Delete,
-                            old_index: change.old_index(),
-                            new_index: None,
-                            values: old_values,
-                            missing_newline: newline_terminated
-                                && !old_value.ends_with(&['\r', '\n'][..]),
-                        })
-                        .into_iter()
-                        .chain(
-                            Some(InlineChange {
-                                tag: ChangeTag::Insert,
-                                old_index: None,
-                                new_index: next_change.unwrap().new_index(),
-                                values: new_values,
-                                missing_newline: newline_terminated
-                                    && !new_value.ends_with(&['\r', '\n'][..]),
-                            })
-                            .into_iter(),
-                        ),
-                    )
+    let mut old_values = Vec::<Vec<_>>::new();
+    let mut new_values = Vec::<Vec<_>>::new();
+
+    for op in ops {
+        match op {
+            DiffOp::Equal {
+                old_index,
+                len,
+                new_index,
+            } => {
+                for (idx, slice) in old_lookup.get_original_slices(old_index, len) {
+                    push_values(&mut old_values, idx, false, slice);
                 }
-                _ => Some(None.into_iter().chain(Some(change.into()).into_iter())),
+                for (idx, slice) in new_lookup.get_original_slices(new_index, len) {
+                    push_values(&mut new_values, idx, false, slice);
+                }
             }
-        } else {
-            None
+            DiffOp::Delete {
+                old_index, old_len, ..
+            } => {
+                for (idx, slice) in old_lookup.get_original_slices(old_index, old_len) {
+                    push_values(&mut old_values, idx, true, slice);
+                }
+            }
+            DiffOp::Insert {
+                new_index, new_len, ..
+            } => {
+                for (idx, slice) in new_lookup.get_original_slices(new_index, new_len) {
+                    push_values(&mut new_values, idx, true, slice);
+                }
+            }
+            DiffOp::Replace {
+                old_index,
+                old_len,
+                new_index,
+                new_len,
+            } => {
+                for (idx, slice) in old_lookup.get_original_slices(old_index, old_len) {
+                    push_values(&mut old_values, idx, true, slice);
+                }
+                for (idx, slice) in new_lookup.get_original_slices(new_index, new_len) {
+                    push_values(&mut new_values, idx, true, slice);
+                }
+            }
         }
-    })
-    .flatten()
+    }
+
+    let mut rv = Vec::new();
+
+    for values in old_values {
+        rv.push(InlineChange {
+            tag: ChangeTag::Delete,
+            old_index: Some(old_index),
+            new_index: None,
+            values,
+            missing_newline: false,
+        });
+        old_index += 1;
+    }
+
+    if newline_terminated
+        && !old_slices.is_empty()
+        && !old_slices[old_slices.len() - 1].ends_with(&['\r', '\n'][..])
+    {
+        if let Some(last) = rv.last_mut() {
+            last.missing_newline = true;
+        }
+    }
+
+    for values in new_values {
+        rv.push(InlineChange {
+            tag: ChangeTag::Insert,
+            old_index: None,
+            new_index: Some(new_index),
+            values,
+            missing_newline: false,
+        });
+        new_index += 1;
+    }
+
+    if newline_terminated
+        && !new_slices.is_empty()
+        && !new_slices[new_slices.len() - 1].ends_with(&['\r', '\n'][..])
+    {
+        if let Some(last) = rv.last_mut() {
+            last.missing_newline = true;
+        }
+    }
+
+    Box::new(rv.into_iter()) as Box<dyn Iterator<Item = _>>
 }
 
 #[test]
