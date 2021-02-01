@@ -32,6 +32,10 @@ fn main() {
 }
 ```
 
+## Screenshot
+
+![terminal highlighting](https://raw.githubusercontent.com/mitsuhiko/similar/main/assets/terminal-inline.png)
+
 ## What's in the box?
 
 * Myer's diff
