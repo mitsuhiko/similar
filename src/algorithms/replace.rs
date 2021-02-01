@@ -87,11 +87,9 @@ impl<D: DiffHook> DiffHook for Replace<D> {
         old_len: usize,
         new_index: usize,
     ) -> Result<(), D::Error> {
-        if let Some((a, b, c)) = self.eq.take() {
-            self.d.equal(a, b, c)?;
-        }
+        self.flush_eq()?;
         if let Some((del_old_index, del_old_len, del_new_index)) = self.del.take() {
-            assert_eq!(old_index, del_old_index + del_old_len);
+            debug_assert_eq!(old_index, del_old_index + del_old_len);
             self.del = Some((del_old_index, del_old_len + old_len, del_new_index));
         } else {
             self.del = Some((old_index, old_len, new_index));
