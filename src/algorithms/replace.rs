@@ -1,4 +1,4 @@
-use crate::DiffHook;
+use crate::algorithms::DiffHook;
 
 /// A [`DiffHook`] that combines deletions and insertions to give blocks
 /// of maximal length, and replacements when appropriate.

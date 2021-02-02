@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 
-use crate::{group_diff_ops, DiffHook, DiffOp};
+use crate::algorithms::DiffHook;
+use crate::{group_diff_ops, DiffOp};
 
 /// A [`DiffHook`] that captures all diff operations.
 #[derive(Default, Clone)]

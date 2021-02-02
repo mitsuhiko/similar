@@ -10,8 +10,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::{Index, Range};
 
-use crate::algorithms::{myers, Replace};
-use crate::DiffHook;
+use crate::algorithms::{myers, DiffHook, Replace};
 
 /// Patience diff algorithm.
 ///

@@ -9,7 +9,7 @@
 use std::cmp::{max, min};
 use std::ops::{Index, Range};
 
-use crate::DiffHook;
+use crate::algorithms::DiffHook;
 
 /// Myers' diff algorithm.
 ///

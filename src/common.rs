@@ -1,41 +1,8 @@
 use std::hash::Hash;
 use std::ops::{Index, Range};
 
-use crate::algorithms::{myers, patience, Capture, Replace};
-use crate::{Algorithm, DiffHook, DiffOp};
-
-/// Creates a diff between old and new with the given algorithm.
-///
-/// Diffs `old`, between indices `old_range` and `new` between indices `new_range`.
-pub fn diff<Old, New, D>(
-    alg: Algorithm,
-    d: &mut D,
-    old: &Old,
-    old_range: Range<usize>,
-    new: &New,
-    new_range: Range<usize>,
-) -> Result<(), D::Error>
-where
-    Old: Index<usize> + ?Sized,
-    New: Index<usize> + ?Sized,
-    D: DiffHook,
-    Old::Output: Hash + Eq + Ord,
-    New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
-{
-    match alg {
-        Algorithm::Myers => myers::diff(d, old, old_range, new, new_range),
-        Algorithm::Patience => patience::diff(d, old, old_range, new, new_range),
-    }
-}
-
-/// Shortcut for diffing slices with a specific algorithm.
-pub fn diff_slices<D, T>(alg: Algorithm, d: &mut D, old: &[T], new: &[T]) -> Result<(), D::Error>
-where
-    D: DiffHook,
-    T: Eq + Hash + Ord,
-{
-    diff(alg, d, old, 0..old.len(), new, 0..new.len())
-}
+use crate::algorithms::{diff, diff_slices, Capture, Replace};
+use crate::{Algorithm, DiffOp};
 
 /// Creates a diff between old and new with the given algorithm capturing the ops.
 ///

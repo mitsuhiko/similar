@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ops::{Index, Range};
 
-use crate::hook::DiffHook;
+use crate::algorithms::DiffHook;
 
 /// An enum representing a diffing algorithm.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
