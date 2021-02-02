@@ -73,6 +73,9 @@ use std::borrow::Cow;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 use std::fmt;
+use std::hash::Hash;
+
+mod abstraction;
 
 #[cfg(feature = "inline")]
 mod inline;
@@ -81,6 +84,8 @@ mod udiff;
 #[cfg(feature = "inline")]
 pub use self::inline::*;
 pub use self::udiff::*;
+
+pub use crate::text::abstraction::*;
 
 use crate::algorithms::{
     capture_diff_slices, get_diff_ratio, group_diff_ops, Algorithm, DiffOp, DiffTag,
@@ -127,14 +132,14 @@ impl TextDiffConfig {
     ///
     /// This splits the text `old` and `new` into lines preserving newlines
     /// in the input.
-    pub fn diff_lines<'old, 'new, 'bufs>(
+    pub fn diff_lines<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
-        old: &'old str,
-        new: &'new str,
-    ) -> TextDiff<'old, 'new, 'bufs> {
+        old: &'old T,
+        new: &'new T,
+    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
         self.diff(
-            Cow::Owned(split_lines(old).collect()),
-            Cow::Owned(split_lines(new).collect()),
+            Cow::Owned(old.as_diffable_str().split_lines()),
+            Cow::Owned(new.as_diffable_str().split_lines()),
             true,
         )
     }
@@ -142,14 +147,27 @@ impl TextDiffConfig {
     /// Creates a diff of words.
     ///
     /// This splits the text into words and whitespace.
-    pub fn diff_words<'old, 'new, 'bufs>(
+    pub fn diff_words<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
-        old: &'old str,
-        new: &'new str,
-    ) -> TextDiff<'old, 'new, 'bufs> {
+        old: &'old T,
+        new: &'new T,
+    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
         self.diff(
-            Cow::Owned(split_words(old).collect()),
-            Cow::Owned(split_words(new).collect()),
+            Cow::Owned(old.as_diffable_str().split_words()),
+            Cow::Owned(new.as_diffable_str().split_words()),
+            false,
+        )
+    }
+
+    /// Creates a diff of characters.
+    pub fn diff_chars<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
+        &self,
+        old: &'old T,
+        new: &'new T,
+    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+        self.diff(
+            Cow::Owned(old.as_diffable_str().split_chars()),
+            Cow::Owned(new.as_diffable_str().split_chars()),
             false,
         )
     }
@@ -162,27 +180,14 @@ impl TextDiffConfig {
     ///
     /// This requires the `unicode` feature.
     #[cfg(feature = "unicode")]
-    pub fn diff_unicode_words<'old, 'new, 'bufs>(
+    pub fn diff_unicode_words<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
-        old: &'old str,
-        new: &'new str,
-    ) -> TextDiff<'old, 'new, 'bufs> {
+        old: &'old T,
+        new: &'new T,
+    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
         self.diff(
-            Cow::Owned(split_unicode_words(old).collect()),
-            Cow::Owned(split_unicode_words(new).collect()),
-            false,
-        )
-    }
-
-    /// Creates a diff of characters.
-    pub fn diff_chars<'old, 'new, 'bufs>(
-        &self,
-        old: &'old str,
-        new: &'new str,
-    ) -> TextDiff<'old, 'new, 'bufs> {
-        self.diff(
-            Cow::Owned(split_chars(old).collect()),
-            Cow::Owned(split_chars(new).collect()),
+            Cow::Owned(old.as_diffable_str().split_unicode_words()),
+            Cow::Owned(new.as_diffable_str().split_unicode_words()),
             false,
         )
     }
@@ -191,33 +196,33 @@ impl TextDiffConfig {
     ///
     /// This requires the `unicode` feature.
     #[cfg(feature = "unicode")]
-    pub fn diff_graphemes<'old, 'new, 'bufs>(
+    pub fn diff_graphemes<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
-        old: &'old str,
-        new: &'new str,
-    ) -> TextDiff<'old, 'new, 'bufs> {
+        old: &'old T,
+        new: &'new T,
+    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
         self.diff(
-            Cow::Owned(split_graphemes(old).collect()),
-            Cow::Owned(split_graphemes(new).collect()),
+            Cow::Owned(old.as_diffable_str().split_graphemes()),
+            Cow::Owned(new.as_diffable_str().split_graphemes()),
             false,
         )
     }
 
     /// Creates a diff of arbitrary slices.
-    pub fn diff_slices<'old, 'new, 'bufs>(
+    pub fn diff_slices<'old, 'new, 'bufs, T: DiffableStr + ?Sized>(
         &self,
-        old: &'bufs [&'old str],
-        new: &'bufs [&'new str],
-    ) -> TextDiff<'old, 'new, 'bufs> {
+        old: &'bufs [&'old T],
+        new: &'bufs [&'new T],
+    ) -> TextDiff<'old, 'new, 'bufs, T> {
         self.diff(Cow::Borrowed(old), Cow::Borrowed(new), false)
     }
 
-    fn diff<'old, 'new, 'bufs>(
+    fn diff<'old, 'new, 'bufs, T: DiffableStr + ?Sized>(
         &self,
-        old: Cow<'bufs, [&'old str]>,
-        new: Cow<'bufs, [&'new str]>,
+        old: Cow<'bufs, [&'old T]>,
+        new: Cow<'bufs, [&'new T]>,
         newline_terminated: bool,
-    ) -> TextDiff<'old, 'new, 'bufs> {
+    ) -> TextDiff<'old, 'new, 'bufs, T> {
         let ops = capture_diff_slices(self.algorithm, &old, &new);
         TextDiff {
             old,
@@ -230,9 +235,9 @@ impl TextDiffConfig {
 }
 
 /// Captures diff op codes for textual diffs
-pub struct TextDiff<'old, 'new, 'bufs> {
-    old: Cow<'bufs, [&'old str]>,
-    new: Cow<'bufs, [&'new str]>,
+pub struct TextDiff<'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
+    old: Cow<'bufs, [&'old T]>,
+    new: Cow<'bufs, [&'new T]>,
     ops: Vec<DiffOp>,
     newline_terminated: bool,
     algorithm: Algorithm,
@@ -255,15 +260,15 @@ pub enum ChangeTag {
 /// exists so that it's more convenient to work with textual differences as
 /// the underlying [`DiffOp`] does not know anything about strings.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
-pub struct Change<'s> {
+pub struct Change<'s, T: DiffableStr + ?Sized> {
     tag: ChangeTag,
     old_index: Option<usize>,
     new_index: Option<usize>,
-    value: &'s str,
+    value: &'s T,
     missing_newline: bool,
 }
 
-impl<'s> fmt::Display for Change<'s> {
+impl<'s, T: DiffableStr + ?Sized> fmt::Display for Change<'s, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -274,7 +279,7 @@ impl<'s> fmt::Display for Change<'s> {
     }
 }
 
-impl<'s> Change<'s> {
+impl<'s, T: DiffableStr + ?Sized> Change<'s, T> {
     /// Returns the change tag.
     pub fn tag(&self) -> ChangeTag {
         self.tag
@@ -290,9 +295,14 @@ impl<'s> Change<'s> {
         self.new_index
     }
 
-    /// Returns the changed value.
-    pub fn value(&self) -> &'s str {
+    /// Returns the underlying changed value.
+    pub fn raw_value(&self) -> &'s T {
         self.value
+    }
+
+    /// Returns the value (lossy) decoded as utf-8 string.
+    pub fn value(&self) -> Cow<'s, str> {
+        T::as_str_lossy(self.value)
     }
 
     /// Returns `true` if this change needs to be followed up by a
@@ -305,7 +315,7 @@ impl<'s> Change<'s> {
     }
 }
 
-impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
+impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
     /// Configures a text differ before diffing.
     pub fn configure() -> TextDiffConfig {
         TextDiffConfig::default()
@@ -314,15 +324,31 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     /// Creates a diff of lines.
     ///
     /// Equivalent to `TextDiff::configure().diff_lines(old, new)`.
-    pub fn from_lines(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
-        Self::configure().diff_lines(old, new)
+    pub fn from_lines<T: DiffableStrRef + ?Sized>(
+        old: &'old T,
+        new: &'new T,
+    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+        TextDiff::configure().diff_lines(old, new)
     }
 
     /// Creates a diff of words.
     ///
     /// Equivalent to `TextDiff::configure().diff_words(old, new)`.
-    pub fn from_words(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
-        Self::configure().diff_words(old, new)
+    pub fn from_words<T: DiffableStrRef + ?Sized>(
+        old: &'old T,
+        new: &'new T,
+    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+        TextDiff::configure().diff_words(old, new)
+    }
+
+    /// Creates a diff of chars.
+    ///
+    /// Equivalent to `TextDiff::configure().diff_chars(old, new)`.
+    pub fn from_chars<T: DiffableStrRef + ?Sized>(
+        old: &'old T,
+        new: &'new T,
+    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+        TextDiff::configure().diff_chars(old, new)
     }
 
     /// Creates a diff of unicode words.
@@ -331,15 +357,11 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     ///
     /// This requires the `unicode` feature.
     #[cfg(feature = "unicode")]
-    pub fn from_unicode_words(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
-        Self::configure().diff_unicode_words(old, new)
-    }
-
-    /// Creates a diff of chars.
-    ///
-    /// Equivalent to `TextDiff::configure().diff_chars(old, new)`.
-    pub fn from_chars(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
-        Self::configure().diff_chars(old, new)
+    pub fn from_unicode_words<T: DiffableStrRef + ?Sized>(
+        old: &'old T,
+        new: &'new T,
+    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+        TextDiff::configure().diff_unicode_words(old, new)
     }
 
     /// Creates a diff of graphemes.
@@ -348,18 +370,23 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     ///
     /// This requires the `unicode` feature.
     #[cfg(feature = "unicode")]
-    pub fn from_graphemes(old: &'old str, new: &'new str) -> TextDiff<'old, 'new, 'bufs> {
-        Self::configure().diff_graphemes(old, new)
+    pub fn from_graphemes<T: DiffableStrRef + ?Sized>(
+        old: &'old T,
+        new: &'new T,
+    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+        TextDiff::configure().diff_graphemes(old, new)
     }
+}
 
+impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'new, 'bufs, T> {
     /// Creates a diff of arbitrary slices.
     ///
     /// Equivalent to `TextDiff::configure().diff_slices(old, new)`.
     pub fn from_slices(
-        old: &'bufs [&'old str],
-        new: &'bufs [&'new str],
-    ) -> TextDiff<'old, 'new, 'bufs> {
-        Self::configure().diff_slices(old, new)
+        old: &'bufs [&'old T],
+        new: &'bufs [&'new T],
+    ) -> TextDiff<'old, 'new, 'bufs, T> {
+        TextDiff::configure().diff_slices(old, new)
     }
 
     /// The name of the algorithm that created the diff.
@@ -376,12 +403,12 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     }
 
     /// Returns all old slices.
-    pub fn old_slices(&self) -> &[&'old str] {
+    pub fn old_slices(&self) -> &[&'old T] {
         &self.old
     }
 
     /// Returns all new slices.
-    pub fn new_slices(&self) -> &[&'new str] {
+    pub fn new_slices(&self) -> &[&'new T] {
         &self.new
     }
 
@@ -405,7 +432,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     /// ways in which a change could be encoded (insert/delete vs replace), look
     /// up the value from the appropriate slice and also handle correct index
     /// handling.
-    pub fn iter_changes(&self, op: &DiffOp) -> impl Iterator<Item = Change> {
+    pub fn iter_changes(&self, op: &DiffOp) -> impl Iterator<Item = Change<'_, T>> {
         let newline_terminated = self.newline_terminated;
         let (tag, old_range, new_range) = op.as_tag_tuple();
         let mut old_index = old_range.start;
@@ -426,7 +453,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                         value: first,
                         missing_newline: newline_terminated
                             && rest.is_empty()
-                            && !first.ends_with(&['\r', '\n'][..]),
+                            && !first.ends_with_newline(),
                     })
                 } else {
                     None
@@ -443,7 +470,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                         value: first,
                         missing_newline: newline_terminated
                             && rest.is_empty()
-                            && !first.ends_with(&['\r', '\n'][..]),
+                            && !first.ends_with_newline(),
                     })
                 } else {
                     None
@@ -460,7 +487,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                         value: first,
                         missing_newline: newline_terminated
                             && rest.is_empty()
-                            && !first.ends_with(&['\r', '\n'][..]),
+                            && !first.ends_with_newline(),
                     })
                 } else {
                     None
@@ -477,7 +504,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                         value: first,
                         missing_newline: newline_terminated
                             && rest.is_empty()
-                            && !first.ends_with(&['\r', '\n'][..]),
+                            && !first.ends_with_newline(),
                     })
                 } else if let Some((&first, rest)) = new_slices.split_first() {
                     new_slices = rest;
@@ -489,24 +516,13 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
                         value: first,
                         missing_newline: newline_terminated
                             && rest.is_empty()
-                            && !first.ends_with(&['\r', '\n'][..]),
+                            && !first.ends_with_newline(),
                     })
                 } else {
                     None
                 }
             }
         })
-    }
-
-    /// Iterates over the changes the op expands to with inline emphasis.
-    ///
-    /// This is very similar to [`TextDiff::iter_changes`] but it performs a second
-    /// level diff on adjacent line replacements.  The exact behavior of
-    /// this function with regards to how it detects those inline changes
-    /// is currently not defined and will likely change over time.
-    #[cfg(feature = "inline")]
-    pub fn iter_inline_changes(&self, op: &DiffOp) -> impl Iterator<Item = InlineChange> {
-        iter_inline_changes(self, op)
     }
 
     /// Returns the captured diff ops.
@@ -522,85 +538,20 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs> {
     }
 
     /// Utility to return a unified diff formatter.
-    pub fn unified_diff<'diff>(&'diff self) -> UnifiedDiff<'diff, 'old, 'new, 'bufs> {
+    pub fn unified_diff<'diff>(&'diff self) -> UnifiedDiff<'diff, 'old, 'new, 'bufs, T> {
         UnifiedDiff::from_text_diff(self)
     }
-}
 
-/// Given a string splits it into lines.
-///
-/// This operation will preserve the newline separation character at the end.
-/// It supports all common newline sequences (`\r\n`, `\n` as well as `\r`).
-fn split_lines(s: &str) -> impl Iterator<Item = &str> {
-    let mut iter = s.char_indices().peekable();
-    let mut last_pos = 0;
-
-    std::iter::from_fn(move || {
-        if let Some((idx, c)) = iter.next() {
-            let mut rv = None;
-            if c == '\r' {
-                if iter.peek().map_or(false, |x| x.1 == '\n') {
-                    rv = Some(&s[last_pos..=idx + 1]);
-                    iter.next();
-                    last_pos = idx + 2;
-                } else {
-                    rv = Some(&s[last_pos..=idx]);
-                    last_pos = idx + 1;
-                }
-            } else if c == '\n' {
-                rv = Some(&s[last_pos..=idx]);
-                last_pos = idx + 1;
-            }
-            Some(rv)
-        } else if last_pos < s.len() {
-            let tmp = &s[last_pos..];
-            last_pos = s.len();
-            Some(Some(tmp))
-        } else {
-            None
-        }
-    })
-    .flatten()
-}
-
-/// Partitions at whitespace.
-fn split_words(s: &str) -> impl Iterator<Item = &str> {
-    let mut iter = s.char_indices().peekable();
-
-    std::iter::from_fn(move || {
-        if let Some((idx, c)) = iter.next() {
-            let is_whitespace = c.is_whitespace();
-            let start = idx;
-            let mut end = idx + c.len_utf8();
-            while let Some(&(_, next_char)) = iter.peek() {
-                if next_char.is_whitespace() != is_whitespace {
-                    break;
-                }
-                iter.next();
-                end += next_char.len_utf8();
-            }
-            Some(&s[start..end])
-        } else {
-            None
-        }
-    })
-}
-
-/// Splits words according to unicode rules.
-#[cfg(feature = "unicode")]
-fn split_unicode_words(s: &str) -> impl Iterator<Item = &str> {
-    unicode_segmentation::UnicodeSegmentation::split_word_bounds(s)
-}
-
-/// Splits text into characters.
-fn split_chars(s: &str) -> impl Iterator<Item = &str> {
-    s.char_indices().map(move |(i, c)| &s[i..i + c.len_utf8()])
-}
-
-/// Splits text into graphemes.
-#[cfg(feature = "unicode")]
-fn split_graphemes(s: &str) -> impl Iterator<Item = &str> {
-    unicode_segmentation::UnicodeSegmentation::graphemes(s, true)
+    /// Iterates over the changes the op expands to with inline emphasis.
+    ///
+    /// This is very similar to [`TextDiff::iter_changes`] but it performs a second
+    /// level diff on adjacent line replacements.  The exact behavior of
+    /// this function with regards to how it detects those inline changes
+    /// is currently not defined and will likely change over time.
+    #[cfg(feature = "inline")]
+    pub fn iter_inline_changes(&self, op: &DiffOp) -> impl Iterator<Item = InlineChange<'_, T>> {
+        iter_inline_changes(self, op)
+    }
 }
 
 // quick and dirty way to get an upper sequence ratio.
@@ -619,10 +570,10 @@ fn upper_seq_ratio<T: PartialEq>(seq1: &[T], seq2: &[T]) -> f32 {
 ///
 /// It counts the number of matches without regard to order, which is an
 /// obvious upper bound.
-struct QuickSeqRatio<'a>(HashMap<&'a str, i32>);
+struct QuickSeqRatio<'a, T: DiffableStrRef + ?Sized>(HashMap<&'a T, i32>);
 
-impl<'a> QuickSeqRatio<'a> {
-    pub fn new(seq: &[&'a str]) -> QuickSeqRatio<'a> {
+impl<'a, T: DiffableStrRef + Hash + Eq + ?Sized> QuickSeqRatio<'a, T> {
+    pub fn new(seq: &[&'a T]) -> QuickSeqRatio<'a, T> {
         let mut counts = HashMap::new();
         for &word in seq {
             *counts.entry(word).or_insert(0) += 1;
@@ -630,7 +581,7 @@ impl<'a> QuickSeqRatio<'a> {
         QuickSeqRatio(counts)
     }
 
-    pub fn calc(&self, seq: &[&str]) -> f32 {
+    pub fn calc(&self, seq: &[&T]) -> f32 {
         let n = self.0.len() + seq.len();
         if n == 0 {
             return 1.0;
@@ -669,18 +620,18 @@ impl<'a> QuickSeqRatio<'a> {
 /// );
 /// assert_eq!(matches, vec!["apple", "ape"]);
 /// ```
-pub fn get_close_matches<'a>(
-    word: &str,
-    possibilities: &[&'a str],
+pub fn get_close_matches<'a, T: DiffableStr + ?Sized>(
+    word: &T,
+    possibilities: &[&'a T],
     n: usize,
     cutoff: f32,
-) -> Vec<&'a str> {
+) -> Vec<&'a T> {
     let mut matches = BinaryHeap::new();
-    let seq1 = split_chars(word).collect::<Vec<_>>();
+    let seq1 = word.split_chars();
     let quick_ratio = QuickSeqRatio::new(&seq1);
 
     for &possibility in possibilities {
-        let seq2 = split_chars(possibility).collect::<Vec<_>>();
+        let seq2 = possibility.split_chars();
 
         if upper_seq_ratio(&seq1, &seq2) < cutoff || quick_ratio.calc(&seq2) < cutoff {
             continue;
@@ -705,42 +656,6 @@ pub fn get_close_matches<'a>(
     }
 
     rv
-}
-
-#[test]
-fn test_split_lines() {
-    assert_eq!(
-        split_lines("first\nsecond\rthird\r\nfourth\nlast").collect::<Vec<_>>(),
-        vec!["first\n", "second\r", "third\r\n", "fourth\n", "last"]
-    );
-    assert_eq!(split_lines("\n\n").collect::<Vec<_>>(), vec!["\n", "\n"]);
-    assert_eq!(split_lines("\n").collect::<Vec<_>>(), vec!["\n"]);
-    assert!(split_lines("").collect::<Vec<_>>().is_empty());
-}
-
-#[test]
-fn test_split_words() {
-    assert_eq!(
-        split_words("foo    bar baz\n\n  aha").collect::<Vec<_>>(),
-        ["foo", "    ", "bar", " ", "baz", "\n\n  ", "aha"]
-    );
-}
-
-#[test]
-fn test_split_chars() {
-    assert_eq!(
-        split_chars("abcfö❄️").collect::<Vec<_>>(),
-        vec!["a", "b", "c", "f", "ö", "❄", "\u{fe0f}"]
-    );
-}
-
-#[test]
-#[cfg(feature = "unicode")]
-fn test_split_graphemes() {
-    assert_eq!(
-        split_graphemes("abcfö❄️").collect::<Vec<_>>(),
-        vec!["a", "b", "c", "f", "ö", "❄️"]
-    );
 }
 
 #[test]
@@ -782,10 +697,9 @@ fn test_unified_diff() {
 
 #[test]
 fn test_line_ops() {
-    let diff = TextDiff::from_lines(
-        "Hello World\nsome stuff here\nsome more stuff here\n",
-        "Hello World\nsome amazing stuff here\nsome more stuff here\n",
-    );
+    let a = "Hello World\nsome stuff here\nsome more stuff here\n";
+    let b = "Hello World\nsome amazing stuff here\nsome more stuff here\n";
+    let diff = TextDiff::from_lines(a, b);
     assert_eq!(diff.newline_terminated(), true);
     let changes = diff
         .ops()
@@ -793,6 +707,19 @@ fn test_line_ops() {
         .flat_map(|op| diff.iter_changes(op))
         .collect::<Vec<_>>();
     insta::assert_debug_snapshot!(&changes);
+
+    #[cfg(feature = "bytes")]
+    {
+        let byte_diff = TextDiff::from_lines(a.as_bytes(), b.as_bytes());
+        let byte_changes = byte_diff
+            .ops()
+            .iter()
+            .flat_map(|op| byte_diff.iter_changes(op))
+            .collect::<Vec<_>>();
+        for (change, byte_change) in changes.iter().zip(byte_changes.iter()) {
+            assert_eq!(change.value(), byte_change.value());
+        }
+    }
 }
 
 #[test]
@@ -811,6 +738,12 @@ fn test_virtual_newlines() {
 fn test_char_diff() {
     let diff = TextDiff::from_chars("Hello World", "Hallo Welt");
     insta::assert_debug_snapshot!(diff.ops());
+
+    #[cfg(feature = "bytes")]
+    {
+        let byte_diff = TextDiff::from_chars("Hello World".as_bytes(), "Hallo Welt".as_bytes());
+        assert_eq!(diff.ops(), byte_diff.ops());
+    }
 }
 
 #[test]

@@ -1,24 +1,23 @@
 #![cfg(feature = "inline")]
+use std::borrow::Cow;
 use std::fmt;
 
 use crate::algorithms::{capture_diff, get_diff_ratio, Algorithm, DiffOp, DiffTag};
-use crate::text::{Change, ChangeTag, TextDiff};
-
-use super::split_unicode_words;
+use crate::text::{Change, ChangeTag, DiffableStr, TextDiff};
 
 use std::ops::Index;
 
-struct MultiLookup<'bufs, 's> {
-    strings: &'bufs [&'s str],
-    seqs: Vec<(&'s str, usize, usize)>,
+struct MultiLookup<'bufs, 's, T: DiffableStr + ?Sized> {
+    strings: &'bufs [&'s T],
+    seqs: Vec<(&'s T, usize, usize)>,
 }
 
-impl<'bufs, 's> MultiLookup<'bufs, 's> {
-    fn new(strings: &'bufs [&'s str]) -> MultiLookup<'bufs, 's> {
+impl<'bufs, 's, T: DiffableStr + ?Sized> MultiLookup<'bufs, 's, T> {
+    fn new(strings: &'bufs [&'s T]) -> MultiLookup<'bufs, 's, T> {
         let mut seqs = Vec::new();
         for (string_idx, string) in strings.iter().enumerate() {
             let mut offset = 0;
-            for word in split_unicode_words(string) {
+            for word in string.split_unicode_words() {
                 seqs.push((word, string_idx, offset));
                 offset += word.len();
             }
@@ -30,7 +29,7 @@ impl<'bufs, 's> MultiLookup<'bufs, 's> {
         self.seqs.len()
     }
 
-    fn get_original_slices(&self, idx: usize, len: usize) -> Vec<(usize, &'s str)> {
+    fn get_original_slices(&self, idx: usize, len: usize) -> Vec<(usize, &'s T)> {
         let mut last = None;
         let mut rv = Vec::new();
 
@@ -44,7 +43,8 @@ impl<'bufs, 's> MultiLookup<'bufs, 's> {
                     } else {
                         rv.push((
                             last_str_idx,
-                            &self.strings[last_str_idx][start_char_idx..start_char_idx + last_len],
+                            self.strings[last_str_idx]
+                                .slice(start_char_idx..start_char_idx + last_len),
                         ));
                         Some((str_idx, char_idx, s.len()))
                     }
@@ -55,7 +55,7 @@ impl<'bufs, 's> MultiLookup<'bufs, 's> {
         if let Some((str_idx, start_char_idx, len)) = last {
             rv.push((
                 str_idx,
-                &self.strings[str_idx][start_char_idx..start_char_idx + len],
+                self.strings[str_idx].slice(start_char_idx..start_char_idx + len),
             ));
         }
 
@@ -63,43 +63,26 @@ impl<'bufs, 's> MultiLookup<'bufs, 's> {
     }
 }
 
-impl<'bufs, 's> Index<usize> for MultiLookup<'bufs, 's> {
-    type Output = str;
+impl<'bufs, 's, T: DiffableStr + ?Sized> Index<usize> for MultiLookup<'bufs, 's, T> {
+    type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.seqs[index].0
     }
 }
 
-fn partition_newlines(s: &str) -> impl Iterator<Item = (&str, bool)> {
-    let mut iter = s.char_indices().peekable();
-
-    std::iter::from_fn(move || {
-        if let Some((idx, c)) = iter.next() {
-            let is_newline = c == '\r' || c == '\n';
-            let start = idx;
-            let mut end = idx + c.len_utf8();
-            while let Some(&(_, next_char)) = iter.peek() {
-                if (next_char == '\r' || next_char == '\n') != is_newline {
-                    break;
-                }
-                iter.next();
-                end += next_char.len_utf8();
-            }
-            Some((&s[start..end], is_newline))
-        } else {
-            None
-        }
-    })
-}
-
-fn push_values<'s>(v: &mut Vec<Vec<(bool, &'s str)>>, idx: usize, emphasized: bool, s: &'s str) {
+fn push_values<'s, T: DiffableStr + ?Sized>(
+    v: &mut Vec<Vec<(bool, &'s T)>>,
+    idx: usize,
+    emphasized: bool,
+    s: &'s T,
+) {
     v.resize_with(v.len().max(idx + 1), Vec::new);
     // newlines cause all kinds of wacky stuff if they end up highlighted.
     // because of this we want to unemphasize all newlines we encounter.
     if emphasized {
-        for (seg, is_nl) in partition_newlines(s) {
-            v[idx].push((!is_nl, seg));
+        for seg in s.split_lines_and_newlines() {
+            v[idx].push((!seg.ends_with_newline(), seg));
         }
     } else {
         v[idx].push((false, s));
@@ -110,15 +93,15 @@ fn push_values<'s>(v: &mut Vec<Vec<(bool, &'s str)>>, idx: usize, emphasized: bo
 ///
 /// This is like [`Change`] but with inline highlight info.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Ord, PartialOrd)]
-pub struct InlineChange<'s> {
+pub struct InlineChange<'s, T: DiffableStr + ?Sized> {
     tag: ChangeTag,
     old_index: Option<usize>,
     new_index: Option<usize>,
-    values: Vec<(bool, &'s str)>,
+    values: Vec<(bool, &'s T)>,
     missing_newline: bool,
 }
 
-impl<'s> InlineChange<'s> {
+impl<'s, T: DiffableStr + ?Sized> InlineChange<'s, T> {
     /// Returns the change tag.
     pub fn tag(&self) -> ChangeTag {
         self.tag
@@ -135,8 +118,15 @@ impl<'s> InlineChange<'s> {
     }
 
     /// Returns the changed values.
-    pub fn values(&self) -> &[(bool, &'s str)] {
+    pub fn raw_values(&self) -> &[(bool, &'s T)] {
         &self.values
+    }
+
+    /// Iterates over all utf-8 decoded values.
+    pub fn iter_values(&self) -> impl Iterator<Item = (bool, Cow<'_, str>)> {
+        self.raw_values()
+            .iter()
+            .map(|(emphasized, raw_value)| (*emphasized, raw_value.as_str_lossy()))
     }
 
     /// Returns `true` if this change needs to be followed up by a
@@ -146,21 +136,21 @@ impl<'s> InlineChange<'s> {
     }
 }
 
-impl<'s> From<Change<'s>> for InlineChange<'s> {
-    fn from(change: Change<'s>) -> InlineChange<'s> {
+impl<'s, T: DiffableStr + ?Sized> From<Change<'s, T>> for InlineChange<'s, T> {
+    fn from(change: Change<'s, T>) -> InlineChange<'s, T> {
         InlineChange {
             tag: change.tag(),
             old_index: change.old_index(),
             new_index: change.new_index(),
-            values: vec![(false, change.value())],
+            values: vec![(false, change.raw_value())],
             missing_newline: change.missing_newline(),
         }
     }
 }
 
-impl<'s> fmt::Display for InlineChange<'s> {
+impl<'s, T: DiffableStr + ?Sized> fmt::Display for InlineChange<'s, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for &(emphasized, value) in &self.values {
+        for (emphasized, value) in self.iter_values() {
             let marker = match (emphasized, self.tag) {
                 (false, _) | (true, ChangeTag::Equal) => "",
                 (true, ChangeTag::Delete) => "-",
@@ -175,10 +165,13 @@ impl<'s> fmt::Display for InlineChange<'s> {
     }
 }
 
-pub(crate) fn iter_inline_changes<'diff>(
-    diff: &'diff TextDiff,
+pub(crate) fn iter_inline_changes<'diff, T>(
+    diff: &'diff TextDiff<'_, '_, '_, T>,
     op: &DiffOp,
-) -> impl Iterator<Item = InlineChange<'diff>> {
+) -> impl Iterator<Item = InlineChange<'diff, T>>
+where
+    T: DiffableStr + ?Sized,
+{
     let newline_terminated = diff.newline_terminated;
     let (tag, old_range, new_range) = op.as_tag_tuple();
 
@@ -267,7 +260,7 @@ pub(crate) fn iter_inline_changes<'diff>(
 
     if newline_terminated
         && !old_slices.is_empty()
-        && !old_slices[old_slices.len() - 1].ends_with(&['\r', '\n'][..])
+        && !old_slices[old_slices.len() - 1].ends_with_newline()
     {
         if let Some(last) = rv.last_mut() {
             last.missing_newline = true;
@@ -287,7 +280,7 @@ pub(crate) fn iter_inline_changes<'diff>(
 
     if newline_terminated
         && !new_slices.is_empty()
-        && !new_slices[new_slices.len() - 1].ends_with(&['\r', '\n'][..])
+        && !new_slices[new_slices.len() - 1].ends_with_newline()
     {
         if let Some(last) = rv.last_mut() {
             last.missing_newline = true;

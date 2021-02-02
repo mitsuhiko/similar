@@ -20,6 +20,8 @@ use std::ops::Range;
 use crate::algorithms::{Algorithm, DiffOp};
 use crate::text::{Change, ChangeTag, TextDiff};
 
+use super::DiffableStr;
+
 #[derive(Copy, Clone, Debug)]
 struct UnifiedDiffHunkRange(usize, usize);
 
@@ -78,16 +80,16 @@ impl fmt::Display for UnifiedHunkHeader {
 /// Unified diff formatter.
 ///
 /// The `Display` implementation renders a unified diff.
-pub struct UnifiedDiff<'diff, 'old, 'new, 'bufs> {
-    diff: &'diff TextDiff<'old, 'new, 'bufs>,
+pub struct UnifiedDiff<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
+    diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
     context_radius: usize,
     missing_newline_hint: bool,
     header: Option<(String, String)>,
 }
 
-impl<'diff, 'old, 'new, 'bufs> UnifiedDiff<'diff, 'old, 'new, 'bufs> {
+impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> UnifiedDiff<'diff, 'old, 'new, 'bufs, T> {
     /// Creates a formatter from a text diff object.
-    pub fn from_text_diff(diff: &'diff TextDiff<'old, 'new, 'bufs>) -> Self {
+    pub fn from_text_diff(diff: &'diff TextDiff<'old, 'new, 'bufs, T>) -> Self {
         UnifiedDiff {
             diff,
             context_radius: 3,
@@ -127,7 +129,7 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiff<'diff, 'old, 'new, 'bufs> {
     }
 
     /// Iterates over all hunks as configured.
-    pub fn iter_hunks(&self) -> impl Iterator<Item = UnifiedDiffHunk<'diff, 'old, 'new, 'bufs>> {
+    pub fn iter_hunks(&self) -> impl Iterator<Item = UnifiedDiffHunk<'diff, 'old, 'new, 'bufs, T>> {
         let diff = self.diff;
         let missing_newline_hint = self.missing_newline_hint;
         self.diff
@@ -148,19 +150,21 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiff<'diff, 'old, 'new, 'bufs> {
 /// Unified diff hunk formatter.
 ///
 /// The `Display` this renders out a single unified diff's hunk.
-pub struct UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
-    diff: &'diff TextDiff<'old, 'new, 'bufs>,
+pub struct UnifiedDiffHunk<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
+    diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
     ops: Vec<DiffOp>,
     missing_newline_hint: bool,
 }
 
-impl<'diff, 'old, 'new, 'bufs> UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
+impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized>
+    UnifiedDiffHunk<'diff, 'old, 'new, 'bufs, T>
+{
     /// Creates a new hunk for some operations.
     pub fn new(
         ops: Vec<DiffOp>,
-        diff: &'diff TextDiff<'old, 'new, 'bufs>,
+        diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
         missing_newline_hint: bool,
-    ) -> UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
+    ) -> UnifiedDiffHunk<'diff, 'old, 'new, 'bufs, T> {
         UnifiedDiffHunk {
             diff,
             ops,
@@ -184,7 +188,7 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
     }
 
     /// Iterates over all changes in a hunk.
-    pub fn iter_changes(&self) -> impl Iterator<Item = Change<'_>> + '_ {
+    pub fn iter_changes(&self) -> impl Iterator<Item = Change<'_, T>> + '_ {
         // unclear why this needs Box::new here.  It seems to infer some really
         // odd lifetimes I can't figure out how to work with.
         (Box::new(
@@ -195,7 +199,9 @@ impl<'diff, 'old, 'new, 'bufs> UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
     }
 }
 
-impl<'diff, 'old, 'new, 'bufs> fmt::Display for UnifiedDiffHunk<'diff, 'old, 'new, 'bufs> {
+impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> fmt::Display
+    for UnifiedDiffHunk<'diff, 'old, 'new, 'bufs, T>
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let nl = if self.diff.newline_terminated() {
             ""
@@ -231,7 +237,9 @@ impl<'diff, 'old, 'new, 'bufs> fmt::Display for UnifiedDiffHunk<'diff, 'old, 'ne
     }
 }
 
-impl<'diff, 'old, 'new, 'bufs> fmt::Display for UnifiedDiff<'diff, 'old, 'new, 'bufs> {
+impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> fmt::Display
+    for UnifiedDiff<'diff, 'old, 'new, 'bufs, T>
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut header = self.header.as_ref();
         for hunk in self.iter_hunks() {
