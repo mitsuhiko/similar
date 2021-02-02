@@ -102,7 +102,7 @@ pub use self::udiff::{unified_diff, UnifiedDiff, UnifiedDiffHunk, UnifiedHunkHea
 
 use self::utils::{upper_seq_ratio, QuickSeqRatio};
 use crate::algorithms::{capture_diff_slices, get_diff_ratio, group_diff_ops};
-use crate::types::{Algorithm, Change, ChangeTag, DiffOp, DiffTag};
+use crate::types::{Algorithm, Change, DiffOp};
 
 /// A builder type config for more complex uses of [`TextDiff`].
 #[derive(Clone, Debug)]
@@ -374,80 +374,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     /// up the value from the appropriate slice and also handle correct index
     /// handling.
     pub fn iter_changes(&self, op: &DiffOp) -> impl Iterator<Item = Change<'_, T>> {
-        let (tag, old_range, new_range) = op.as_tag_tuple();
-        let mut old_index = old_range.start;
-        let mut new_index = new_range.start;
-        let mut old_slices = &self.old_slices()[op.old_range()];
-        let mut new_slices = &self.new_slices()[op.new_range()];
-
-        std::iter::from_fn(move || match tag {
-            DiffTag::Equal => {
-                if let Some((&first, rest)) = old_slices.split_first() {
-                    old_slices = rest;
-                    old_index += 1;
-                    new_index += 1;
-                    Some(Change {
-                        tag: ChangeTag::Equal,
-                        old_index: Some(old_index - 1),
-                        new_index: Some(new_index - 1),
-                        value: first,
-                    })
-                } else {
-                    None
-                }
-            }
-            DiffTag::Delete => {
-                if let Some((&first, rest)) = old_slices.split_first() {
-                    old_slices = rest;
-                    old_index += 1;
-                    Some(Change {
-                        tag: ChangeTag::Delete,
-                        old_index: Some(old_index - 1),
-                        new_index: None,
-                        value: first,
-                    })
-                } else {
-                    None
-                }
-            }
-            DiffTag::Insert => {
-                if let Some((&first, rest)) = new_slices.split_first() {
-                    new_slices = rest;
-                    new_index += 1;
-                    Some(Change {
-                        tag: ChangeTag::Insert,
-                        old_index: None,
-                        new_index: Some(new_index - 1),
-                        value: first,
-                    })
-                } else {
-                    None
-                }
-            }
-            DiffTag::Replace => {
-                if let Some((&first, rest)) = old_slices.split_first() {
-                    old_slices = rest;
-                    old_index += 1;
-                    Some(Change {
-                        tag: ChangeTag::Delete,
-                        old_index: Some(old_index - 1),
-                        new_index: None,
-                        value: first,
-                    })
-                } else if let Some((&first, rest)) = new_slices.split_first() {
-                    new_slices = rest;
-                    new_index += 1;
-                    Some(Change {
-                        tag: ChangeTag::Insert,
-                        old_index: None,
-                        new_index: Some(new_index - 1),
-                        value: first,
-                    })
-                } else {
-                    None
-                }
-            }
-        })
+        op.iter_changes(self.old_slices(), self.new_slices())
     }
 
     /// Returns the captured diff ops.

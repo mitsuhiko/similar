@@ -1,5 +1,5 @@
 use std::fmt;
-use std::ops::Range;
+use std::ops::{Index, Range};
 
 use crate::algorithms::DiffHook;
 
@@ -44,11 +44,16 @@ impl fmt::Display for ChangeTag {
     }
 }
 
-/// Represents the expanded textual change.
+/// Represents the expanded [`DiffOp`] change.
 ///
-/// This type is returned from the [`crate::text::TextDiff::iter_changes`] method.
+/// This type is returned from [`DiffOp::iter_changes`] and
+/// [`TextDiff::iter_changes`](crate::text::TextDiff::iter_changes).
+///
 /// It exists so that it's more convenient to work with textual differences as
-/// the underlying [`DiffOp`] does not know anything about strings.
+/// the underlying [`DiffOp`] encodes a group of changes.
+///
+/// This type has additional methods that are only available for types
+/// implementing [`DiffableStr`](crate::text::DiffableStr).
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
 pub struct Change<'s, T: ?Sized> {
     pub(crate) tag: ChangeTag,
@@ -57,6 +62,7 @@ pub struct Change<'s, T: ?Sized> {
     pub(crate) value: &'s T,
 }
 
+/// These methods are available for all change types.
 impl<'s, T: ?Sized> Change<'s, T> {
     /// Returns the change tag.
     pub fn tag(&self) -> ChangeTag {
@@ -235,6 +241,102 @@ impl DiffOp {
             } => d.replace(old_index, old_len, new_index, new_len),
         }
     }
+
+    /// Iterates over all changes encoded in the diff op against old and new
+    /// sequences.
+    ///
+    /// `old` and `new` are two indexable objects like the types you pass to
+    /// the diffing algorithm functions.
+    pub fn iter_changes<'x, Old, New, T>(
+        &self,
+        old: &'x Old,
+        new: &'x New,
+    ) -> impl Iterator<Item = Change<'x, T>>
+    where
+        Old: Index<usize, Output = &'x T> + ?Sized,
+        New: Index<usize, Output = &'x T> + ?Sized,
+        T: 'x + ?Sized,
+    {
+        let (tag, old_range, new_range) = self.as_tag_tuple();
+        let mut old_index = old_range.start;
+        let mut new_index = new_range.start;
+        let mut old_i = old_range.start;
+        let mut new_i = new_range.start;
+
+        std::iter::from_fn(move || match tag {
+            DiffTag::Equal => {
+                if old_i < old_range.end {
+                    let value = old[old_i];
+                    old_i += 1;
+                    old_index += 1;
+                    new_index += 1;
+                    Some(Change {
+                        tag: ChangeTag::Equal,
+                        old_index: Some(old_index - 1),
+                        new_index: Some(new_index - 1),
+                        value,
+                    })
+                } else {
+                    None
+                }
+            }
+            DiffTag::Delete => {
+                if old_i < old_range.end {
+                    let value = old[old_i];
+                    old_i += 1;
+                    old_index += 1;
+                    Some(Change {
+                        tag: ChangeTag::Delete,
+                        old_index: Some(old_index - 1),
+                        new_index: None,
+                        value,
+                    })
+                } else {
+                    None
+                }
+            }
+            DiffTag::Insert => {
+                if new_i < new_range.end {
+                    let value = new[new_i];
+                    new_i += 1;
+                    new_index += 1;
+                    Some(Change {
+                        tag: ChangeTag::Insert,
+                        old_index: None,
+                        new_index: Some(new_index - 1),
+                        value,
+                    })
+                } else {
+                    None
+                }
+            }
+            DiffTag::Replace => {
+                if old_i < old_range.end {
+                    let value = old[old_i];
+                    old_i += 1;
+                    old_index += 1;
+                    Some(Change {
+                        tag: ChangeTag::Delete,
+                        old_index: Some(old_index - 1),
+                        new_index: None,
+                        value,
+                    })
+                } else if new_i < new_range.end {
+                    let value = new[new_i];
+                    new_i += 1;
+                    new_index += 1;
+                    Some(Change {
+                        tag: ChangeTag::Insert,
+                        old_index: None,
+                        new_index: Some(new_index - 1),
+                        value,
+                    })
+                } else {
+                    None
+                }
+            }
+        })
+    }
 }
 
 #[cfg(feature = "text")]
@@ -243,6 +345,9 @@ mod text_additions {
     use crate::text::DiffableStr;
     use std::borrow::Cow;
 
+    /// The text interface can produce changes over [`DiffableStr`] implemeting
+    /// values.  As those are generic interfaces for different types of strings
+    /// utility methods to make working with standard rust strings more enjoyable.
     impl<'s, T: DiffableStr + ?Sized> Change<'s, T> {
         /// Returns the value as string if it is utf-8.
         pub fn as_str(&self) -> Option<&'s str> {
