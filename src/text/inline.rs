@@ -99,7 +99,6 @@ pub struct InlineChange<'s, T: DiffableStr + ?Sized> {
     old_index: Option<usize>,
     new_index: Option<usize>,
     values: Vec<(bool, &'s T)>,
-    missing_newline: bool,
 }
 
 impl<'s, T: DiffableStr + ?Sized> InlineChange<'s, T> {
@@ -143,7 +142,7 @@ impl<'s, T: DiffableStr + ?Sized> InlineChange<'s, T> {
     /// Returns `true` if this change needs to be followed up by a
     /// missing newline.
     pub fn missing_newline(&self) -> bool {
-        self.missing_newline
+        !self.values.last().map_or(true, |x| x.1.ends_with_newline())
     }
 }
 
@@ -154,7 +153,6 @@ impl<'s, T: DiffableStr + ?Sized> From<Change<'s, T>> for InlineChange<'s, T> {
             old_index: change.old_index(),
             new_index: change.new_index(),
             values: vec![(false, change.value())],
-            missing_newline: change.missing_newline(),
         }
     }
 }
@@ -169,7 +167,7 @@ impl<'s, T: DiffableStr + ?Sized> fmt::Display for InlineChange<'s, T> {
             };
             write!(f, "{}{}{}", marker, value, marker)?;
         }
-        if self.missing_newline {
+        if self.missing_newline() {
             writeln!(f)?;
         }
         Ok(())
@@ -183,7 +181,6 @@ pub(crate) fn iter_inline_changes<'diff, T>(
 where
     T: DiffableStr + ?Sized,
 {
-    let newline_terminated = diff.newline_terminated;
     let (tag, old_range, new_range) = op.as_tag_tuple();
 
     if let DiffTag::Equal | DiffTag::Insert | DiffTag::Delete = tag {
@@ -264,18 +261,8 @@ where
             old_index: Some(old_index),
             new_index: None,
             values,
-            missing_newline: false,
         });
         old_index += 1;
-    }
-
-    if newline_terminated
-        && !old_slices.is_empty()
-        && !old_slices[old_slices.len() - 1].ends_with_newline()
-    {
-        if let Some(last) = rv.last_mut() {
-            last.missing_newline = true;
-        }
     }
 
     for values in new_values {
@@ -284,18 +271,8 @@ where
             old_index: None,
             new_index: Some(new_index),
             values,
-            missing_newline: false,
         });
         new_index += 1;
-    }
-
-    if newline_terminated
-        && !new_slices.is_empty()
-        && !new_slices[new_slices.len() - 1].ends_with_newline()
-    {
-        if let Some(last) = rv.last_mut() {
-            last.missing_newline = true;
-        }
     }
 
     Box::new(rv.into_iter()) as Box<dyn Iterator<Item = _>>

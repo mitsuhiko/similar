@@ -55,7 +55,6 @@ pub struct Change<'s, T: ?Sized> {
     pub(crate) old_index: Option<usize>,
     pub(crate) new_index: Option<usize>,
     pub(crate) value: &'s T,
-    pub(crate) missing_newline: bool,
 }
 
 impl<'s, T: ?Sized> Change<'s, T> {
@@ -261,7 +260,7 @@ mod text_additions {
         /// The [`std::fmt::Display`] implementation of [`Change`] will automatically
         /// insert a newline after the value if this is true.
         pub fn missing_newline(&self) -> bool {
-            self.missing_newline
+            !T::ends_with_newline(self.value)
         }
     }
 
@@ -271,7 +270,7 @@ mod text_additions {
                 f,
                 "{}{}",
                 self.to_string_lossy(),
-                if self.missing_newline { "\n" } else { "" }
+                if self.missing_newline() { "\n" } else { "" }
             )
         }
     }

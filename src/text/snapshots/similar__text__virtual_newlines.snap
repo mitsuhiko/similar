@@ -12,7 +12,6 @@ expression: "&changes"
             0,
         ),
         value: "a\n",
-        missing_newline: false,
     },
     Change {
         tag: Delete,
@@ -21,7 +20,6 @@ expression: "&changes"
         ),
         new_index: None,
         value: "b",
-        missing_newline: true,
     },
     Change {
         tag: Insert,
@@ -30,6 +28,5 @@ expression: "&changes"
             1,
         ),
         value: "c\n",
-        missing_newline: false,
     },
 ]

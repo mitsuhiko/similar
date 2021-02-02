@@ -374,7 +374,6 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     /// up the value from the appropriate slice and also handle correct index
     /// handling.
     pub fn iter_changes(&self, op: &DiffOp) -> impl Iterator<Item = Change<'_, T>> {
-        let newline_terminated = self.newline_terminated;
         let (tag, old_range, new_range) = op.as_tag_tuple();
         let mut old_index = old_range.start;
         let mut new_index = new_range.start;
@@ -392,9 +391,6 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
                         old_index: Some(old_index - 1),
                         new_index: Some(new_index - 1),
                         value: first,
-                        missing_newline: newline_terminated
-                            && rest.is_empty()
-                            && !first.ends_with_newline(),
                     })
                 } else {
                     None
@@ -409,9 +405,6 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
                         old_index: Some(old_index - 1),
                         new_index: None,
                         value: first,
-                        missing_newline: newline_terminated
-                            && rest.is_empty()
-                            && !first.ends_with_newline(),
                     })
                 } else {
                     None
@@ -426,9 +419,6 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
                         old_index: None,
                         new_index: Some(new_index - 1),
                         value: first,
-                        missing_newline: newline_terminated
-                            && rest.is_empty()
-                            && !first.ends_with_newline(),
                     })
                 } else {
                     None
@@ -443,9 +433,6 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
                         old_index: Some(old_index - 1),
                         new_index: None,
                         value: first,
-                        missing_newline: newline_terminated
-                            && rest.is_empty()
-                            && !first.ends_with_newline(),
                     })
                 } else if let Some((&first, rest)) = new_slices.split_first() {
                     new_slices = rest;
@@ -455,9 +442,6 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
                         old_index: None,
                         new_index: Some(new_index - 1),
                         value: first,
-                        missing_newline: newline_terminated
-                            && rest.is_empty()
-                            && !first.ends_with_newline(),
                     })
                 } else {
                     None

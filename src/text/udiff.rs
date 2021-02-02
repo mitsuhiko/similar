@@ -258,7 +258,7 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized>
             if !self.diff.newline_terminated() {
                 writeln!(w)?;
             }
-            if change.missing_newline() {
+            if self.diff.newline_terminated() && change.missing_newline() {
                 writeln!(w, "{}", MissingNewlineHint(self.missing_newline_hint))?;
             }
         }
@@ -278,7 +278,7 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> fmt::Display
             if !self.diff.newline_terminated() {
                 writeln!(f)?;
             }
-            if change.missing_newline() {
+            if self.diff.newline_terminated() && change.missing_newline() {
                 writeln!(f, "{}", MissingNewlineHint(self.missing_newline_hint))?;
             }
         }

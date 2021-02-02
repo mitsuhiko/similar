@@ -12,7 +12,6 @@ expression: "&changes"
             0,
         ),
         value: "Hello",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -23,7 +22,6 @@ expression: "&changes"
             1,
         ),
         value: " ",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -34,7 +32,6 @@ expression: "&changes"
             2,
         ),
         value: "World",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -45,7 +42,6 @@ expression: "&changes"
             3,
         ),
         value: "\n",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -56,7 +52,6 @@ expression: "&changes"
             4,
         ),
         value: "some",
-        missing_newline: false,
     },
     Change {
         tag: Insert,
@@ -65,7 +60,6 @@ expression: "&changes"
             5,
         ),
         value: " ",
-        missing_newline: false,
     },
     Change {
         tag: Insert,
@@ -74,7 +68,6 @@ expression: "&changes"
             6,
         ),
         value: "amazing",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -85,7 +78,6 @@ expression: "&changes"
             7,
         ),
         value: " ",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -96,7 +88,6 @@ expression: "&changes"
             8,
         ),
         value: "stuff",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -107,7 +98,6 @@ expression: "&changes"
             9,
         ),
         value: " ",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -118,7 +108,6 @@ expression: "&changes"
             10,
         ),
         value: "here",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -129,7 +118,6 @@ expression: "&changes"
             11,
         ),
         value: "\n",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -140,7 +128,6 @@ expression: "&changes"
             12,
         ),
         value: "some",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -151,7 +138,6 @@ expression: "&changes"
             13,
         ),
         value: " ",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -162,7 +148,6 @@ expression: "&changes"
             14,
         ),
         value: "more",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -173,7 +158,6 @@ expression: "&changes"
             15,
         ),
         value: " ",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -184,7 +168,6 @@ expression: "&changes"
             16,
         ),
         value: "stuff",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -195,7 +178,6 @@ expression: "&changes"
             17,
         ),
         value: " ",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -206,7 +188,6 @@ expression: "&changes"
             18,
         ),
         value: "here",
-        missing_newline: false,
     },
     Change {
         tag: Equal,
@@ -217,6 +198,5 @@ expression: "&changes"
             19,
         ),
         value: "\n",
-        missing_newline: false,
     },
 ]

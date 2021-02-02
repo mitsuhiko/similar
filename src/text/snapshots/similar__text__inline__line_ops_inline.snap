@@ -15,7 +15,6 @@ expression: "&changes"
                 "Stuff\n",
             ),
         ],
-        missing_newline: false,
     },
     InlineChange {
         tag: Equal,
@@ -31,7 +30,6 @@ expression: "&changes"
                 "Hello World\n",
             ),
         ],
-        missing_newline: false,
     },
     InlineChange {
         tag: Delete,
@@ -49,7 +47,6 @@ expression: "&changes"
                 "stuff here\n",
             ),
         ],
-        missing_newline: false,
     },
     InlineChange {
         tag: Insert,
@@ -71,7 +68,6 @@ expression: "&changes"
                 "stuff here\n",
             ),
         ],
-        missing_newline: false,
     },
     InlineChange {
         tag: Equal,
@@ -87,7 +83,6 @@ expression: "&changes"
                 "some more stuff here\n",
             ),
         ],
-        missing_newline: false,
     },
     InlineChange {
         tag: Delete,
@@ -101,7 +96,6 @@ expression: "&changes"
                 "\n",
             ),
         ],
-        missing_newline: false,
     },
     InlineChange {
         tag: Delete,
@@ -115,7 +109,6 @@ expression: "&changes"
                 "Aha stuff here\n",
             ),
         ],
-        missing_newline: false,
     },
     InlineChange {
         tag: Delete,
@@ -129,6 +122,5 @@ expression: "&changes"
                 "and more stuff",
             ),
         ],
-        missing_newline: true,
     },
 ]
