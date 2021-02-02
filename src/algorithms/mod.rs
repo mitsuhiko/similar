@@ -14,6 +14,20 @@
 //!
 //! Most of the crate operates on the [`Algorithm`] enum which abstracts over
 //! the different algorithms.
+//!
+//! # Example
+//!
+//! This is a simple example that shows how you can calculate the difference
+//! between two sequences and capture the [`DiffOp`]s into a vector.
+//!
+//! ```rust
+//! use similar::Algorithm;
+//! use similar::algorithms::capture_diff_slices;
+//!
+//! let a = vec![1, 2, 3, 4, 5];
+//! let b = vec![1, 2, 3, 4, 7];
+//! let ops = capture_diff_slices(Algorithm::Myers, &a, &b);
+//! ```
 
 // general traits and utilities
 mod capture;
@@ -23,29 +37,15 @@ mod replace;
 use std::hash::Hash;
 use std::ops::{Index, Range};
 
-pub use capture::{get_diff_ratio, group_diff_ops, Capture, DiffOp, DiffTag};
+use crate::types::{Algorithm, DiffOp};
+
+pub use capture::{get_diff_ratio, group_diff_ops, Capture};
 pub use hook::DiffHook;
 pub use replace::Replace;
 
 // actual diffing algorithms
 pub mod myers;
 pub mod patience;
-
-/// An enum representing a diffing algorithm.
-#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub enum Algorithm {
-    /// Picks the myers algorithm from [`myers`]
-    Myers,
-    /// Picks the patience algorithm from [`patience`]
-    Patience,
-}
-
-impl Default for Algorithm {
-    /// Returns the default algorithm ([`Algorithm::Myers`]).
-    fn default() -> Algorithm {
-        Algorithm::Myers
-    }
-}
 
 /// Creates a diff between old and new with the given algorithm.
 ///

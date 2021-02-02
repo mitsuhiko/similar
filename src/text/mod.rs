@@ -43,7 +43,7 @@
 //! Because very commonly two compared sequences will largely match this module
 //! splits it's functionality into two layers.  The first is inherited from the
 //! general [`algorithms`](crate::algorithms) module: changes are encoded as
-//! [diff operations](crate::algorithms::DiffOp).  These are ranges of the
+//! [diff operations](crate::DiffOp).  These are ranges of the
 //! differences by index in the source sequence.  Because this can be cumbersome
 //! to work with a separate method [`TextDiff::iter_changes`] is provided which
 //! expands all the changes on an item by item level encoded in an operation.
@@ -88,8 +88,6 @@
 use std::borrow::Cow;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
-use std::fmt;
-use std::hash::Hash;
 
 mod abstraction;
 #[cfg(feature = "inline")]
@@ -103,9 +101,8 @@ pub use self::inline::InlineChange;
 pub use self::udiff::{unified_diff, UnifiedDiff, UnifiedDiffHunk, UnifiedHunkHeader};
 
 use self::utils::{upper_seq_ratio, QuickSeqRatio};
-use crate::algorithms::{
-    capture_diff_slices, get_diff_ratio, group_diff_ops, Algorithm, DiffOp, DiffTag,
-};
+use crate::algorithms::{capture_diff_slices, get_diff_ratio, group_diff_ops};
+use crate::types::{Algorithm, Change, ChangeTag, DiffOp, DiffTag};
 
 /// A builder type config for more complex uses of [`TextDiff`].
 #[derive(Clone, Debug)]
@@ -247,101 +244,6 @@ impl TextDiffConfig {
             newline_terminated: self.newline_terminated.unwrap_or(newline_terminated),
             algorithm: self.algorithm,
         }
-    }
-}
-
-/// The tag of a change.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
-pub enum ChangeTag {
-    /// The change indicates equality (not a change)
-    Equal,
-    /// The change indicates deleted text.
-    Delete,
-    /// The change indicates inserted text.
-    Insert,
-}
-
-impl fmt::Display for ChangeTag {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match &self {
-                ChangeTag::Equal => ' ',
-                ChangeTag::Delete => '-',
-                ChangeTag::Insert => '+',
-            }
-        )
-    }
-}
-
-/// Represents the expanded textual change.
-///
-/// This type is returned from the [`TextDiff::iter_changes`] method.  It
-/// exists so that it's more convenient to work with textual differences as
-/// the underlying [`DiffOp`] does not know anything about strings.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
-pub struct Change<'s, T: DiffableStr + ?Sized> {
-    tag: ChangeTag,
-    old_index: Option<usize>,
-    new_index: Option<usize>,
-    value: &'s T,
-    missing_newline: bool,
-}
-
-impl<'s, T: DiffableStr + ?Sized> fmt::Display for Change<'s, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}{}",
-            self.to_string_lossy(),
-            if self.missing_newline { "\n" } else { "" }
-        )
-    }
-}
-
-impl<'s, T: DiffableStr + ?Sized> Change<'s, T> {
-    /// Returns the change tag.
-    pub fn tag(&self) -> ChangeTag {
-        self.tag
-    }
-
-    /// Returns the old index if available.
-    pub fn old_index(&self) -> Option<usize> {
-        self.old_index
-    }
-
-    /// Returns the new index if available.
-    pub fn new_index(&self) -> Option<usize> {
-        self.new_index
-    }
-
-    /// Returns the underlying changed value.
-    ///
-    /// Depending on the type of the underlying [`DiffableStr`] this value is
-    /// more or less useful.  If you always want to have a utf-8 string it's
-    /// best to use the [`Change::as_str`] and [`Change::to_string_lossy`] methods.
-    pub fn value(&self) -> &'s T {
-        self.value
-    }
-
-    /// Returns the value as string if it is utf-8.
-    pub fn as_str(&self) -> Option<&'s str> {
-        T::as_str(self.value)
-    }
-
-    /// Returns the value (lossy) decoded as utf-8 string.
-    pub fn to_string_lossy(&self) -> Cow<'s, str> {
-        T::to_string_lossy(self.value)
-    }
-
-    /// Returns `true` if this change needs to be followed up by a
-    /// missing newline.
-    ///
-    /// The [`std::fmt::Display`] implementation of [`Change`] will automatically
-    /// insert a newline after the value if this is true.
-    pub fn missing_newline(&self) -> bool {
-        self.missing_newline
     }
 }
 

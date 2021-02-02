@@ -25,8 +25,8 @@
 use std::ops::Range;
 use std::{fmt, io};
 
-use crate::algorithms::{Algorithm, DiffOp};
-use crate::text::{Change, TextDiff};
+use crate::text::TextDiff;
+use crate::types::{Algorithm, Change, DiffOp};
 
 use super::DiffableStr;
 

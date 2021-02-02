@@ -4,7 +4,8 @@
 //!
 //! ```rust
 //! # #[cfg(feature = "text")] {
-//! use similar::text::{ChangeTag, TextDiff};
+//! use similar::ChangeTag;
+//! use similar::text::TextDiff;
 //!
 //! let diff = TextDiff::from_lines(
 //!     "Hello World\nThis is the second line.\nThis is the third.",
@@ -42,12 +43,18 @@
 //!   If the crate is used without default features it's removed.
 //! * `unicode`: when this feature is enabled the text diffing functionality
 //!   gains the ability to diff on a grapheme instead of character level.  This
-//!   is particularly useful when working with text containing emojis.
-//! * `bytes`: when this feature is enabled the text module gains support for
-//!   working with byte slices.
+//!   is particularly useful when working with text containing emojis.  This
+//!   pulls in some relatively complex dependencies for working with the unicode
+//!   database.
+//! * `bytes`: this feature adds support for working with byte slices in the
+//!   [`text`] module in addition to unicode strings.  This pulls in the
+//!   [`bstr`] dependency.
 //! * `inline`: this feature gives access to additional functionality of the
-//!   `text` module to provide inline information about which values changed
+//!   [`text`] module to provide inline information about which values changed
 //!   in a line diff.  This currently also enables the `unicode` feature.
 #![warn(missing_docs)]
 pub mod algorithms;
 pub mod text;
+
+mod types;
+pub use self::types::*;

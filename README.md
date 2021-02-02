@@ -40,7 +40,9 @@ fn main() {
 
 * Myer's diff
 * Patience diff
+* Diffing on arbitrary comparable sequences
 * Line, word, character and grapheme level diffing
+* Text and Byte diffing
 * Unified diff generation
 
 ## License and Links

@@ -3,7 +3,8 @@ use std::fs::read;
 use std::process::exit;
 
 use console::{style, Style};
-use similar::text::{ChangeTag, TextDiff};
+use similar::text::TextDiff;
+use similar::ChangeTag;
 
 struct Line(Option<usize>);
 

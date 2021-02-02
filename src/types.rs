@@ -1,0 +1,278 @@
+use std::fmt;
+use std::ops::Range;
+
+use crate::algorithms::DiffHook;
+
+/// An enum representing a diffing algorithm.
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub enum Algorithm {
+    /// Picks the myers algorithm from [`crate::algorithms::myers`]
+    Myers,
+    /// Picks the patience algorithm from [`crate::algorithms::patience`]
+    Patience,
+}
+
+impl Default for Algorithm {
+    /// Returns the default algorithm ([`Algorithm::Myers`]).
+    fn default() -> Algorithm {
+        Algorithm::Myers
+    }
+}
+
+/// The tag of a change.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
+pub enum ChangeTag {
+    /// The change indicates equality (not a change)
+    Equal,
+    /// The change indicates deleted text.
+    Delete,
+    /// The change indicates inserted text.
+    Insert,
+}
+
+impl fmt::Display for ChangeTag {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match &self {
+                ChangeTag::Equal => ' ',
+                ChangeTag::Delete => '-',
+                ChangeTag::Insert => '+',
+            }
+        )
+    }
+}
+
+/// Represents the expanded textual change.
+///
+/// This type is returned from the [`crate::text::TextDiff::iter_changes`] method.
+/// It exists so that it's more convenient to work with textual differences as
+/// the underlying [`DiffOp`] does not know anything about strings.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
+pub struct Change<'s, T: ?Sized> {
+    pub(crate) tag: ChangeTag,
+    pub(crate) old_index: Option<usize>,
+    pub(crate) new_index: Option<usize>,
+    pub(crate) value: &'s T,
+    pub(crate) missing_newline: bool,
+}
+
+impl<'s, T: ?Sized> Change<'s, T> {
+    /// Returns the change tag.
+    pub fn tag(&self) -> ChangeTag {
+        self.tag
+    }
+
+    /// Returns the old index if available.
+    pub fn old_index(&self) -> Option<usize> {
+        self.old_index
+    }
+
+    /// Returns the new index if available.
+    pub fn new_index(&self) -> Option<usize> {
+        self.new_index
+    }
+
+    /// Returns the underlying changed value.
+    ///
+    /// Depending on the type of the underlying [`crate::text::DiffableStr`]
+    /// this value is more or less useful.  If you always want to have a utf-8
+    /// string it's best to use the [`Change::as_str`] and
+    /// [`Change::to_string_lossy`] methods.
+    pub fn value(&self) -> &'s T {
+        self.value
+    }
+}
+
+/// Utility enum to capture a diff operation.
+///
+/// This is used by [`Capture`](crate::algorithms::Capture).
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum DiffOp {
+    /// A segment is equal (see [`DiffHook::equal`])
+    Equal {
+        /// The starting index in the old sequence.
+        old_index: usize,
+        /// The starting index in the new sequence.
+        new_index: usize,
+        /// The length of the segment.
+        len: usize,
+    },
+    /// A segment was deleted (see [`DiffHook::delete`])
+    Delete {
+        /// The starting index in the old sequence.
+        old_index: usize,
+        /// The length of the old segment.
+        old_len: usize,
+        /// The starting index in the new sequence.
+        new_index: usize,
+    },
+    /// A segment was inserted (see [`DiffHook::insert`])
+    Insert {
+        /// The starting index in the old sequence.
+        old_index: usize,
+        /// The starting index in the new sequence.
+        new_index: usize,
+        /// The length of the new segment.
+        new_len: usize,
+    },
+    /// A segment was replaced (see [`DiffHook::replace`])
+    Replace {
+        /// The starting index in the old sequence.
+        old_index: usize,
+        /// The length of the old segment.
+        old_len: usize,
+        /// The starting index in the new sequence.
+        new_index: usize,
+        /// The length of the new segment.
+        new_len: usize,
+    },
+}
+
+/// The tag of a diff operation.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
+pub enum DiffTag {
+    /// The diff op encodes an equal segment.
+    Equal,
+    /// The diff op encodes a deleted segment.
+    Delete,
+    /// The diff op encodes an inserted segment.
+    Insert,
+    /// The diff op encodes a replaced segment.
+    Replace,
+}
+
+impl DiffOp {
+    /// Returns the tag of the operation.
+    pub fn tag(self) -> DiffTag {
+        self.as_tag_tuple().0
+    }
+
+    /// Returns the old range.
+    pub fn old_range(&self) -> Range<usize> {
+        self.as_tag_tuple().1
+    }
+
+    /// Returns the new range.
+    pub fn new_range(&self) -> Range<usize> {
+        self.as_tag_tuple().2
+    }
+
+    /// Transform the op into a tuple of diff tag and ranges.
+    ///
+    /// This is useful when operating on slices.  The returned format is
+    /// `(tag, i1..i2, j1..j2)`:
+    ///
+    /// * `Replace`: `a[i1..i2]` should be replaced by `b[j1..j2]`
+    /// * `Delete`: `a[i1..i2]` should be deleted (`j1 == j2` in this case).
+    /// * `Insert`: `b[j1..j2]` should be inserted at `a[i1..i2]` (`i1 == i2` in this case).
+    /// * `Equal`: `a[i1..i2]` is equal to `b[j1..j2]`.
+    pub fn as_tag_tuple(&self) -> (DiffTag, Range<usize>, Range<usize>) {
+        match *self {
+            DiffOp::Equal {
+                old_index,
+                new_index,
+                len,
+            } => (
+                DiffTag::Equal,
+                old_index..old_index + len,
+                new_index..new_index + len,
+            ),
+            DiffOp::Delete {
+                old_index,
+                new_index,
+                old_len,
+            } => (
+                DiffTag::Delete,
+                old_index..old_index + old_len,
+                new_index..new_index,
+            ),
+            DiffOp::Insert {
+                old_index,
+                new_index,
+                new_len,
+            } => (
+                DiffTag::Insert,
+                old_index..old_index,
+                new_index..new_index + new_len,
+            ),
+            DiffOp::Replace {
+                old_index,
+                old_len,
+                new_index,
+                new_len,
+            } => (
+                DiffTag::Replace,
+                old_index..old_index + old_len,
+                new_index..new_index + new_len,
+            ),
+        }
+    }
+
+    /// Apply this operation to a diff hook.
+    pub fn apply_to_hook<D: DiffHook>(&self, d: &mut D) -> Result<(), D::Error> {
+        match *self {
+            DiffOp::Equal {
+                old_index,
+                new_index,
+                len,
+            } => d.equal(old_index, new_index, len),
+            DiffOp::Delete {
+                old_index,
+                old_len,
+                new_index,
+            } => d.delete(old_index, old_len, new_index),
+            DiffOp::Insert {
+                old_index,
+                new_index,
+                new_len,
+            } => d.insert(old_index, new_index, new_len),
+            DiffOp::Replace {
+                old_index,
+                old_len,
+                new_index,
+                new_len,
+            } => d.replace(old_index, old_len, new_index, new_len),
+        }
+    }
+}
+
+#[cfg(feature = "text")]
+mod text_additions {
+    use super::*;
+    use crate::text::DiffableStr;
+    use std::borrow::Cow;
+
+    impl<'s, T: DiffableStr + ?Sized> Change<'s, T> {
+        /// Returns the value as string if it is utf-8.
+        pub fn as_str(&self) -> Option<&'s str> {
+            T::as_str(self.value)
+        }
+
+        /// Returns the value (lossy) decoded as utf-8 string.
+        pub fn to_string_lossy(&self) -> Cow<'s, str> {
+            T::to_string_lossy(self.value)
+        }
+
+        /// Returns `true` if this change needs to be followed up by a
+        /// missing newline.
+        ///
+        /// The [`std::fmt::Display`] implementation of [`Change`] will automatically
+        /// insert a newline after the value if this is true.
+        pub fn missing_newline(&self) -> bool {
+            self.missing_newline
+        }
+    }
+
+    impl<'s, T: DiffableStr + ?Sized> fmt::Display for Change<'s, T> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(
+                f,
+                "{}{}",
+                self.to_string_lossy(),
+                if self.missing_newline { "\n" } else { "" }
+            )
+        }
+    }
+}

@@ -2,8 +2,9 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use crate::algorithms::{capture_diff, get_diff_ratio, Algorithm, DiffOp, DiffTag};
-use crate::text::{Change, ChangeTag, DiffableStr, TextDiff};
+use crate::algorithms::{capture_diff, get_diff_ratio};
+use crate::text::{DiffableStr, TextDiff};
+use crate::types::{Algorithm, Change, ChangeTag, DiffOp, DiffTag};
 
 use std::ops::Index;
 
