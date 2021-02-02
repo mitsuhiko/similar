@@ -23,9 +23,9 @@ mod replace;
 use std::hash::Hash;
 use std::ops::{Index, Range};
 
-pub use capture::*;
-pub use hook::*;
-pub use replace::*;
+pub use capture::{get_diff_ratio, group_diff_ops, Capture, DiffOp, DiffTag};
+pub use hook::DiffHook;
+pub use replace::Replace;
 
 // actual diffing algorithms
 pub mod myers;

@@ -87,22 +87,22 @@
 #![cfg(feature = "text")]
 use std::borrow::Cow;
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::BinaryHeap;
 use std::fmt;
 use std::hash::Hash;
 
 mod abstraction;
-
 #[cfg(feature = "inline")]
 mod inline;
 mod udiff;
+mod utils;
 
+pub use self::abstraction::{DiffableStr, DiffableStrRef};
 #[cfg(feature = "inline")]
-pub use self::inline::*;
-pub use self::udiff::*;
+pub use self::inline::InlineChange;
+pub use self::udiff::{unified_diff, UnifiedDiff, UnifiedHunkHeader};
 
-pub use crate::text::abstraction::*;
-
+use self::utils::{upper_seq_ratio, QuickSeqRatio};
 use crate::algorithms::{
     capture_diff_slices, get_diff_ratio, group_diff_ops, Algorithm, DiffOp, DiffTag,
 };
@@ -250,15 +250,6 @@ impl TextDiffConfig {
     }
 }
 
-/// Captures diff op codes for textual diffs
-pub struct TextDiff<'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
-    old: Cow<'bufs, [&'old T]>,
-    new: Cow<'bufs, [&'new T]>,
-    ops: Vec<DiffOp>,
-    newline_terminated: bool,
-    algorithm: Algorithm,
-}
-
 /// The tag of a change.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
 pub enum ChangeTag {
@@ -268,6 +259,20 @@ pub enum ChangeTag {
     Delete,
     /// The change indicates inserted text.
     Insert,
+}
+
+impl fmt::Display for ChangeTag {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match &self {
+                ChangeTag::Equal => ' ',
+                ChangeTag::Delete => '-',
+                ChangeTag::Insert => '+',
+            }
+        )
+    }
 }
 
 /// Represents the expanded textual change.
@@ -289,7 +294,7 @@ impl<'s, T: DiffableStr + ?Sized> fmt::Display for Change<'s, T> {
         write!(
             f,
             "{}{}",
-            self.as_str_lossy(),
+            self.to_string_lossy(),
             if self.missing_newline { "\n" } else { "" }
         )
     }
@@ -312,6 +317,10 @@ impl<'s, T: DiffableStr + ?Sized> Change<'s, T> {
     }
 
     /// Returns the underlying changed value.
+    ///
+    /// Depending on the type of the underlying [`DiffableStr`] this value is
+    /// more or less useful.  If you always want to have a utf-8 string it's
+    /// best to use the [`Change::as_str`] and [`Change::to_string_lossy`] methods.
     pub fn value(&self) -> &'s T {
         self.value
     }
@@ -322,8 +331,8 @@ impl<'s, T: DiffableStr + ?Sized> Change<'s, T> {
     }
 
     /// Returns the value (lossy) decoded as utf-8 string.
-    pub fn as_str_lossy(&self) -> Cow<'s, str> {
-        T::as_str_lossy(self.value)
+    pub fn to_string_lossy(&self) -> Cow<'s, str> {
+        T::to_string_lossy(self.value)
     }
 
     /// Returns `true` if this change needs to be followed up by a
@@ -334,6 +343,15 @@ impl<'s, T: DiffableStr + ?Sized> Change<'s, T> {
     pub fn missing_newline(&self) -> bool {
         self.missing_newline
     }
+}
+
+/// Captures diff op codes for textual diffs
+pub struct TextDiff<'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
+    old: Cow<'bufs, [&'old T]>,
+    new: Cow<'bufs, [&'new T]>,
+    ops: Vec<DiffOp>,
+    newline_terminated: bool,
+    algorithm: Algorithm,
 }
 
 impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
@@ -571,58 +589,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     /// is currently not defined and will likely change over time.
     #[cfg(feature = "inline")]
     pub fn iter_inline_changes(&self, op: &DiffOp) -> impl Iterator<Item = InlineChange<'_, T>> {
-        iter_inline_changes(self, op)
-    }
-}
-
-// quick and dirty way to get an upper sequence ratio.
-fn upper_seq_ratio<T: PartialEq>(seq1: &[T], seq2: &[T]) -> f32 {
-    let n = seq1.len() + seq2.len();
-    if n == 0 {
-        1.0
-    } else {
-        2.0 * seq1.len().min(seq2.len()) as f32 / n as f32
-    }
-}
-
-/// Internal utility to calculate an upper bound for a ratio for
-/// [`get_close_matches`].  This is based on Python's difflib approach
-/// of considering the two sets to be multisets.
-///
-/// It counts the number of matches without regard to order, which is an
-/// obvious upper bound.
-struct QuickSeqRatio<'a, T: DiffableStrRef + ?Sized>(HashMap<&'a T, i32>);
-
-impl<'a, T: DiffableStrRef + Hash + Eq + ?Sized> QuickSeqRatio<'a, T> {
-    pub fn new(seq: &[&'a T]) -> QuickSeqRatio<'a, T> {
-        let mut counts = HashMap::new();
-        for &word in seq {
-            *counts.entry(word).or_insert(0) += 1;
-        }
-        QuickSeqRatio(counts)
-    }
-
-    pub fn calc(&self, seq: &[&T]) -> f32 {
-        let n = self.0.len() + seq.len();
-        if n == 0 {
-            return 1.0;
-        }
-
-        let mut available = HashMap::new();
-        let mut matches = 0;
-        for &word in seq {
-            let x = if let Some(count) = available.get(&word) {
-                *count
-            } else {
-                self.0.get(&word).copied().unwrap_or(0)
-            };
-            available.insert(word, x - 1);
-            if x > 0 {
-                matches += 1;
-            }
-        }
-
-        2.0 * matches as f32 / n as f32
+        inline::iter_inline_changes(self, op)
     }
 }
 
@@ -738,7 +705,7 @@ fn test_line_ops() {
             .flat_map(|op| byte_diff.iter_changes(op))
             .collect::<Vec<_>>();
         for (change, byte_change) in changes.iter().zip(byte_changes.iter()) {
-            assert_eq!(change.as_str_lossy(), byte_change.as_str_lossy());
+            assert_eq!(change.to_string_lossy(), byte_change.to_string_lossy());
         }
     }
 }

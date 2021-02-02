@@ -44,7 +44,7 @@ fn main() {
                     style(Line(change.new_index())).dim(),
                     s.apply_to(sign).bold(),
                 );
-                for (emphasized, value) in change.iter_strings() {
+                for (emphasized, value) in change.iter_strings_lossy() {
                     if emphasized {
                         print!("{}", s.apply_to(value).underlined().on_black());
                     } else {

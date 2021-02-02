@@ -121,6 +121,10 @@ impl<'s, T: DiffableStr + ?Sized> InlineChange<'s, T> {
     ///
     /// Each item is a tuple in the form `(emphasized, value)` where `emphasized`
     /// is true if it should be highlighted as an inline diff.
+    ///
+    /// Depending on the type of the underlying [`DiffableStr`] this value is
+    /// more or less useful.  If you always want to have a utf-8 string it's
+    /// better to use the [`InlineChange::iter_strings_lossy`] method.
     pub fn values(&self) -> &[(bool, &'s T)] {
         &self.values
     }
@@ -129,10 +133,10 @@ impl<'s, T: DiffableStr + ?Sized> InlineChange<'s, T> {
     ///
     /// Each item is a tuple in the form `(emphasized, value)` where `emphasized`
     /// is true if it should be highlighted as an inline diff.
-    pub fn iter_strings(&self) -> impl Iterator<Item = (bool, Cow<'_, str>)> {
+    pub fn iter_strings_lossy(&self) -> impl Iterator<Item = (bool, Cow<'_, str>)> {
         self.values()
             .iter()
-            .map(|(emphasized, raw_value)| (*emphasized, raw_value.as_str_lossy()))
+            .map(|(emphasized, raw_value)| (*emphasized, raw_value.to_string_lossy()))
     }
 
     /// Returns `true` if this change needs to be followed up by a
@@ -156,7 +160,7 @@ impl<'s, T: DiffableStr + ?Sized> From<Change<'s, T>> for InlineChange<'s, T> {
 
 impl<'s, T: DiffableStr + ?Sized> fmt::Display for InlineChange<'s, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (emphasized, value) in self.iter_strings() {
+        for (emphasized, value) in self.iter_strings_lossy() {
             let marker = match (emphasized, self.tag) {
                 (false, _) | (true, ChangeTag::Equal) => "",
                 (true, ChangeTag::Delete) => "-",

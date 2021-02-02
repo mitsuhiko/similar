@@ -19,16 +19,27 @@
 //! The [`UnifiedDiff`] type supports both unicode and byte diffs for all
 //! types compatible with [`DiffableStr`].  You can pick between the two
 //! versions by using [`UnifiedDiff.to_string`] or [`UnifiedDiff.to_writer`].
-//! The former uses [`DiffableStr::as_str_lossy`], the latter uses
+//! The former uses [`DiffableStr::to_string_lossy`], the latter uses
 //! [`DiffableStr::as_bytes`] for each line.
 
 use std::ops::Range;
 use std::{fmt, io};
 
 use crate::algorithms::{Algorithm, DiffOp};
-use crate::text::{Change, ChangeTag, TextDiff};
+use crate::text::{Change, TextDiff};
 
 use super::DiffableStr;
+
+struct MissingNewlineHint(bool);
+
+impl fmt::Display for MissingNewlineHint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.0 {
+            write!(f, "\n\\ No newline at end of file")?;
+        }
+        Ok(())
+    }
+}
 
 #[derive(Copy, Clone, Debug)]
 struct UnifiedDiffHunkRange(usize, usize);
@@ -103,7 +114,7 @@ impl fmt::Display for UnifiedHunkHeader {
 /// The [`UnifiedDiff`] type supports both unicode and byte diffs for all
 /// types compatible with [`DiffableStr`].  You can pick between the two
 /// versions by using [`UnifiedDiff.to_string`] or [`UnifiedDiff.to_writer`].
-/// The former uses [`DiffableStr::as_str_lossy`], the latter uses
+/// The former uses [`DiffableStr::to_string_lossy`], the latter uses
 /// [`DiffableStr::as_bytes`] for each line.
 pub struct UnifiedDiff<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
     diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
@@ -238,31 +249,17 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized>
 
     /// Write the hunk as bytes to the output stream.
     pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error> {
-        let mut wrote_header = false;
-        for change in self.iter_changes() {
-            if !wrote_header {
+        for (idx, change) in self.iter_changes().enumerate() {
+            if idx == 0 {
                 writeln!(w, "{}", self.header())?;
-                wrote_header = true;
             }
-            write!(
-                w,
-                "{}",
-                match change.tag() {
-                    ChangeTag::Equal => ' ',
-                    ChangeTag::Delete => '-',
-                    ChangeTag::Insert => '+',
-                },
-            )?;
+            write!(w, "{}", change.tag())?;
             w.write_all(change.value().as_bytes())?;
-            if self.diff.newline_terminated() {
-                write!(w, "\n")?;
+            if !self.diff.newline_terminated() {
+                writeln!(w)?;
             }
             if change.missing_newline() {
-                if self.missing_newline_hint {
-                    writeln!(w, "\n\\ No newline at end of file")?;
-                } else {
-                    writeln!(w)?;
-                }
+                writeln!(w, "{}", MissingNewlineHint(self.missing_newline_hint))?;
             }
         }
         Ok(())
@@ -273,34 +270,16 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> fmt::Display
     for UnifiedDiffHunk<'diff, 'old, 'new, 'bufs, T>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let nl = if self.diff.newline_terminated() {
-            ""
-        } else {
-            "\n"
-        };
-        let mut wrote_header = false;
-        for change in self.iter_changes() {
-            if !wrote_header {
+        for (idx, change) in self.iter_changes().enumerate() {
+            if idx == 0 {
                 writeln!(f, "{}", self.header())?;
-                wrote_header = true;
             }
-            write!(
-                f,
-                "{}{}{}",
-                match change.tag() {
-                    ChangeTag::Equal => ' ',
-                    ChangeTag::Delete => '-',
-                    ChangeTag::Insert => '+',
-                },
-                change.as_str_lossy(),
-                nl
-            )?;
+            write!(f, "{}{}", change.tag(), change.to_string_lossy())?;
+            if !self.diff.newline_terminated() {
+                writeln!(f)?;
+            }
             if change.missing_newline() {
-                if self.missing_newline_hint {
-                    writeln!(f, "\n\\ No newline at end of file")?;
-                } else {
-                    writeln!(f)?;
-                }
+                writeln!(f, "{}", MissingNewlineHint(self.missing_newline_hint))?;
             }
         }
         Ok(())

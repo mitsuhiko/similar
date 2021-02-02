@@ -155,34 +155,6 @@ impl DiffOp {
     }
 }
 
-/// A [`DiffHook`] that captures all diff operations.
-#[derive(Default, Clone)]
-pub struct Capture(Vec<DiffOp>);
-
-impl Capture {
-    /// Creates a new capture hook.
-    pub fn new() -> Capture {
-        Capture::default()
-    }
-
-    /// Converts the capture hook into a vector of ops.
-    pub fn into_ops(self) -> Vec<DiffOp> {
-        self.0
-    }
-
-    /// Isolate change clusters by eliminating ranges with no changes.
-    ///
-    /// This is equivalent to calling [`group_diff_ops`] on [`Capture::into_ops`].
-    pub fn into_grouped_ops(self, n: usize) -> Vec<Vec<DiffOp>> {
-        group_diff_ops(self.into_ops(), n)
-    }
-
-    /// Accesses the captured operations.
-    pub fn ops(&self) -> &[DiffOp] {
-        &self.0
-    }
-}
-
 /// Isolate change clusters by eliminating ranges with no changes.
 ///
 /// This will leave holes behind in long periods of equal ranges so that
@@ -269,6 +241,34 @@ pub fn get_diff_ratio(ops: &[DiffOp], old_len: usize, new_len: usize) -> f32 {
         1.0
     } else {
         2.0 * matches as f32 / len as f32
+    }
+}
+
+/// A [`DiffHook`] that captures all diff operations.
+#[derive(Default, Clone)]
+pub struct Capture(Vec<DiffOp>);
+
+impl Capture {
+    /// Creates a new capture hook.
+    pub fn new() -> Capture {
+        Capture::default()
+    }
+
+    /// Converts the capture hook into a vector of ops.
+    pub fn into_ops(self) -> Vec<DiffOp> {
+        self.0
+    }
+
+    /// Isolate change clusters by eliminating ranges with no changes.
+    ///
+    /// This is equivalent to calling [`group_diff_ops`] on [`Capture::into_ops`].
+    pub fn into_grouped_ops(self, n: usize) -> Vec<Vec<DiffOp>> {
+        group_diff_ops(self.into_ops(), n)
+    }
+
+    /// Accesses the captured operations.
+    pub fn ops(&self) -> &[DiffOp] {
+        &self.0
     }
 }
 

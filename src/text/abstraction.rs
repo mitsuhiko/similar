@@ -6,6 +6,13 @@ use std::hash::Hash;
 use std::ops::Range;
 
 /// Reference to a [`DiffableStr`].
+///
+/// This type exists because while the library only really provides ways to
+/// work with `&str` and `&[u8]` there are types that deref into those string
+/// slices such as `String` and `Vec<u8>`.
+///
+/// This trait is used in the library whenever it's nice to be able to pass
+/// strings of different types in.
 pub trait DiffableStrRef {
     /// The type of the resolved [`DiffableStr`].
     type Output: DiffableStr + ?Sized;
@@ -78,7 +85,7 @@ pub trait DiffableStr: Hash + PartialEq + PartialOrd + Ord + Eq + ToOwned {
     fn as_str(&self) -> Option<&str>;
 
     /// Decodes the string (potentially) lossy.
-    fn as_str_lossy(&self) -> Cow<'_, str>;
+    fn to_string_lossy(&self) -> Cow<'_, str>;
 
     /// Checks if the string ends in a newline.
     fn ends_with_newline(&self) -> bool;
@@ -91,6 +98,11 @@ pub trait DiffableStr: Hash + PartialEq + PartialOrd + Ord + Eq + ToOwned {
 
     /// Returns the strings as slice of raw bytes.
     fn as_bytes(&self) -> &[u8];
+
+    /// Checks if the string is empty.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl DiffableStr for str {
@@ -184,7 +196,7 @@ impl DiffableStr for str {
         Some(self)
     }
 
-    fn as_str_lossy(&self) -> Cow<'_, str> {
+    fn to_string_lossy(&self) -> Cow<'_, str> {
         Cow::Borrowed(self)
     }
 
@@ -293,7 +305,7 @@ impl DiffableStr for [u8] {
         std::str::from_utf8(self).ok()
     }
 
-    fn as_str_lossy(&self) -> Cow<'_, str> {
+    fn to_string_lossy(&self) -> Cow<'_, str> {
         String::from_utf8_lossy(self)
     }
 
