@@ -1,4 +1,5 @@
-use std::fs::read_to_string;
+use std::fs::read;
+use std::io;
 use std::process::exit;
 
 use similar::text::TextDiff;
@@ -10,13 +11,14 @@ fn main() {
         exit(1);
     }
 
-    let old = read_to_string(&args[1]).unwrap();
-    let new = read_to_string(&args[2]).unwrap();
-    print!(
-        "{}",
-        TextDiff::from_lines(&old, &new).unified_diff().header(
+    let old = read(&args[1]).unwrap();
+    let new = read(&args[2]).unwrap();
+    TextDiff::from_lines(&old, &new)
+        .unified_diff()
+        .header(
             &args[1].as_os_str().to_string_lossy(),
-            &args[2].as_os_str().to_string_lossy()
+            &args[2].as_os_str().to_string_lossy(),
         )
-    );
+        .to_writer(io::stdout())
+        .unwrap();
 }

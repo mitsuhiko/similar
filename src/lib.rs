@@ -43,6 +43,8 @@
 //! * `unicode`: when this feature is enabled the text diffing functionality
 //!   gains the ability to diff on a grapheme instead of character level.  This
 //!   is particularly useful when working with text containing emojis.
+//! * `bytes`: when this feature is enabled the text module gains support for
+//!   working with byte slices.
 //! * `inline`: this feature gives access to additional functionality of the
 //!   `text` module to provide inline information about which values changed
 //!   in a line diff.  This currently also enables the `unicode` feature.

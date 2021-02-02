@@ -74,7 +74,10 @@ pub trait DiffableStr: Hash + PartialEq + PartialOrd + Ord + Eq + ToOwned {
     #[cfg(feature = "unicode")]
     fn split_graphemes(&self) -> Vec<&Self>;
 
-    /// Decodes the string lossy.
+    /// Decodes the string (potentially) lossy.
+    fn as_str(&self) -> Option<&str>;
+
+    /// Decodes the string (potentially) lossy.
     fn as_str_lossy(&self) -> Cow<'_, str>;
 
     /// Checks if the string ends in a newline.
@@ -85,6 +88,9 @@ pub trait DiffableStr: Hash + PartialEq + PartialOrd + Ord + Eq + ToOwned {
 
     /// Slices the string.
     fn slice(&self, rng: Range<usize>) -> &Self;
+
+    /// Returns the strings as slice of raw bytes.
+    fn as_bytes(&self) -> &[u8];
 }
 
 impl DiffableStr for str {
@@ -174,6 +180,10 @@ impl DiffableStr for str {
         unicode_segmentation::UnicodeSegmentation::graphemes(self, true).collect()
     }
 
+    fn as_str(&self) -> Option<&str> {
+        Some(self)
+    }
+
     fn as_str_lossy(&self) -> Cow<'_, str> {
         Cow::Borrowed(self)
     }
@@ -188,6 +198,10 @@ impl DiffableStr for str {
 
     fn slice(&self, rng: Range<usize>) -> &Self {
         &self[rng]
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        str::as_bytes(self)
     }
 }
 
@@ -275,6 +289,10 @@ impl DiffableStr for [u8] {
             .collect()
     }
 
+    fn as_str(&self) -> Option<&str> {
+        std::str::from_utf8(self).ok()
+    }
+
     fn as_str_lossy(&self) -> Cow<'_, str> {
         String::from_utf8_lossy(self)
     }
@@ -289,6 +307,10 @@ impl DiffableStr for [u8] {
 
     fn slice(&self, rng: Range<usize>) -> &Self {
         &self[rng]
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        self
     }
 }
 

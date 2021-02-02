@@ -13,9 +13,17 @@
 //!     .context_radius(10)
 //!     .header("old_file", "new_file"));
 //! ```
+//!
+//! # Unicode vs Bytes
+//!
+//! The [`UnifiedDiff`] type supports both unicode and byte diffs for all
+//! types compatible with [`DiffableStr`].  You can pick between the two
+//! versions by using [`UnifiedDiff.to_string`] or [`UnifiedDiff.to_writer`].
+//! The former uses [`DiffableStr::as_str_lossy`], the latter uses
+//! [`DiffableStr::as_bytes`] for each line.
 
-use std::fmt;
 use std::ops::Range;
+use std::{fmt, io};
 
 use crate::algorithms::{Algorithm, DiffOp};
 use crate::text::{Change, ChangeTag, TextDiff};
@@ -79,7 +87,24 @@ impl fmt::Display for UnifiedHunkHeader {
 
 /// Unified diff formatter.
 ///
-/// The `Display` implementation renders a unified diff.
+/// ```rust
+/// use similar::text::TextDiff;
+/// # let old_text = "";
+/// # let new_text = "";
+/// let text_diff = TextDiff::from_lines(old_text, new_text);
+/// print!("{}", text_diff
+///     .unified_diff()
+///     .context_radius(10)
+///     .header("old_file", "new_file"));
+/// ```
+///
+/// ## Unicode vs Bytes
+///
+/// The [`UnifiedDiff`] type supports both unicode and byte diffs for all
+/// types compatible with [`DiffableStr`].  You can pick between the two
+/// versions by using [`UnifiedDiff.to_string`] or [`UnifiedDiff.to_writer`].
+/// The former uses [`DiffableStr::as_str_lossy`], the latter uses
+/// [`DiffableStr::as_bytes`] for each line.
 pub struct UnifiedDiff<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
     diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
     context_radius: usize,
@@ -137,6 +162,19 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> UnifiedDiff<'diff, 'old,
             .into_iter()
             .filter(|ops| !ops.is_empty())
             .map(move |ops| UnifiedDiffHunk::new(ops, diff, missing_newline_hint))
+    }
+
+    /// Write the unified diff as bytes to the output stream.
+    pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error> {
+        let mut header = self.header.as_ref();
+        for hunk in self.iter_hunks() {
+            if let Some((old_file, new_file)) = header.take() {
+                writeln!(w, "--- {}", old_file)?;
+                writeln!(w, "+++ {}", new_file)?;
+            }
+            write!(w, "{}", hunk)?;
+        }
+        Ok(())
     }
 
     fn header_opt(&mut self, header: Option<(&str, &str)>) -> &mut Self {
@@ -197,6 +235,38 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized>
                 .flat_map(move |op| self.diff.iter_changes(op)),
         )) as Box<dyn Iterator<Item = _>>
     }
+
+    /// Write the hunk as bytes to the output stream.
+    pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error> {
+        let mut wrote_header = false;
+        for change in self.iter_changes() {
+            if !wrote_header {
+                writeln!(w, "{}", self.header())?;
+                wrote_header = true;
+            }
+            write!(
+                w,
+                "{}",
+                match change.tag() {
+                    ChangeTag::Equal => ' ',
+                    ChangeTag::Delete => '-',
+                    ChangeTag::Insert => '+',
+                },
+            )?;
+            w.write_all(change.value().as_bytes())?;
+            if self.diff.newline_terminated() {
+                write!(w, "\n")?;
+            }
+            if change.missing_newline() {
+                if self.missing_newline_hint {
+                    writeln!(w, "\n\\ No newline at end of file")?;
+                } else {
+                    writeln!(w)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> fmt::Display
@@ -222,7 +292,7 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> fmt::Display
                     ChangeTag::Delete => '-',
                     ChangeTag::Insert => '+',
                 },
-                change.value(),
+                change.as_str_lossy(),
                 nl
             )?;
             if change.missing_newline() {

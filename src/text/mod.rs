@@ -11,7 +11,7 @@
 //! Text diffing is available by default but can be disabled by turning off the
 //! default features.  The feature to enable to get it back is `text`.
 //!
-//! ## Examples
+//! # Examples
 //!
 //! A super simple example for how to generate a unified diff with three lines
 //! off context around the changes:
@@ -38,7 +38,7 @@
 //! }
 //! ```
 //!
-//! ## Ops vs Changes
+//! # Ops vs Changes
 //!
 //! Because very commonly two compared sequences will largely match this module
 //! splits it's functionality into two layers.  The first is inherited from the
@@ -51,7 +51,7 @@
 //! Because the [`TextDiff::grouped_ops`] method can isolate clusters of changes
 //! this even works for very long files if paired with this method.
 //!
-//! ## Trailing Newlines
+//! # Trailing Newlines
 //!
 //! When working with line diffs (and unified diffs in general) there are two
 //! "philosophies" to look at lines.  One is to diff lines without their newline
@@ -68,6 +68,22 @@
 //! either rendering a virtual newline at that position or to indicate it in
 //! different ways.  For instance the unified diff code will render the special
 //! `\ No newline at end of file` marker.
+//!
+//! # Bytes vs Unicode
+//!
+//! This module concerns itself with a loser definition of "text" than you would
+//! normally see in Rust.  While by default it can only operate on [`str`] types
+//! by enabling the `bytes` feature it gains support for byte slices with some
+//! caveats.
+//!
+//! A lot of text diff functionality assumes that what is being diffed constiutes
+//! text, but in the real world it can often be challenging to ensure that this is
+//! all valid utf-8.  Because of this the crate is built so that most functinality
+//! also still works with bytes for as long as they are roughtly ASCII compatible.
+//!
+//! This means you will be successful in creating a unified diff from latin1
+//! encoded bytes but if you try to do the same with EBCDIC encoded bytes you
+//! will only get garbage.
 #![cfg(feature = "text")]
 use std::borrow::Cow;
 use std::cmp::Reverse;
@@ -273,7 +289,7 @@ impl<'s, T: DiffableStr + ?Sized> fmt::Display for Change<'s, T> {
         write!(
             f,
             "{}{}",
-            self.value(),
+            self.as_str_lossy(),
             if self.missing_newline { "\n" } else { "" }
         )
     }
@@ -296,12 +312,17 @@ impl<'s, T: DiffableStr + ?Sized> Change<'s, T> {
     }
 
     /// Returns the underlying changed value.
-    pub fn raw_value(&self) -> &'s T {
+    pub fn value(&self) -> &'s T {
         self.value
     }
 
+    /// Returns the value as string if it is utf-8.
+    pub fn as_str(&self) -> Option<&'s str> {
+        T::as_str(self.value)
+    }
+
     /// Returns the value (lossy) decoded as utf-8 string.
-    pub fn value(&self) -> Cow<'s, str> {
+    pub fn as_str_lossy(&self) -> Cow<'s, str> {
         T::as_str_lossy(self.value)
     }
 
@@ -717,7 +738,7 @@ fn test_line_ops() {
             .flat_map(|op| byte_diff.iter_changes(op))
             .collect::<Vec<_>>();
         for (change, byte_change) in changes.iter().zip(byte_changes.iter()) {
-            assert_eq!(change.value(), byte_change.value());
+            assert_eq!(change.as_str_lossy(), byte_change.as_str_lossy());
         }
     }
 }

@@ -118,13 +118,19 @@ impl<'s, T: DiffableStr + ?Sized> InlineChange<'s, T> {
     }
 
     /// Returns the changed values.
-    pub fn raw_values(&self) -> &[(bool, &'s T)] {
+    ///
+    /// Each item is a tuple in the form `(emphasized, value)` where `emphasized`
+    /// is true if it should be highlighted as an inline diff.
+    pub fn values(&self) -> &[(bool, &'s T)] {
         &self.values
     }
 
-    /// Iterates over all utf-8 decoded values.
-    pub fn iter_values(&self) -> impl Iterator<Item = (bool, Cow<'_, str>)> {
-        self.raw_values()
+    /// Iterates over all (potentially lossy) utf-8 decoded values.
+    ///
+    /// Each item is a tuple in the form `(emphasized, value)` where `emphasized`
+    /// is true if it should be highlighted as an inline diff.
+    pub fn iter_strings(&self) -> impl Iterator<Item = (bool, Cow<'_, str>)> {
+        self.values()
             .iter()
             .map(|(emphasized, raw_value)| (*emphasized, raw_value.as_str_lossy()))
     }
@@ -142,7 +148,7 @@ impl<'s, T: DiffableStr + ?Sized> From<Change<'s, T>> for InlineChange<'s, T> {
             tag: change.tag(),
             old_index: change.old_index(),
             new_index: change.new_index(),
-            values: vec![(false, change.raw_value())],
+            values: vec![(false, change.value())],
             missing_newline: change.missing_newline(),
         }
     }
@@ -150,7 +156,7 @@ impl<'s, T: DiffableStr + ?Sized> From<Change<'s, T>> for InlineChange<'s, T> {
 
 impl<'s, T: DiffableStr + ?Sized> fmt::Display for InlineChange<'s, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (emphasized, value) in self.iter_values() {
+        for (emphasized, value) in self.iter_strings() {
             let marker = match (emphasized, self.tag) {
                 (false, _) | (true, ChangeTag::Equal) => "",
                 (true, ChangeTag::Delete) => "-",

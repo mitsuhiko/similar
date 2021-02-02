@@ -39,11 +39,11 @@ required-features = ["text"]
 
 [[example]]
 name = "terminal-inline"
-required-features = ["text", "inline"]
+required-features = ["text", "inline", "bytes"]
 
 [[example]]
 name = "udiff"
-required-features = ["text"]
+required-features = ["text", "bytes"]
 
 [[example]]
 name = "close-matches"
