@@ -2,9 +2,9 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use crate::algorithms::{capture_diff, get_diff_ratio};
 use crate::text::{DiffableStr, TextDiff};
 use crate::types::{Algorithm, Change, ChangeTag, DiffOp, DiffTag};
+use crate::{capture_diff, get_diff_ratio};
 
 use std::ops::Index;
 
@@ -139,8 +139,8 @@ impl<'s, T: DiffableStr + ?Sized> InlineChange<'s, T> {
             .map(|(emphasized, raw_value)| (*emphasized, raw_value.to_string_lossy()))
     }
 
-    /// Returns `true` if this change needs to be followed up by a
-    /// missing newline.
+    /// Returns `true` if this change does not end in a newline and must be
+    /// followed up by one if line based diffs are used.
     pub fn missing_newline(&self) -> bool {
         !self.values.last().map_or(true, |x| x.1.ends_with_newline())
     }

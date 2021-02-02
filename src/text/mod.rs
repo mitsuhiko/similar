@@ -101,8 +101,7 @@ pub use self::inline::InlineChange;
 pub use self::udiff::{unified_diff, UnifiedDiff, UnifiedDiffHunk, UnifiedHunkHeader};
 
 use self::utils::{upper_seq_ratio, QuickSeqRatio};
-use crate::algorithms::{capture_diff_slices, get_diff_ratio, group_diff_ops};
-use crate::types::{Algorithm, Change, DiffOp};
+use crate::{capture_diff_slices, get_diff_ratio, group_diff_ops, Algorithm, Change, DiffOp};
 
 /// A builder type config for more complex uses of [`TextDiff`].
 #[derive(Clone, Debug)]

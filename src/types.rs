@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ops::{Index, Range};
 
-use crate::algorithms::DiffHook;
+use crate::hook::DiffHook;
 
 /// An enum representing a diffing algorithm.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -359,8 +359,8 @@ mod text_additions {
             T::to_string_lossy(self.value)
         }
 
-        /// Returns `true` if this change needs to be followed up by a
-        /// missing newline.
+        /// Returns `true` if this change does not end in a newline and must be
+        /// followed up by one if line based diffs are used.
         ///
         /// The [`std::fmt::Display`] implementation of [`Change`] will automatically
         /// insert a newline after the value if this is true.
