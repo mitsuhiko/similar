@@ -5,6 +5,8 @@ All notable changes to similar are documented here.
 ## 0.6.0
 
 * Add `get_diff_ratio`.
+* Add support for byte diffing and change the text interface to abstract
+  over `DiffableStr`.
 
 ## 0.5.0
 
