@@ -100,7 +100,7 @@ mod utils;
 pub use self::abstraction::{DiffableStr, DiffableStrRef};
 #[cfg(feature = "inline")]
 pub use self::inline::InlineChange;
-pub use self::udiff::{unified_diff, UnifiedDiff, UnifiedHunkHeader};
+pub use self::udiff::{unified_diff, UnifiedDiff, UnifiedDiffHunk, UnifiedHunkHeader};
 
 use self::utils::{upper_seq_ratio, QuickSeqRatio};
 use crate::algorithms::{
