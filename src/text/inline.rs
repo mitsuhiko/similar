@@ -17,7 +17,7 @@ impl<'bufs, 's, T: DiffableStr + ?Sized> MultiLookup<'bufs, 's, T> {
         let mut seqs = Vec::new();
         for (string_idx, string) in strings.iter().enumerate() {
             let mut offset = 0;
-            for word in string.split_unicode_words() {
+            for word in string.tokenize_unicode_words() {
                 seqs.push((word, string_idx, offset));
                 offset += word.len();
             }
@@ -81,7 +81,7 @@ fn push_values<'s, T: DiffableStr + ?Sized>(
     // newlines cause all kinds of wacky stuff if they end up highlighted.
     // because of this we want to unemphasize all newlines we encounter.
     if emphasized {
-        for seg in s.split_lines_and_newlines() {
+        for seg in s.tokenize_lines_and_newlines() {
             v[idx].push((!seg.ends_with_newline(), seg));
         }
     } else {

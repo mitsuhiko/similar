@@ -62,24 +62,24 @@ impl DiffableStrRef for Vec<u8> {
 /// as long as they are ASCII compatible.
 pub trait DiffableStr: Hash + PartialEq + PartialOrd + Ord + Eq + ToOwned {
     /// Splits the value into newlines with newlines attached.
-    fn split_lines(&self) -> Vec<&Self>;
+    fn tokenize_lines(&self) -> Vec<&Self>;
 
     /// Splits the value into newlines with newlines separated.
-    fn split_lines_and_newlines(&self) -> Vec<&Self>;
+    fn tokenize_lines_and_newlines(&self) -> Vec<&Self>;
 
     /// Tokenizes into words.
-    fn split_words(&self) -> Vec<&Self>;
+    fn tokenize_words(&self) -> Vec<&Self>;
 
     /// Splits the input into characters.
-    fn split_chars(&self) -> Vec<&Self>;
+    fn tokenize_chars(&self) -> Vec<&Self>;
 
     /// Splits into unicode words.
     #[cfg(feature = "unicode")]
-    fn split_unicode_words(&self) -> Vec<&Self>;
+    fn tokenize_unicode_words(&self) -> Vec<&Self>;
 
     /// Splits into unicode graphemes..
     #[cfg(feature = "unicode")]
-    fn split_graphemes(&self) -> Vec<&Self>;
+    fn tokenize_graphemes(&self) -> Vec<&Self>;
 
     /// Decodes the string (potentially) lossy.
     fn as_str(&self) -> Option<&str>;
@@ -106,7 +106,7 @@ pub trait DiffableStr: Hash + PartialEq + PartialOrd + Ord + Eq + ToOwned {
 }
 
 impl DiffableStr for str {
-    fn split_lines(&self) -> Vec<&Self> {
+    fn tokenize_lines(&self) -> Vec<&Self> {
         let mut iter = self.char_indices().peekable();
         let mut last_pos = 0;
         let mut lines = vec![];
@@ -134,7 +134,7 @@ impl DiffableStr for str {
         lines
     }
 
-    fn split_lines_and_newlines(&self) -> Vec<&Self> {
+    fn tokenize_lines_and_newlines(&self) -> Vec<&Self> {
         let mut rv = vec![];
         let mut iter = self.char_indices().peekable();
 
@@ -155,7 +155,7 @@ impl DiffableStr for str {
         rv
     }
 
-    fn split_words(&self) -> Vec<&Self> {
+    fn tokenize_words(&self) -> Vec<&Self> {
         let mut iter = self.char_indices().peekable();
         let mut rv = vec![];
 
@@ -176,19 +176,19 @@ impl DiffableStr for str {
         rv
     }
 
-    fn split_chars(&self) -> Vec<&Self> {
+    fn tokenize_chars(&self) -> Vec<&Self> {
         self.char_indices()
             .map(move |(i, c)| &self[i..i + c.len_utf8()])
             .collect()
     }
 
     #[cfg(feature = "unicode")]
-    fn split_unicode_words(&self) -> Vec<&Self> {
+    fn tokenize_unicode_words(&self) -> Vec<&Self> {
         unicode_segmentation::UnicodeSegmentation::split_word_bounds(self).collect()
     }
 
     #[cfg(feature = "unicode")]
-    fn split_graphemes(&self) -> Vec<&Self> {
+    fn tokenize_graphemes(&self) -> Vec<&Self> {
         unicode_segmentation::UnicodeSegmentation::graphemes(self, true).collect()
     }
 
@@ -219,7 +219,7 @@ impl DiffableStr for str {
 
 #[cfg(feature = "bytes")]
 impl DiffableStr for [u8] {
-    fn split_lines(&self) -> Vec<&Self> {
+    fn tokenize_lines(&self) -> Vec<&Self> {
         let mut iter = self.char_indices().peekable();
         let mut last_pos = 0;
         let mut lines = vec![];
@@ -247,7 +247,7 @@ impl DiffableStr for [u8] {
         lines
     }
 
-    fn split_lines_and_newlines(&self) -> Vec<&Self> {
+    fn tokenize_lines_and_newlines(&self) -> Vec<&Self> {
         let mut rv = vec![];
         let mut iter = self.char_indices().peekable();
 
@@ -266,7 +266,7 @@ impl DiffableStr for [u8] {
         rv
     }
 
-    fn split_words(&self) -> Vec<&Self> {
+    fn tokenize_words(&self) -> Vec<&Self> {
         let mut iter = self.char_indices().peekable();
         let mut rv = vec![];
 
@@ -286,16 +286,16 @@ impl DiffableStr for [u8] {
     }
 
     #[cfg(feature = "unicode")]
-    fn split_unicode_words(&self) -> Vec<&Self> {
+    fn tokenize_unicode_words(&self) -> Vec<&Self> {
         self.words_with_breaks().map(|x| x.as_bytes()).collect()
     }
 
     #[cfg(feature = "unicode")]
-    fn split_graphemes(&self) -> Vec<&Self> {
+    fn tokenize_graphemes(&self) -> Vec<&Self> {
         self.graphemes().map(|x| x.as_bytes()).collect()
     }
 
-    fn split_chars(&self) -> Vec<&Self> {
+    fn tokenize_chars(&self) -> Vec<&Self> {
         self.char_indices()
             .map(move |(start, end, _)| &self[start..end])
             .collect()
@@ -329,18 +329,18 @@ impl DiffableStr for [u8] {
 #[test]
 fn test_split_lines() {
     assert_eq!(
-        DiffableStr::split_lines("first\nsecond\rthird\r\nfourth\nlast"),
+        DiffableStr::tokenize_lines("first\nsecond\rthird\r\nfourth\nlast"),
         vec!["first\n", "second\r", "third\r\n", "fourth\n", "last"]
     );
-    assert_eq!(DiffableStr::split_lines("\n\n"), vec!["\n", "\n"]);
-    assert_eq!(DiffableStr::split_lines("\n"), vec!["\n"]);
-    assert!(DiffableStr::split_lines("").is_empty());
+    assert_eq!(DiffableStr::tokenize_lines("\n\n"), vec!["\n", "\n"]);
+    assert_eq!(DiffableStr::tokenize_lines("\n"), vec!["\n"]);
+    assert!(DiffableStr::tokenize_lines("").is_empty());
 }
 
 #[test]
 fn test_split_words() {
     assert_eq!(
-        DiffableStr::split_words("foo    bar baz\n\n  aha"),
+        DiffableStr::tokenize_words("foo    bar baz\n\n  aha"),
         ["foo", "    ", "bar", " ", "baz", "\n\n  ", "aha"]
     );
 }
@@ -348,7 +348,7 @@ fn test_split_words() {
 #[test]
 fn test_split_chars() {
     assert_eq!(
-        DiffableStr::split_chars("abcfö❄️"),
+        DiffableStr::tokenize_chars("abcfö❄️"),
         vec!["a", "b", "c", "f", "ö", "❄", "\u{fe0f}"]
     );
 }
@@ -357,7 +357,7 @@ fn test_split_chars() {
 #[cfg(feature = "unicode")]
 fn test_split_graphemes() {
     assert_eq!(
-        DiffableStr::split_graphemes("abcfö❄️"),
+        DiffableStr::tokenize_graphemes("abcfö❄️"),
         vec!["a", "b", "c", "f", "ö", "❄️"]
     );
 }
@@ -366,7 +366,7 @@ fn test_split_graphemes() {
 #[cfg(feature = "bytes")]
 fn test_split_lines_bytes() {
     assert_eq!(
-        DiffableStr::split_lines("first\nsecond\rthird\r\nfourth\nlast".as_bytes()),
+        DiffableStr::tokenize_lines("first\nsecond\rthird\r\nfourth\nlast".as_bytes()),
         vec![
             "first\n".as_bytes(),
             "second\r".as_bytes(),
@@ -376,21 +376,21 @@ fn test_split_lines_bytes() {
         ]
     );
     assert_eq!(
-        DiffableStr::split_lines("\n\n".as_bytes()),
+        DiffableStr::tokenize_lines("\n\n".as_bytes()),
         vec!["\n".as_bytes(), "\n".as_bytes()]
     );
     assert_eq!(
-        DiffableStr::split_lines("\n".as_bytes()),
+        DiffableStr::tokenize_lines("\n".as_bytes()),
         vec!["\n".as_bytes()]
     );
-    assert!(DiffableStr::split_lines("".as_bytes()).is_empty());
+    assert!(DiffableStr::tokenize_lines("".as_bytes()).is_empty());
 }
 
 #[test]
 #[cfg(feature = "bytes")]
 fn test_split_words_bytes() {
     assert_eq!(
-        DiffableStr::split_words("foo    bar baz\n\n  aha".as_bytes()),
+        DiffableStr::tokenize_words("foo    bar baz\n\n  aha".as_bytes()),
         [
             &b"foo"[..],
             &b"    "[..],
@@ -407,7 +407,7 @@ fn test_split_words_bytes() {
 #[cfg(feature = "bytes")]
 fn test_split_chars_bytes() {
     assert_eq!(
-        DiffableStr::split_chars("abcfö❄️".as_bytes()),
+        DiffableStr::tokenize_chars("abcfö❄️".as_bytes()),
         vec![
             &b"a"[..],
             &b"b"[..],
@@ -424,7 +424,7 @@ fn test_split_chars_bytes() {
 #[cfg(all(feature = "bytes", feature = "unicode"))]
 fn test_split_graphemes_bytes() {
     assert_eq!(
-        DiffableStr::split_graphemes("abcfö❄️".as_bytes()),
+        DiffableStr::tokenize_graphemes("abcfö❄️".as_bytes()),
         vec![
             &b"a"[..],
             &b"b"[..],

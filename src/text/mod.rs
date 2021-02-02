@@ -154,8 +154,8 @@ impl TextDiffConfig {
         new: &'new T,
     ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
         self.diff(
-            Cow::Owned(old.as_diffable_str().split_lines()),
-            Cow::Owned(new.as_diffable_str().split_lines()),
+            Cow::Owned(old.as_diffable_str().tokenize_lines()),
+            Cow::Owned(new.as_diffable_str().tokenize_lines()),
             true,
         )
     }
@@ -169,8 +169,8 @@ impl TextDiffConfig {
         new: &'new T,
     ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
         self.diff(
-            Cow::Owned(old.as_diffable_str().split_words()),
-            Cow::Owned(new.as_diffable_str().split_words()),
+            Cow::Owned(old.as_diffable_str().tokenize_words()),
+            Cow::Owned(new.as_diffable_str().tokenize_words()),
             false,
         )
     }
@@ -182,8 +182,8 @@ impl TextDiffConfig {
         new: &'new T,
     ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
         self.diff(
-            Cow::Owned(old.as_diffable_str().split_chars()),
-            Cow::Owned(new.as_diffable_str().split_chars()),
+            Cow::Owned(old.as_diffable_str().tokenize_chars()),
+            Cow::Owned(new.as_diffable_str().tokenize_chars()),
             false,
         )
     }
@@ -202,8 +202,8 @@ impl TextDiffConfig {
         new: &'new T,
     ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
         self.diff(
-            Cow::Owned(old.as_diffable_str().split_unicode_words()),
-            Cow::Owned(new.as_diffable_str().split_unicode_words()),
+            Cow::Owned(old.as_diffable_str().tokenize_unicode_words()),
+            Cow::Owned(new.as_diffable_str().tokenize_unicode_words()),
             false,
         )
     }
@@ -218,8 +218,8 @@ impl TextDiffConfig {
         new: &'new T,
     ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
         self.diff(
-            Cow::Owned(old.as_diffable_str().split_graphemes()),
-            Cow::Owned(new.as_diffable_str().split_graphemes()),
+            Cow::Owned(old.as_diffable_str().tokenize_graphemes()),
+            Cow::Owned(new.as_diffable_str().tokenize_graphemes()),
             false,
         )
     }
@@ -615,11 +615,11 @@ pub fn get_close_matches<'a, T: DiffableStr + ?Sized>(
     cutoff: f32,
 ) -> Vec<&'a T> {
     let mut matches = BinaryHeap::new();
-    let seq1 = word.split_chars();
+    let seq1 = word.tokenize_chars();
     let quick_ratio = QuickSeqRatio::new(&seq1);
 
     for &possibility in possibilities {
-        let seq2 = possibility.split_chars();
+        let seq2 = possibility.tokenize_chars();
 
         if upper_seq_ratio(&seq1, &seq2) < cutoff || quick_ratio.calc(&seq2) < cutoff {
             continue;
