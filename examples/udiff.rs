@@ -2,7 +2,7 @@ use std::fs::read;
 use std::io;
 use std::process::exit;
 
-use similar::text::TextDiff;
+use similar::TextDiff;
 
 fn main() {
     let args: Vec<_> = std::env::args_os().collect();

@@ -4,8 +4,7 @@
 //!
 //! ```rust
 //! # #[cfg(feature = "text")] {
-//! use similar::ChangeTag;
-//! use similar::text::TextDiff;
+//! use similar::{ChangeTag, TextDiff};
 //!
 //! let diff = TextDiff::from_lines(
 //!     "Hello World\nThis is the second line.\nThis is the third.",
@@ -25,38 +24,108 @@
 //! # }
 //! ```
 //!
-//! ## Functionality
+//! # API
+//!
+//! The API of the crate is split into high and low level functionality.  Most
+//! of what you probably want to use is available toplevel.  Additionally the
+//! following sub modules exist:
 //!
 //! * [`algorithms`]: This implements the different types of diffing algorithms.
 //!   It provides both low level access to the algorithms with the minimal
 //!   trait bounds necessary, as well as a generic interface.
-//! * [`text`]: This extends the general diffing functionality to text (and more
-//!   specifically line) based diff operations.
+//! * [`udiff`]: Unified diff functionality.
 //!
-//! ## Features
+//! # Sequence Diffing
+//!
+//! If you want to diff sequences generally indexable things you can use the
+//! [`capture_diff`] and [`capture_diff_slices`] functions.  They will directly
+//! diff an indexable object or slice and return a vector of [`DiffOp`] objects.
+//!
+//! # Text Diffing
+//!
+//! Similar provides helpful utilities for text (and more specifically line) diff
+//! operations.  The main type you want to work with is [`TextDiff`] which
+//! uses the underlying diff algorithms to expose a convenient API to work with
+//! texts.
+//!
+//! ## Trailing Newlines
+//!
+//! When working with line diffs (and unified diffs in general) there are two
+//! "philosophies" to look at lines.  One is to diff lines without their newline
+//! character, the other is to diff with the newline character.  Typically the
+//! latter is done because text files do not _have_ to end in a newline character.
+//! As a result there is a difference between `foo\n` and `foo` as far as diffs
+//! are concerned.
+//!
+//! In similar this is handled on the [`Change`] or [`InlineChange`] level.  If
+//! a diff was created via [`TextDiff::from_lines`] the text diffing system is
+//! instructed to check if there are missing newlines encountered.  If that is
+//! the case the [`Change`] object will return true from the
+//! [`Change::missing_newline`] method so the caller knows to handle this by
+//! either rendering a virtual newline at that position or to indicate it in
+//! different ways.  For instance the unified diff code will render the special
+//! `\ No newline at end of file` marker.
+//!
+//! ## Bytes vs Unicode
+//!
+//! Similar module concerns itself with a loser definition of "text" than you would
+//! normally see in Rust.  While by default it can only operate on [`str`] types
+//! by enabling the `bytes` feature it gains support for byte slices with some
+//! caveats.
+//!
+//! A lot of text diff functionality assumes that what is being diffed constiutes
+//! text, but in the real world it can often be challenging to ensure that this is
+//! all valid utf-8.  Because of this the crate is built so that most functinality
+//! also still works with bytes for as long as they are roughtly ASCII compatible.
+//!
+//! This means you will be successful in creating a unified diff from latin1
+//! encoded bytes but if you try to do the same with EBCDIC encoded bytes you
+//! will only get garbage.
+//!
+//! # Ops vs Changes
+//!
+//! Because very commonly two compared sequences will largely match this module
+//! splits it's functionality into two layers:
+//!
+//! Changes are encoded as [diff operations](crate::DiffOp).  These are
+//! ranges of the differences by index in the source sequence.  Because this
+//! can be cumbersome to work with a separate method [`DiffOp::iter_changes`]
+//! (and [`TextDiff::iter_changes`] when working with text diffs) is provided
+//! which expands all the changes on an item by item level encoded in an operation.
+//!
+//! As the [`TextDiff::grouped_ops`] method can isolate clusters of changes
+//! this even works for very long files if paired with this method.
+//!
+//! # Feature Flags
 //!
 //! The crate by default does not have any dependencies however for some use
 //! cases it's useful to pull in extra functionality.  Likewise you can turn
 //! off some functionality.
 //!
-//! * `text`: this feature is enabled by default and enables the [`text`] module.
+//! * `text`: this feature is enabled by default and enables the text based
+//!   diffing types such as [`TextDiff`].
 //!   If the crate is used without default features it's removed.
 //! * `unicode`: when this feature is enabled the text diffing functionality
 //!   gains the ability to diff on a grapheme instead of character level.  This
 //!   is particularly useful when working with text containing emojis.  This
 //!   pulls in some relatively complex dependencies for working with the unicode
 //!   database.
-//! * `bytes`: this feature adds support for working with byte slices in the
-//!   [`text`] module in addition to unicode strings.  This pulls in the
+//! * `bytes`: this feature adds support for working with byte slices in text
+//!   APIs in addition to unicode strings.  This pulls in the
 //!   [`bstr`] dependency.
 //! * `inline`: this feature gives access to additional functionality of the
-//!   [`text`] module to provide inline information about which values changed
+//!   text diffing to provide inline information about which values changed
 //!   in a line diff.  This currently also enables the `unicode` feature.
 #![warn(missing_docs)]
 pub mod algorithms;
-pub mod text;
+pub mod udiff;
 
 mod common;
+#[cfg(feature = "text")]
+mod text;
 mod types;
+
 pub use self::common::*;
+#[cfg(feature = "text")]
+pub use self::text::*;
 pub use self::types::*;

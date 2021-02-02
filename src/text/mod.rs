@@ -1,90 +1,4 @@
 //! Text diffing utilities.
-//!
-//! This provides helpful utilities for text (and more specifically line) diff
-//! operations.  The main type you want to work with is [`TextDiff`] which
-//! uses the underlying diff algorithms to expose a convenient API to work with
-//! texts.
-//!
-//! It can produce a unified diff and also let you iterate over the changeset
-//! directly if you want.
-//!
-//! Text diffing is available by default but can be disabled by turning off the
-//! default features.  The feature to enable to get it back is `text`.
-//!
-//! # Examples
-//!
-//! A super simple example for how to generate a unified diff with three lines
-//! off context around the changes:
-//!
-//! ```rust
-//! # use similar::text::TextDiff;
-//! # let old_text = "";
-//! # let new_text = "";
-//! let diff = TextDiff::from_lines(old_text, new_text);
-//! let unified_diff = diff.unified_diff().header("old_file", "new_file").to_string();
-//! ```
-//!
-//! This is another example that iterates over the actual changes:
-//!
-//! ```rust
-//! # use similar::text::TextDiff;
-//! # let old_text = "";
-//! # let new_text = "";
-//! let diff = TextDiff::from_lines(old_text, new_text);
-//! for op in diff.ops() {
-//!     for change in diff.iter_changes(op) {
-//!         println!("{:?}", change);
-//!     }
-//! }
-//! ```
-//!
-//! # Ops vs Changes
-//!
-//! Because very commonly two compared sequences will largely match this module
-//! splits it's functionality into two layers.  The first is inherited from the
-//! general [`algorithms`](crate::algorithms) module: changes are encoded as
-//! [diff operations](crate::DiffOp).  These are ranges of the
-//! differences by index in the source sequence.  Because this can be cumbersome
-//! to work with a separate method [`TextDiff::iter_changes`] is provided which
-//! expands all the changes on an item by item level encoded in an operation.
-//!
-//! Because the [`TextDiff::grouped_ops`] method can isolate clusters of changes
-//! this even works for very long files if paired with this method.
-//!
-//! # Trailing Newlines
-//!
-//! When working with line diffs (and unified diffs in general) there are two
-//! "philosophies" to look at lines.  One is to diff lines without their newline
-//! character, the other is to diff with the newline character.  Typically the
-//! latter is done because text files do not _have_ to end in a newline character.
-//! As a result there is a difference between `foo\n` and `foo` as far as diffs
-//! are concerned.
-//!
-//! In similar this is handled on the [`Change`] or [`InlineChange`] level.  If
-//! a diff was created via [`TextDiff::from_lines`] the text diffing system is
-//! instructed to check if there are missing newlines encountered.  If that is
-//! the case the [`Change`] object will return true from the
-//! [`Change::missing_newline`] method so the caller knows to handle this by
-//! either rendering a virtual newline at that position or to indicate it in
-//! different ways.  For instance the unified diff code will render the special
-//! `\ No newline at end of file` marker.
-//!
-//! # Bytes vs Unicode
-//!
-//! This module concerns itself with a loser definition of "text" than you would
-//! normally see in Rust.  While by default it can only operate on [`str`] types
-//! by enabling the `bytes` feature it gains support for byte slices with some
-//! caveats.
-//!
-//! A lot of text diff functionality assumes that what is being diffed constiutes
-//! text, but in the real world it can often be challenging to ensure that this is
-//! all valid utf-8.  Because of this the crate is built so that most functinality
-//! also still works with bytes for as long as they are roughtly ASCII compatible.
-//!
-//! This means you will be successful in creating a unified diff from latin1
-//! encoded bytes but if you try to do the same with EBCDIC encoded bytes you
-//! will only get garbage.
-#![cfg(feature = "text")]
 use std::borrow::Cow;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
@@ -92,15 +6,14 @@ use std::collections::BinaryHeap;
 mod abstraction;
 #[cfg(feature = "inline")]
 mod inline;
-mod udiff;
 mod utils;
 
 pub use self::abstraction::{DiffableStr, DiffableStrRef};
 #[cfg(feature = "inline")]
 pub use self::inline::InlineChange;
-pub use self::udiff::{unified_diff, UnifiedDiff, UnifiedDiffHunk, UnifiedHunkHeader};
 
 use self::utils::{upper_seq_ratio, QuickSeqRatio};
+use crate::udiff::UnifiedDiff;
 use crate::{capture_diff_slices, get_diff_ratio, group_diff_ops, Algorithm, Change, DiffOp};
 
 /// A builder type config for more complex uses of [`TextDiff`].
@@ -358,7 +271,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     /// ratio of `0.0` would indicate completely distinct sequences.
     ///
     /// ```rust
-    /// # use similar::text::TextDiff;
+    /// # use similar::TextDiff;
     /// let diff = TextDiff::from_chars("abcd", "bcde");
     /// assert_eq!(diff.ratio(), 0.75);
     /// ```
@@ -411,7 +324,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
 /// to be considered similar.  See [`TextDiff::ratio`] for more information.
 ///
 /// ```
-/// # use similar::text::get_close_matches;
+/// # use similar::get_close_matches;
 /// let matches = get_close_matches(
 ///     "appel",
 ///     &["ape", "apple", "peach", "puppy"][..],

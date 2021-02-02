@@ -1,5 +1,5 @@
 ---
-source: src/text/udiff.rs
+source: src/udiff.rs
 expression: "&diff.unified_diff().missing_newline_hint(false).header(\"a.txt\",\n                                                        \"b.txt\").to_string()"
 ---
 --- a.txt

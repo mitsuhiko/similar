@@ -1,4 +1,4 @@
-use similar::text::get_close_matches;
+use similar::get_close_matches;
 
 fn main() {
     let words = vec![

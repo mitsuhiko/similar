@@ -1,10 +1,10 @@
 //! This module provides unified diff functionality.
 //!
-//! This module is available for as long as the `text` feature is enabled which
-//! is enabled by default.
+//! It is available for as long as the `text` feature is enabled which
+//! is enabled by default:
 //!
 //! ```rust
-//! use similar::text::TextDiff;
+//! use similar::TextDiff;
 //! # let old_text = "";
 //! # let new_text = "";
 //! let text_diff = TextDiff::from_lines(old_text, new_text);
@@ -21,14 +21,12 @@
 //! versions by using [`UnifiedDiff.to_string`] or [`UnifiedDiff.to_writer`].
 //! The former uses [`DiffableStr::to_string_lossy`], the latter uses
 //! [`DiffableStr::as_bytes`] for each line.
-
+#[cfg(feature = "text")]
 use std::ops::Range;
 use std::{fmt, io};
 
-use crate::text::TextDiff;
+use crate::text::{DiffableStr, TextDiff};
 use crate::types::{Algorithm, Change, DiffOp};
-
-use super::DiffableStr;
 
 struct MissingNewlineHint(bool);
 
@@ -99,7 +97,7 @@ impl fmt::Display for UnifiedHunkHeader {
 /// Unified diff formatter.
 ///
 /// ```rust
-/// use similar::text::TextDiff;
+/// use similar::TextDiff;
 /// # let old_text = "";
 /// # let new_text = "";
 /// let text_diff = TextDiff::from_lines(old_text, new_text);

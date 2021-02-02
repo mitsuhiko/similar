@@ -1,6 +1,5 @@
 use console::Style;
-use similar::text::TextDiff;
-use similar::ChangeTag;
+use similar::{ChangeTag, TextDiff};
 
 fn main() {
     let diff = TextDiff::from_lines(
