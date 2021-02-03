@@ -1,6 +1,3 @@
-#[cfg(feature = "bytes")]
-use bstr::ByteSlice;
-
 use std::borrow::Cow;
 use std::hash::Hash;
 use std::ops::Range;
@@ -44,15 +41,6 @@ impl<'a, T: DiffableStr + ?Sized> DiffableStrRef for Cow<'a, T> {
 
     fn as_diffable_str(&self) -> &T {
         &self
-    }
-}
-
-#[cfg(feature = "bytes")]
-impl DiffableStrRef for Vec<u8> {
-    type Output = [u8];
-
-    fn as_diffable_str(&self) -> &[u8] {
-        self.as_slice()
     }
 }
 
@@ -221,115 +209,129 @@ impl DiffableStr for str {
     }
 }
 
-/// Allows viewing ASCII compatible byte slices as strings.
-///
-/// Requires the `bytes` feature.
 #[cfg(feature = "bytes")]
-impl DiffableStr for [u8] {
-    fn tokenize_lines(&self) -> Vec<&Self> {
-        let mut iter = self.char_indices().peekable();
-        let mut last_pos = 0;
-        let mut lines = vec![];
+mod bytes_support {
+    use super::*;
 
-        while let Some((_, end, c)) = iter.next() {
-            if c == '\r' {
-                if iter.peek().map_or(false, |x| x.2 == '\n') {
-                    lines.push(&self[last_pos..end + 1]);
-                    iter.next();
-                    last_pos = end + 1;
-                } else {
+    use bstr::ByteSlice;
+
+    impl DiffableStrRef for Vec<u8> {
+        type Output = [u8];
+
+        fn as_diffable_str(&self) -> &[u8] {
+            self.as_slice()
+        }
+    }
+
+    /// Allows viewing ASCII compatible byte slices as strings.
+    ///
+    /// Requires the `bytes` feature.
+    impl DiffableStr for [u8] {
+        fn tokenize_lines(&self) -> Vec<&Self> {
+            let mut iter = self.char_indices().peekable();
+            let mut last_pos = 0;
+            let mut lines = vec![];
+
+            while let Some((_, end, c)) = iter.next() {
+                if c == '\r' {
+                    if iter.peek().map_or(false, |x| x.2 == '\n') {
+                        lines.push(&self[last_pos..end + 1]);
+                        iter.next();
+                        last_pos = end + 1;
+                    } else {
+                        lines.push(&self[last_pos..end]);
+                        last_pos = end;
+                    }
+                } else if c == '\n' {
                     lines.push(&self[last_pos..end]);
                     last_pos = end;
                 }
-            } else if c == '\n' {
-                lines.push(&self[last_pos..end]);
-                last_pos = end;
             }
+
+            if last_pos < self.len() {
+                lines.push(&self[last_pos..]);
+            }
+
+            lines
         }
 
-        if last_pos < self.len() {
-            lines.push(&self[last_pos..]);
-        }
+        fn tokenize_lines_and_newlines(&self) -> Vec<&Self> {
+            let mut rv = vec![];
+            let mut iter = self.char_indices().peekable();
 
-        lines
-    }
-
-    fn tokenize_lines_and_newlines(&self) -> Vec<&Self> {
-        let mut rv = vec![];
-        let mut iter = self.char_indices().peekable();
-
-        while let Some((start, mut end, c)) = iter.next() {
-            let is_newline = c == '\r' || c == '\n';
-            while let Some(&(_, new_end, next_char)) = iter.peek() {
-                if (next_char == '\r' || next_char == '\n') != is_newline {
-                    break;
+            while let Some((start, mut end, c)) = iter.next() {
+                let is_newline = c == '\r' || c == '\n';
+                while let Some(&(_, new_end, next_char)) = iter.peek() {
+                    if (next_char == '\r' || next_char == '\n') != is_newline {
+                        break;
+                    }
+                    iter.next();
+                    end = new_end;
                 }
-                iter.next();
-                end = new_end;
+                rv.push(&self[start..end]);
             }
-            rv.push(&self[start..end]);
+
+            rv
         }
 
-        rv
-    }
+        fn tokenize_words(&self) -> Vec<&Self> {
+            let mut iter = self.char_indices().peekable();
+            let mut rv = vec![];
 
-    fn tokenize_words(&self) -> Vec<&Self> {
-        let mut iter = self.char_indices().peekable();
-        let mut rv = vec![];
-
-        while let Some((start, mut end, c)) = iter.next() {
-            let is_whitespace = c.is_whitespace();
-            while let Some(&(_, new_end, next_char)) = iter.peek() {
-                if next_char.is_whitespace() != is_whitespace {
-                    break;
+            while let Some((start, mut end, c)) = iter.next() {
+                let is_whitespace = c.is_whitespace();
+                while let Some(&(_, new_end, next_char)) = iter.peek() {
+                    if next_char.is_whitespace() != is_whitespace {
+                        break;
+                    }
+                    iter.next();
+                    end = new_end;
                 }
-                iter.next();
-                end = new_end;
+                rv.push(&self[start..end]);
             }
-            rv.push(&self[start..end]);
+
+            rv
         }
 
-        rv
-    }
+        #[cfg(feature = "unicode")]
+        fn tokenize_unicode_words(&self) -> Vec<&Self> {
+            self.words_with_breaks().map(|x| x.as_bytes()).collect()
+        }
 
-    #[cfg(feature = "unicode")]
-    fn tokenize_unicode_words(&self) -> Vec<&Self> {
-        self.words_with_breaks().map(|x| x.as_bytes()).collect()
-    }
+        #[cfg(feature = "unicode")]
+        fn tokenize_graphemes(&self) -> Vec<&Self> {
+            self.graphemes().map(|x| x.as_bytes()).collect()
+        }
 
-    #[cfg(feature = "unicode")]
-    fn tokenize_graphemes(&self) -> Vec<&Self> {
-        self.graphemes().map(|x| x.as_bytes()).collect()
-    }
+        fn tokenize_chars(&self) -> Vec<&Self> {
+            self.char_indices()
+                .map(move |(start, end, _)| &self[start..end])
+                .collect()
+        }
 
-    fn tokenize_chars(&self) -> Vec<&Self> {
-        self.char_indices()
-            .map(move |(start, end, _)| &self[start..end])
-            .collect()
-    }
+        fn as_str(&self) -> Option<&str> {
+            std::str::from_utf8(self).ok()
+        }
 
-    fn as_str(&self) -> Option<&str> {
-        std::str::from_utf8(self).ok()
-    }
+        fn to_string_lossy(&self) -> Cow<'_, str> {
+            String::from_utf8_lossy(self)
+        }
 
-    fn to_string_lossy(&self) -> Cow<'_, str> {
-        String::from_utf8_lossy(self)
-    }
+        fn ends_with_newline(&self) -> bool {
+            matches!(self.last_byte(), Some(b'\r') | Some(b'\n'))
+        }
 
-    fn ends_with_newline(&self) -> bool {
-        matches!(self.last_byte(), Some(b'\r') | Some(b'\n'))
-    }
+        fn len(&self) -> usize {
+            <[u8]>::len(self)
+        }
 
-    fn len(&self) -> usize {
-        <[u8]>::len(self)
-    }
+        fn slice(&self, rng: Range<usize>) -> &Self {
+            &self[rng]
+        }
 
-    fn slice(&self, rng: Range<usize>) -> &Self {
-        &self[rng]
-    }
-
-    fn as_bytes(&self) -> &[u8] {
-        self
+        fn as_bytes(&self) -> &[u8] {
+            self
+        }
     }
 }
 
