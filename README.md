@@ -11,7 +11,7 @@ implementation of the Myer's and Patience algorithms and inherits some ideas
 from there.
 
 ```rust
-use similar::text::{ChangeTag, TextDiff};
+use similar::{ChangeTag, TextDiff};
 
 fn main() {
     let diff = TextDiff::from_lines(
