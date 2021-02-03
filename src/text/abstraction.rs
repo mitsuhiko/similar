@@ -13,6 +13,8 @@ use std::ops::Range;
 ///
 /// This trait is used in the library whenever it's nice to be able to pass
 /// strings of different types in.
+///
+/// Requires the `text` feature.
 pub trait DiffableStrRef {
     /// The type of the resolved [`DiffableStr`].
     type Output: DiffableStr + ?Sized;
@@ -60,6 +62,8 @@ impl DiffableStrRef for Vec<u8> {
 /// on how the crate is compiled.  Out of the box `&str` is always supported
 /// but with the `bytes` feature one can also work with `[u8]` slices for
 /// as long as they are ASCII compatible.
+///
+/// Requires the `text` feature.
 pub trait DiffableStr: Hash + PartialEq + PartialOrd + Ord + Eq + ToOwned {
     /// Splits the value into newlines with newlines attached.
     fn tokenize_lines(&self) -> Vec<&Self>;
@@ -217,6 +221,9 @@ impl DiffableStr for str {
     }
 }
 
+/// Allows viewing ASCII compatible byte slices as strings.
+///
+/// Requires the `bytes` feature.
 #[cfg(feature = "bytes")]
 impl DiffableStr for [u8] {
     fn tokenize_lines(&self) -> Vec<&Self> {

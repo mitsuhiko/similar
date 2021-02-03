@@ -17,6 +17,8 @@ use crate::udiff::UnifiedDiff;
 use crate::{capture_diff_slices, get_diff_ratio, group_diff_ops, Algorithm, Change, DiffOp};
 
 /// A builder type config for more complex uses of [`TextDiff`].
+///
+/// Requires the `text` feature.
 #[derive(Clone, Debug)]
 pub struct TextDiffConfig {
     algorithm: Algorithm,
@@ -159,7 +161,9 @@ impl TextDiffConfig {
     }
 }
 
-/// Captures diff op codes for textual diffs
+/// Captures diff op codes for textual diffs.
+///
+/// Requires the `text` feature.
 pub struct TextDiff<'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
     old: Cow<'bufs, [&'old T]>,
     new: Cow<'bufs, [&'new T]>,
@@ -333,6 +337,8 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
 /// );
 /// assert_eq!(matches, vec!["apple", "ape"]);
 /// ```
+///
+/// Requires the `text` feature.
 pub fn get_close_matches<'a, T: DiffableStr + ?Sized>(
     word: &T,
     possibilities: &[&'a T],

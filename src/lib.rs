@@ -2,6 +2,36 @@
 //! interface over different types of diffing algorithms.  It's based on the
 //! the diff algorithm implementations of [pijul](https://pijul.org/).
 //!
+//! The API of the crate is split into high and low level functionality.  Most
+//! of what you probably want to use is available top level.  Additionally the
+//! following sub modules exist:
+//!
+//! * [`algorithms`]: This implements the different types of diffing algorithms.
+//!   It provides both low level access to the algorithms with the minimal
+//!   trait bounds necessary, as well as a generic interface.
+//! * [`udiff`]: Unified diff functionality.
+//!
+//! # Sequence Diffing
+//!
+//! If you want to diff sequences generally indexable things you can use the
+//! [`capture_diff`] and [`capture_diff_slices`] functions.  They will directly
+//! diff an indexable object or slice and return a vector of [`DiffOp`] objects.
+//!
+//! ```rust
+//! use similar::{Algorithm, capture_diff_slices};
+//!
+//! let a = vec![1, 2, 3, 4, 5];
+//! let b = vec![1, 2, 3, 4, 7];
+//! let ops = capture_diff_slices(Algorithm::Myers, &a, &b);
+//! ```
+//!
+//! # Text Diffing
+//!
+//! Similar provides helpful utilities for text (and more specifically line) diff
+//! operations.  The main type you want to work with is [`TextDiff`] which
+//! uses the underlying diff algorithms to expose a convenient API to work with
+//! texts:
+//!
 //! ```rust
 //! # #[cfg(feature = "text")] {
 //! use similar::{ChangeTag, TextDiff};
@@ -24,30 +54,6 @@
 //! # }
 //! ```
 //!
-//! # API
-//!
-//! The API of the crate is split into high and low level functionality.  Most
-//! of what you probably want to use is available toplevel.  Additionally the
-//! following sub modules exist:
-//!
-//! * [`algorithms`]: This implements the different types of diffing algorithms.
-//!   It provides both low level access to the algorithms with the minimal
-//!   trait bounds necessary, as well as a generic interface.
-//! * [`udiff`]: Unified diff functionality.
-//!
-//! # Sequence Diffing
-//!
-//! If you want to diff sequences generally indexable things you can use the
-//! [`capture_diff`] and [`capture_diff_slices`] functions.  They will directly
-//! diff an indexable object or slice and return a vector of [`DiffOp`] objects.
-//!
-//! # Text Diffing
-//!
-//! Similar provides helpful utilities for text (and more specifically line) diff
-//! operations.  The main type you want to work with is [`TextDiff`] which
-//! uses the underlying diff algorithms to expose a convenient API to work with
-//! texts.
-//!
 //! ## Trailing Newlines
 //!
 //! When working with line diffs (and unified diffs in general) there are two
@@ -59,12 +65,15 @@
 //!
 //! In similar this is handled on the [`Change`] or [`InlineChange`] level.  If
 //! a diff was created via [`TextDiff::from_lines`] the text diffing system is
-//! instructed to check if there are missing newlines encountered.  If that is
-//! the case the [`Change`] object will return true from the
-//! [`Change::missing_newline`] method so the caller knows to handle this by
-//! either rendering a virtual newline at that position or to indicate it in
-//! different ways.  For instance the unified diff code will render the special
-//! `\ No newline at end of file` marker.
+//! instructed to check if there are missing newlines encountered
+//! ([`TextDiff::newline_terminated`] returns true).
+//!
+//! In any case the [`Change`] object has a convenience method called
+//! [`Change::missing_newline`] which returns `true` if the change is missing
+//! a trailing newline.  Armed with that information the caller knows to handle
+//! this by either rendering a virtual newline at that position or to indicate
+//! it in different ways.  For instance the unified diff code will render the
+//! special `\ No newline at end of file` marker.
 //!
 //! ## Bytes vs Unicode
 //!
@@ -118,6 +127,7 @@
 //!   in a line diff.  This currently also enables the `unicode` feature.
 #![warn(missing_docs)]
 pub mod algorithms;
+#[cfg(feature = "text")]
 pub mod udiff;
 
 mod common;
