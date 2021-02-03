@@ -88,7 +88,7 @@ pub trait DiffableStr: Hash + PartialEq + PartialOrd + Ord + Eq + ToOwned {
     /// Slices the string.
     fn slice(&self, rng: Range<usize>) -> &Self;
 
-    /// Returns the strings as slice of raw bytes.
+    /// Returns the string as slice of raw bytes.
     fn as_bytes(&self) -> &[u8];
 
     /// Checks if the string is empty.
