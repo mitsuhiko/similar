@@ -82,10 +82,10 @@
 //! by enabling the `bytes` feature it gains support for byte slices with some
 //! caveats.
 //!
-//! A lot of text diff functionality assumes that what is being diffed constiutes
+//! A lot of text diff functionality assumes that what is being diffed constitutes
 //! text, but in the real world it can often be challenging to ensure that this is
-//! all valid utf-8.  Because of this the crate is built so that most functinality
-//! also still works with bytes for as long as they are roughtly ASCII compatible.
+//! all valid utf-8.  Because of this the crate is built so that most functionality
+//! also still works with bytes for as long as they are roughly ASCII compatible.
 //!
 //! This means you will be successful in creating a unified diff from latin1
 //! encoded bytes but if you try to do the same with EBCDIC encoded bytes you

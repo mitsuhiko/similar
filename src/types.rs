@@ -345,7 +345,7 @@ mod text_additions {
     use crate::text::DiffableStr;
     use std::borrow::Cow;
 
-    /// The text interface can produce changes over [`DiffableStr`] implemeting
+    /// The text interface can produce changes over [`DiffableStr`] implementing
     /// values.  As those are generic interfaces for different types of strings
     /// utility methods to make working with standard rust strings more enjoyable.
     impl<'s, T: DiffableStr + ?Sized> Change<'s, T> {

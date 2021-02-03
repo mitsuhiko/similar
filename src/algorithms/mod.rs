@@ -12,7 +12,7 @@
 //! diff hook is not used outside of the raw algorithm implementations as for
 //! most situations access to the values is useful of required.
 //!
-//! The algoriths module really is the most low-level module in similar and
+//! The algorithms module really is the most low-level module in similar and
 //! generally not the place to start.
 //!
 //! # Example
@@ -30,7 +30,7 @@
 //! let ops = d.into_inner().into_ops();
 //! ```
 //!
-//! The above example is equivalen to using
+//! The above example is equivalent to using
 //! [`capture_diff_slices`](crate::capture_diff_slices).
 
 mod capture;

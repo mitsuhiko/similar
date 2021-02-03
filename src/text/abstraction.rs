@@ -62,14 +62,14 @@ pub trait DiffableStr: Hash + PartialEq + PartialOrd + Ord + Eq + ToOwned {
     /// Tokenizes into words.
     fn tokenize_words(&self) -> Vec<&Self>;
 
-    /// Splits the input into characters.
+    /// Tokenizes the input into characters.
     fn tokenize_chars(&self) -> Vec<&Self>;
 
-    /// Splits into unicode words.
+    /// Tokenizes into unicode words.
     #[cfg(feature = "unicode")]
     fn tokenize_unicode_words(&self) -> Vec<&Self>;
 
-    /// Splits into unicode graphemes..
+    /// Tokenizes into unicode graphemes.
     #[cfg(feature = "unicode")]
     fn tokenize_graphemes(&self) -> Vec<&Self>;
 

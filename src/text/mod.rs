@@ -364,7 +364,7 @@ pub fn get_close_matches<'a, T: DiffableStr + ?Sized>(
         let diff = TextDiff::from_slices(&seq1, &seq2);
         let ratio = diff.ratio();
         if ratio >= cutoff {
-            // we're putting the word iself in reverse in so that matches with
+            // we're putting the word itself in reverse in so that matches with
             // the same ratio are ordered lexicographically.
             matches.push(((ratio * u32::MAX as f32) as u32, Reverse(possibility)));
         }
