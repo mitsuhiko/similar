@@ -163,6 +163,11 @@ impl TextDiffConfig {
 
 /// Captures diff op codes for textual diffs.
 ///
+/// The exact diff behavior is depending on the underlying [`DiffableStr`].
+/// For instance diffs on bytes and strings are slightly different.  You can
+/// create a text diff from constructors such as [`TextDiff::from_lines`] or
+/// the [`TextDiffConfig`] created by [`TextDiff::configure`].
+///
 /// Requires the `text` feature.
 pub struct TextDiff<'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
     old: Cow<'bufs, [&'old T]>,
