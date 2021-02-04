@@ -2,6 +2,11 @@
 
 All notable changes to similar are documented here.
 
+## 1.1.0
+
+* More generic lifetimes for `iter_changes` and `iter_inline_changes`.
+* Added `iter_all_changes` shortcut as this is commonly useful.
+
 ## 1.0.0
 
 * Add `get_diff_ratio`.

@@ -174,12 +174,15 @@ impl<'s, T: DiffableStr + ?Sized> fmt::Display for InlineChange<'s, T> {
     }
 }
 
-pub(crate) fn iter_inline_changes<'diff, T>(
-    diff: &'diff TextDiff<'_, '_, '_, T>,
+pub(crate) fn iter_inline_changes<'x, 'diff, 'old, 'new, 'bufs, T>(
+    diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
     op: &DiffOp,
-) -> impl Iterator<Item = InlineChange<'diff, T>>
+) -> impl Iterator<Item = InlineChange<'x, T>> + 'diff
 where
     T: DiffableStr + ?Sized,
+    'x: 'diff,
+    'old: 'x,
+    'new: 'x,
 {
     let (tag, old_range, new_range) = op.as_tag_tuple();
 

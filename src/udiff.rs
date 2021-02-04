@@ -240,11 +240,11 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized>
     pub fn iter_changes(&self) -> impl Iterator<Item = Change<'_, T>> + '_ {
         // unclear why this needs Box::new here.  It seems to infer some really
         // odd lifetimes I can't figure out how to work with.
-        (Box::new(
+        Box::new(
             self.ops()
                 .iter()
                 .flat_map(move |op| self.diff.iter_changes(op)),
-        )) as Box<dyn Iterator<Item = _>>
+        ) as Box<dyn Iterator<Item = _>>
     }
 
     /// Write the hunk as bytes to the output stream.
