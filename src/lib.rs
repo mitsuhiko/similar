@@ -41,15 +41,13 @@
 //!     "Hallo Welt\nThis is the second line.\nThis is life.\nMoar and more",
 //! );
 //!
-//! for op in diff.ops() {
-//!     for change in diff.iter_changes(op) {
-//!         let sign = match change.tag() {
-//!             ChangeTag::Delete => "-",
-//!             ChangeTag::Insert => "+",
-//!             ChangeTag::Equal => " ",
-//!         };
-//!         print!("{}{}", sign, change);
-//!     }
+//! for change in diff.iter_all_changes() {
+//!     let sign = match change.tag() {
+//!         ChangeTag::Delete => "-",
+//!         ChangeTag::Insert => "+",
+//!         ChangeTag::Equal => " ",
+//!     };
+//!     print!("{}{}", sign, change);
 //! }
 //! # }
 //! ```
@@ -129,6 +127,8 @@
 pub mod algorithms;
 #[cfg(feature = "text")]
 pub mod udiff;
+#[cfg(feature = "text")]
+pub mod utils;
 
 mod common;
 #[cfg(feature = "text")]
