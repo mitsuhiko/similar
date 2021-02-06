@@ -6,6 +6,11 @@ All notable changes to similar are documented here.
 
 * More generic lifetimes for `iter_changes` and `iter_inline_changes`.
 * Added `iter_all_changes` shortcut as this is commonly useful.
+* Added `iter_slices` to `DiffOp` to quickly get an iterator over the
+  encoded slices rather than individual items like `iter_changes` does.
+* Added the `utils` module with various text diffing utilities.
+* Added `TextDiffRemapper` which helps with working with the original, pre
+  `TextDiff` tokenization slices.
 
 ## 1.0.0
 
