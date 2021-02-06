@@ -62,6 +62,23 @@ impl TextDiffConfig {
     /// special handling in similar.  When a line diff is created with this
     /// method the `newline_terminated` flag is flipped to `true` and will
     /// influence the behavior of unified diff generation.
+    ///
+    /// ```rust
+    /// use similar::{TextDiff, ChangeTag};
+    ///
+    /// let diff = TextDiff::configure().diff_lines("a\nb\nc", "a\nb\nC");
+    /// let changes: Vec<_> = diff
+    ///     .iter_all_changes()
+    ///     .map(|x| (x.tag(), x.value()))
+    ///     .collect();
+    ///
+    /// assert_eq!(changes, vec![
+    ///    (ChangeTag::Equal, "a\n"),
+    ///    (ChangeTag::Equal, "b\n"),
+    ///    (ChangeTag::Delete, "c"),
+    ///    (ChangeTag::Insert, "C"),
+    /// ]);
+    /// ```
     pub fn diff_lines<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
         old: &'old T,
@@ -83,6 +100,25 @@ impl TextDiffConfig {
     /// depending on the use case.  You might also want to combine word level
     /// diffs with the [`TextDiffRemapper`](crate::utils::TextDiffRemapper)
     /// which lets you remap the diffs back to the original input strings.
+    ///
+    /// ```rust
+    /// use similar::{TextDiff, ChangeTag};
+    ///
+    /// let diff = TextDiff::configure().diff_words("foo bar baz", "foo BAR baz");
+    /// let changes: Vec<_> = diff
+    ///     .iter_all_changes()
+    ///     .map(|x| (x.tag(), x.value()))
+    ///     .collect();
+    ///
+    /// assert_eq!(changes, vec![
+    ///    (ChangeTag::Equal, "foo"),
+    ///    (ChangeTag::Equal, " "),
+    ///    (ChangeTag::Delete, "bar"),
+    ///    (ChangeTag::Insert, "BAR"),
+    ///    (ChangeTag::Equal, " "),
+    ///    (ChangeTag::Equal, "baz"),
+    /// ]);
+    /// ```
     pub fn diff_words<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
         old: &'old T,
@@ -102,6 +138,27 @@ impl TextDiffConfig {
     /// depending on the use case.  You might also want to combine word level
     /// diffs with the [`TextDiffRemapper`](crate::utils::TextDiffRemapper)
     /// which lets you remap the diffs back to the original input strings.
+    ///
+    /// ```rust
+    /// use similar::{TextDiff, ChangeTag};
+    ///
+    /// let diff = TextDiff::configure().diff_chars("abcdef", "abcDDf");
+    /// let changes: Vec<_> = diff
+    ///     .iter_all_changes()
+    ///     .map(|x| (x.tag(), x.value()))
+    ///     .collect();
+    ///
+    /// assert_eq!(changes, vec![
+    ///    (ChangeTag::Equal, "a"),
+    ///    (ChangeTag::Equal, "b"),
+    ///    (ChangeTag::Equal, "c"),
+    ///    (ChangeTag::Delete, "d"),
+    ///    (ChangeTag::Delete, "e"),
+    ///    (ChangeTag::Insert, "D"),
+    ///    (ChangeTag::Insert, "D"),
+    ///    (ChangeTag::Equal, "f"),
+    /// ]);
+    /// ```
     pub fn diff_chars<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
         old: &'old T,
@@ -127,6 +184,25 @@ impl TextDiffConfig {
     /// depending on the use case.  You might also want to combine word level
     /// diffs with the [`TextDiffRemapper`](crate::utils::TextDiffRemapper)
     /// which lets you remap the diffs back to the original input strings.
+    ///
+    /// ```rust
+    /// use similar::{TextDiff, ChangeTag};
+    ///
+    /// let diff = TextDiff::configure().diff_unicode_words("ah(be)ce", "ah(ah)ce");
+    /// let changes: Vec<_> = diff
+    ///     .iter_all_changes()
+    ///     .map(|x| (x.tag(), x.value()))
+    ///     .collect();
+    ///
+    /// assert_eq!(changes, vec![
+    ///    (ChangeTag::Equal, "ah"),
+    ///    (ChangeTag::Equal, "("),
+    ///    (ChangeTag::Delete, "be"),
+    ///    (ChangeTag::Insert, "ah"),
+    ///    (ChangeTag::Equal, ")"),
+    ///    (ChangeTag::Equal, "ce"),
+    /// ]);
+    /// ```
     #[cfg(feature = "unicode")]
     pub fn diff_unicode_words<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
@@ -149,6 +225,24 @@ impl TextDiffConfig {
     /// depending on the use case.  You might also want to combine word level
     /// diffs with the [`TextDiffRemapper`](crate::utils::TextDiffRemapper)
     /// which lets you remap the diffs back to the original input strings.
+    ///
+    /// ```rust
+    /// use similar::{TextDiff, ChangeTag};
+    ///
+    /// let diff = TextDiff::configure().diff_graphemes("💩🇦🇹🦠", "💩🇦🇱❄️");
+    /// let changes: Vec<_> = diff
+    ///     .iter_all_changes()
+    ///     .map(|x| (x.tag(), x.value()))
+    ///     .collect();
+    ///
+    /// assert_eq!(changes, vec![
+    ///    (ChangeTag::Equal, "💩"),
+    ///    (ChangeTag::Delete, "🇦🇹"),
+    ///    (ChangeTag::Delete, "🦠"),
+    ///    (ChangeTag::Insert, "🇦🇱"),
+    ///    (ChangeTag::Insert, "❄️"),
+    /// ]);
+    /// ```
     #[cfg(feature = "unicode")]
     pub fn diff_graphemes<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
@@ -163,6 +257,25 @@ impl TextDiffConfig {
     }
 
     /// Creates a diff of arbitrary slices.
+    ///
+    /// ```rust
+    /// use similar::{TextDiff, ChangeTag};
+    ///
+    /// let old = &["foo", "bar", "baz"];
+    /// let new = &["foo", "BAR", "baz"];
+    /// let diff = TextDiff::configure().diff_slices(old, new);
+    /// let changes: Vec<_> = diff
+    ///     .iter_all_changes()
+    ///     .map(|x| (x.tag(), x.value()))
+    ///     .collect();
+    ///
+    /// assert_eq!(changes, vec![
+    ///    (ChangeTag::Equal, "foo"),
+    ///    (ChangeTag::Delete, "bar"),
+    ///    (ChangeTag::Insert, "BAR"),
+    ///    (ChangeTag::Equal, "baz"),
+    /// ]);
+    /// ```
     pub fn diff_slices<'old, 'new, 'bufs, T: DiffableStr + ?Sized>(
         &self,
         old: &'bufs [&'old T],
