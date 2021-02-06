@@ -74,6 +74,12 @@ impl TextDiffConfig {
     /// Creates a diff of words.
     ///
     /// This splits the text into words and whitespace.
+    ///
+    /// Note on word diffs: because the text differ will tokenize the strings
+    /// into small segments it can be inconvenient to work with the results
+    /// depending on the use case.  You might also want to combine word level
+    /// diffs with the [`TextDiffRemapper`](crate::utils::TextDiffRemapper)
+    /// which lets you remap the diffs back to the original input strings.
     pub fn diff_words<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
         old: &'old T,
@@ -87,6 +93,12 @@ impl TextDiffConfig {
     }
 
     /// Creates a diff of characters.
+    ///
+    /// Note on character diffs: because the text differ will tokenize the strings
+    /// into small segments it can be inconvenient to work with the results
+    /// depending on the use case.  You might also want to combine word level
+    /// diffs with the [`TextDiffRemapper`](crate::utils::TextDiffRemapper)
+    /// which lets you remap the diffs back to the original input strings.
     pub fn diff_chars<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
         old: &'old T,
@@ -106,6 +118,12 @@ impl TextDiffConfig {
     /// requires a dependency.
     ///
     /// This requires the `unicode` feature.
+    ///
+    /// Note on word diffs: because the text differ will tokenize the strings
+    /// into small segments it can be inconvenient to work with the results
+    /// depending on the use case.  You might also want to combine word level
+    /// diffs with the [`TextDiffRemapper`](crate::utils::TextDiffRemapper)
+    /// which lets you remap the diffs back to the original input strings.
     #[cfg(feature = "unicode")]
     pub fn diff_unicode_words<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
@@ -122,6 +140,12 @@ impl TextDiffConfig {
     /// Creates a diff of graphemes.
     ///
     /// This requires the `unicode` feature.
+    ///
+    /// Note on grapheme diffs: because the text differ will tokenize the strings
+    /// into small segments it can be inconvenient to work with the results
+    /// depending on the use case.  You might also want to combine word level
+    /// diffs with the [`TextDiffRemapper`](crate::utils::TextDiffRemapper)
+    /// which lets you remap the diffs back to the original input strings.
     #[cfg(feature = "unicode")]
     pub fn diff_graphemes<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,

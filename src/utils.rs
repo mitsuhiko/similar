@@ -1,7 +1,14 @@
-//! Various diffing utilities.
+//! Utilities for common diff related operations.
 //!
 //! This module provides specialized utilities and simplified diff operations
-//! for common operations.
+//! for common operations.  It's useful when you want to work with text diffs
+//! and you're interested in getting vectors of these changes directly.
+//!
+//! For instance [`diff_chars`] in this module is similar in nature to the
+//! [`TextDiff::from_chars`] behavior but will directly produce a vector of
+//! changes instead of a more lower level access to the changes and it will
+//! return the original consequitive slices.  For more information refer to
+//! the individual functions.
 
 use std::hash::Hash;
 use std::ops::{Index, Range};
@@ -52,6 +59,26 @@ impl<'x, T: DiffableStr + ?Sized> Index<Range<usize>> for SliceRemapper<'x, T> {
 /// This is particularly useful when you want to do things like character or
 /// grapheme level diffs but you want to not have to iterate over small sequences
 /// but large consequitive ones from the source.
+///
+/// ```rust
+/// use similar::{ChangeTag, TextDiff};
+/// use similar::utils::TextDiffRemapper;
+///
+/// let old = "yo! foo bar baz";
+/// let new = "yo! foo bor baz";
+/// let diff = TextDiff::from_words(old, new);
+/// let remapper = TextDiffRemapper::from_text_diff(&diff, old, new);
+/// let changes: Vec<_> = diff.ops()
+///     .iter()
+///     .flat_map(move |x| remapper.iter_slices(x))
+///     .collect();
+///
+/// assert_eq!(changes, vec![
+///     (ChangeTag::Equal, "yo! foo "),
+///     (ChangeTag::Delete, "bar"),
+///     (ChangeTag::Insert, "bor"),
+///     (ChangeTag::Equal, " baz")
+/// ]);
 pub struct TextDiffRemapper<'x, T: ?Sized> {
     old: SliceRemapper<'x, T>,
     new: SliceRemapper<'x, T>,
@@ -60,10 +87,10 @@ pub struct TextDiffRemapper<'x, T: ?Sized> {
 impl<'x, 'slices, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
     /// Creates a new remapper from strings and slices.
     pub fn new(
-        old: &'x T,
-        new: &'x T,
         old_slices: &[&'x T],
         new_slices: &[&'x T],
+        old: &'x T,
+        new: &'x T,
     ) -> TextDiffRemapper<'x, T> {
         TextDiffRemapper {
             old: SliceRemapper::new(old, old_slices),
@@ -167,8 +194,10 @@ pub fn diff_slices<'x, T: PartialEq + Hash + Ord>(
     old: &'x [T],
     new: &'x [T],
 ) -> Vec<(ChangeTag, &'x [T])> {
-    let ops = capture_diff_slices(alg, old, new);
-    ops.iter().flat_map(|op| op.iter_slices(old, new)).collect()
+    capture_diff_slices(alg, old, new)
+        .iter()
+        .flat_map(|op| op.iter_slices(old, new))
+        .collect()
 }
 
 /// Shortcut for making a character level diff.
@@ -235,6 +264,89 @@ pub fn diff_words<'x, T: DiffableStrRef + ?Sized>(
         .collect()
 }
 
+/// Shortcut for making a unicode word level diff.
+///
+/// This function produces the diff of two strings and returns a vector
+/// with the changes.  It returns connected slices into the original string
+/// rather than word level slices.
+///
+/// ```rust
+/// use similar::{Algorithm, ChangeTag};
+/// use similar::utils::diff_unicode_words;
+///
+/// let old = "The quick (\"brown\") fox can't jump 32.3 feet, right?";
+/// let new = "The quick (\"brown\") fox can't jump 9.84 meters, right?";
+/// assert_eq!(diff_unicode_words(Algorithm::Myers, old, new), vec![
+///     (ChangeTag::Equal, "The quick (\"brown\") fox can\'t jump "),
+///     (ChangeTag::Delete, "32.3"),
+///     (ChangeTag::Insert, "9.84"),
+///     (ChangeTag::Equal, " "),
+///     (ChangeTag::Delete, "feet"),
+///     (ChangeTag::Insert, "meters"),
+///     (ChangeTag::Equal, ", right?")
+/// ]);
+/// ```
+///
+/// This requires the `unicode` feature.
+#[cfg(feature = "unicode")]
+pub fn diff_unicode_words<'x, T: DiffableStrRef + ?Sized>(
+    alg: Algorithm,
+    old: &'x T,
+    new: &'x T,
+) -> Vec<(ChangeTag, &'x T::Output)> {
+    let old = old.as_diffable_str();
+    let new = new.as_diffable_str();
+    let diff = TextDiff::configure()
+        .algorithm(alg)
+        .diff_unicode_words(old, new);
+    let remapper = TextDiffRemapper::from_text_diff(&diff, old, new);
+    diff.ops()
+        .iter()
+        .flat_map(move |x| remapper.iter_slices(x))
+        .collect()
+}
+
+/// Shortcut for making a grapheme level diff.
+///
+/// This function produces the diff of two strings and returns a vector
+/// with the changes.  It returns connected slices into the original string
+/// rather than grapheme level slices.
+///
+/// ```rust
+/// use similar::{Algorithm, ChangeTag};
+/// use similar::utils::diff_graphemes;
+///
+/// let old = "The flag of Austria is 🇦🇹";
+/// let new = "The flag of Albania is 🇦🇱";
+/// assert_eq!(diff_graphemes(Algorithm::Myers, old, new), vec![
+///     (ChangeTag::Equal, "The flag of A"),
+///     (ChangeTag::Delete, "ustr"),
+///     (ChangeTag::Insert, "lban"),
+///     (ChangeTag::Equal, "ia is "),
+///     (ChangeTag::Delete, "🇦🇹"),
+///     (ChangeTag::Insert, "🇦🇱"),
+/// ]);
+/// ```
+///
+/// This requires the `unicode` feature.
+#[cfg(feature = "unicode")]
+pub fn diff_graphemes<'x, T: DiffableStrRef + ?Sized>(
+    alg: Algorithm,
+    old: &'x T,
+    new: &'x T,
+) -> Vec<(ChangeTag, &'x T::Output)> {
+    let old = old.as_diffable_str();
+    let new = new.as_diffable_str();
+    let diff = TextDiff::configure()
+        .algorithm(alg)
+        .diff_graphemes(old, new);
+    let remapper = TextDiffRemapper::from_text_diff(&diff, old, new);
+    diff.ops()
+        .iter()
+        .flat_map(move |x| remapper.iter_slices(x))
+        .collect()
+}
+
 /// Shortcut for making a line diff.
 ///
 /// This function produces the diff of two slices and returns a vector
@@ -258,8 +370,10 @@ pub fn diff_lines<'x, T: DiffableStrRef + ?Sized>(
     old: &'x T,
     new: &'x T,
 ) -> Vec<(ChangeTag, &'x T::Output)> {
-    let diff = TextDiff::configure().algorithm(alg).diff_lines(old, new);
-    diff.iter_all_changes()
+    TextDiff::configure()
+        .algorithm(alg)
+        .diff_lines(old, new)
+        .iter_all_changes()
         .map(|change| (change.tag(), change.value()))
         .collect()
 }

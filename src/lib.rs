@@ -10,6 +10,8 @@
 //!   It provides both low level access to the algorithms with the minimal
 //!   trait bounds necessary, as well as a generic interface.
 //! * [`udiff`]: Unified diff functionality.
+//! * [`utils`]: utilities for common diff related operations.  This module
+//!   provides additional diffing functions for working with text diffs.
 //!
 //! # Sequence Diffing
 //!
