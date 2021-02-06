@@ -99,7 +99,7 @@ impl<'x, 'slices, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
     ///
     /// This will only ever yield a single tuple or two tuples in case a
     /// [`DiffOp::Replace`] operation is passed.
-    pub fn iter_diff_op_changes(&self, op: &DiffOp) -> impl Iterator<Item = (ChangeTag, &'x T)> {
+    pub fn iter_slices(&self, op: &DiffOp) -> impl Iterator<Item = (ChangeTag, &'x T)> {
         match *op {
             DiffOp::Equal { old_index, len, .. } => {
                 Some((ChangeTag::Equal, self.old.slice(old_index..old_index + len)))
@@ -144,44 +144,6 @@ impl<'x, 'slices, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
     }
 }
 
-/// Given a diffop yields the changes it encodes against the given slice.
-pub fn iter_diff_op_changes<'x, 'old, 'new, T>(
-    op: &DiffOp,
-    old: &'old [T],
-    new: &'new [T],
-) -> impl Iterator<Item = (ChangeTag, &'x [T])>
-where
-    T: 'x,
-    'old: 'x,
-    'new: 'x,
-{
-    match *op {
-        DiffOp::Equal { old_index, len, .. } => {
-            Some((ChangeTag::Equal, &old[old_index..old_index + len]))
-                .into_iter()
-                .chain(None.into_iter())
-        }
-        DiffOp::Insert {
-            new_index, new_len, ..
-        } => Some((ChangeTag::Insert, &new[new_index..new_index + new_len]))
-            .into_iter()
-            .chain(None.into_iter()),
-        DiffOp::Delete {
-            old_index, old_len, ..
-        } => Some((ChangeTag::Delete, &old[old_index..old_index + old_len]))
-            .into_iter()
-            .chain(None.into_iter()),
-        DiffOp::Replace {
-            old_index,
-            old_len,
-            new_index,
-            new_len,
-        } => Some((ChangeTag::Delete, &old[old_index..old_index + old_len]))
-            .into_iter()
-            .chain(Some((ChangeTag::Insert, &new[new_index..new_index + new_len])).into_iter()),
-    }
-}
-
 /// Shortcut for diffing two slices.
 ///
 /// This function produces the diff of two slices with the
@@ -191,12 +153,27 @@ pub fn diff_slices<'x, T: PartialEq>(old: &'x [T], new: &'x [T]) -> Vec<(ChangeT
     let mut d = Replace::new(Capture::new());
     myers::diff_slices(&mut d, old, new).unwrap();
     let ops = d.into_inner().into_ops();
-    ops.iter()
-        .flat_map(|op| iter_diff_op_changes(op, old, new))
-        .collect()
+    ops.iter().flat_map(|op| op.iter_slices(old, new)).collect()
 }
 
 /// Shortcut for making a character level diff.
+///
+/// This function produces the diff of two slices with the
+/// [myers](crate::algorithms::myers) diffing algorithm and returns a vector
+/// with the changes.  It returns connected slices into the original string
+/// rather than character level slices.
+///
+/// ```rust
+/// use similar::ChangeTag;
+/// use similar::utils::diff_chars;
+///
+/// assert_eq!(diff_chars("foobarbaz", "fooBARbaz"), vec![
+///     (ChangeTag::Equal, "foo"),
+///     (ChangeTag::Delete, "bar"),
+///     (ChangeTag::Insert, "BAR"),
+///     (ChangeTag::Equal, "baz"),
+/// ]);
+/// ```
 pub fn diff_chars<'x, T: DiffableStrRef + ?Sized>(
     old: &'x T,
     new: &'x T,
@@ -207,11 +184,28 @@ pub fn diff_chars<'x, T: DiffableStrRef + ?Sized>(
     let remapper = TextDiffRemapper::from_text_diff(&diff, old, new);
     diff.ops()
         .iter()
-        .flat_map(move |x| remapper.iter_diff_op_changes(x))
+        .flat_map(move |x| remapper.iter_slices(x))
         .collect()
 }
 
 /// Shortcut for making a line diff.
+///
+/// This function produces the diff of two slices with the
+/// [myers](crate::algorithms::myers) diffing algorithm and returns a vector
+/// with the changes.  It returns slices of individual lines.
+///
+/// ```rust
+/// use similar::ChangeTag;
+/// use similar::utils::diff_lines;
+///
+/// assert_eq!(diff_lines("foo\nbar\nbaz\nblah", "foo\nbar\nbaz\nblurgh"), vec![
+///     (ChangeTag::Equal, "foo\n"),
+///     (ChangeTag::Equal, "bar\n"),
+///     (ChangeTag::Equal, "baz\n"),
+///     (ChangeTag::Delete, "blah"),
+///     (ChangeTag::Insert, "blurgh"),
+/// ]);
+/// ```
 pub fn diff_lines<'x, T: DiffableStrRef + ?Sized>(
     old: &'x T,
     new: &'x T,
