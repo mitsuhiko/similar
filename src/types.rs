@@ -247,6 +247,25 @@ impl DiffOp {
     ///
     /// `old` and `new` are two indexable objects like the types you pass to
     /// the diffing algorithm functions.
+    ///
+    /// ```rust
+    /// use similar::{ChangeTag, Algorithm};
+    /// use similar::capture_diff_slices;
+    /// let old = vec!["foo", "bar", "baz"];
+    /// let new = vec!["foo", "bar", "blah"];
+    /// let ops = capture_diff_slices(Algorithm::Myers, &old, &new);
+    /// let changes: Vec<_> = ops
+    ///     .iter()
+    ///     .flat_map(|x| x.iter_changes(&old, &new))
+    ///     .map(|x| (x.tag(), x.value()))
+    ///     .collect();
+    /// assert_eq!(changes, vec![
+    ///     (ChangeTag::Equal, "foo"),
+    ///     (ChangeTag::Equal, "bar"),
+    ///     (ChangeTag::Delete, "baz"),
+    ///     (ChangeTag::Insert, "blah"),
+    /// ]);
+    /// ```
     pub fn iter_changes<'x, 'lookup, Old, New, T>(
         &self,
         old: &'lookup Old,
@@ -337,6 +356,67 @@ impl DiffOp {
                 }
             }
         })
+    }
+
+    /// Given a diffop yields the changes it encodes against the given slices.
+    ///
+    /// This is similar to [`DiffOp::iter_changes`] but instead of yielding the
+    /// individual changes it yields consequitive changed slices.
+    ///
+    /// This will only ever yield a single tuple or two tuples in case a
+    /// [`DiffOp::Replace`] operation is passed.
+    ///
+    /// ```rust
+    /// use similar::{ChangeTag, Algorithm};
+    /// use similar::capture_diff_slices;
+    /// let old = vec!["foo", "bar", "baz"];
+    /// let new = vec!["foo", "bar", "blah"];
+    /// let ops = capture_diff_slices(Algorithm::Myers, &old, &new);
+    /// let changes: Vec<_> = ops.iter().flat_map(|x| x.iter_slices(&old, &new)).collect();
+    /// assert_eq!(changes, vec![
+    ///     (ChangeTag::Equal, &["foo", "bar"][..]),
+    ///     (ChangeTag::Delete, &["baz"][..]),
+    ///     (ChangeTag::Insert, &["blah"][..]),
+    /// ]);
+    /// ```
+    ///
+    /// Due to lifetime restrictions it's currently impossible for the
+    /// returned slices to outlive the lookup.
+    pub fn iter_slices<'lookup, Old, New, T>(
+        &self,
+        old: &'lookup Old,
+        new: &'lookup New,
+    ) -> impl Iterator<Item = (ChangeTag, &'lookup T)>
+    where
+        T: 'lookup + ?Sized,
+        Old: Index<Range<usize>, Output = T> + ?Sized,
+        New: Index<Range<usize>, Output = T> + ?Sized,
+    {
+        match *self {
+            DiffOp::Equal { old_index, len, .. } => {
+                Some((ChangeTag::Equal, &old[old_index..old_index + len]))
+                    .into_iter()
+                    .chain(None.into_iter())
+            }
+            DiffOp::Insert {
+                new_index, new_len, ..
+            } => Some((ChangeTag::Insert, &new[new_index..new_index + new_len]))
+                .into_iter()
+                .chain(None.into_iter()),
+            DiffOp::Delete {
+                old_index, old_len, ..
+            } => Some((ChangeTag::Delete, &old[old_index..old_index + old_len]))
+                .into_iter()
+                .chain(None.into_iter()),
+            DiffOp::Replace {
+                old_index,
+                old_len,
+                new_index,
+                new_len,
+            } => Some((ChangeTag::Delete, &old[old_index..old_index + old_len]))
+                .into_iter()
+                .chain(Some((ChangeTag::Insert, &new[new_index..new_index + new_len])).into_iter()),
+        }
     }
 }
 

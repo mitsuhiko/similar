@@ -10,6 +10,8 @@
 //!   It provides both low level access to the algorithms with the minimal
 //!   trait bounds necessary, as well as a generic interface.
 //! * [`udiff`]: Unified diff functionality.
+//! * [`utils`]: utilities for common diff related operations.  This module
+//!   provides additional diffing functions for working with text diffs.
 //!
 //! # Sequence Diffing
 //!
@@ -41,15 +43,13 @@
 //!     "Hallo Welt\nThis is the second line.\nThis is life.\nMoar and more",
 //! );
 //!
-//! for op in diff.ops() {
-//!     for change in diff.iter_changes(op) {
-//!         let sign = match change.tag() {
-//!             ChangeTag::Delete => "-",
-//!             ChangeTag::Insert => "+",
-//!             ChangeTag::Equal => " ",
-//!         };
-//!         print!("{}{}", sign, change);
-//!     }
+//! for change in diff.iter_all_changes() {
+//!     let sign = match change.tag() {
+//!         ChangeTag::Delete => "-",
+//!         ChangeTag::Insert => "+",
+//!         ChangeTag::Equal => " ",
+//!     };
+//!     print!("{}{}", sign, change);
 //! }
 //! # }
 //! ```
@@ -129,6 +129,8 @@
 pub mod algorithms;
 #[cfg(feature = "text")]
 pub mod udiff;
+#[cfg(feature = "text")]
+pub mod utils;
 
 mod common;
 #[cfg(feature = "text")]

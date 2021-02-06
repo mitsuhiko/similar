@@ -42,6 +42,10 @@ name = "terminal-inline"
 required-features = ["text", "inline", "bytes"]
 
 [[example]]
+name = "original-slices"
+required-features = ["text"]
+
+[[example]]
 name = "udiff"
 required-features = ["text", "bytes"]
 
