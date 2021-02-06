@@ -4,11 +4,26 @@
 //! for common operations.  It's useful when you want to work with text diffs
 //! and you're interested in getting vectors of these changes directly.
 //!
-//! For instance [`diff_chars`] in this module is similar in nature to the
-//! [`TextDiff::from_chars`] behavior but will directly produce a vector of
-//! changes instead of a more lower level access to the changes and it will
-//! return the original consequitive slices.  For more information refer to
-//! the individual functions.
+//! # Slice Remapping
+//!
+//! When working with [`TextDiff`] it's common that one takes advantage of the
+//! built-in tokenization of the differ.  This for instance lets you do
+//! grapheme level diffs.  This is implemented by the differ generating rather
+//! small slices of strings and running a diff algorithm over them.
+//!
+//! The downside of this is that all the [`DiffOp`] objects produced by the
+//! diffing algorithm encode operations on these rather small slices.  For
+//! a lot of use cases this is not what one wants which can make this very
+//! inconvenient.  This module provides a [`TextDiffRemapper`] which lets you
+//! map from the ranges that the [`TextDiff`] returns to the original input
+//! strings.  For more information see [`TextDiffRemapper`].
+//!
+//! # Simple Diff Functions
+//!
+//! This module provides a range of common test diff functions that will
+//! produce vectors of `(change_tag, value)` tuples.  They will automatically
+//! optimize towards returning the most useful slice that one would expect for
+//! the type of diff performed.
 
 use std::hash::Hash;
 use std::ops::{Index, Range};
@@ -98,7 +113,7 @@ impl<'x, 'slices, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
         }
     }
 
-    /// Creates a new remapper from strings and a text diff.
+    /// Creates a new remapper from a text diff and the original strings.
     pub fn from_text_diff<'old, 'new, 'bufs>(
         diff: &TextDiff<'old, 'new, 'bufs, T>,
         old: &'x T,
@@ -127,7 +142,15 @@ impl<'x, 'slices, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
     /// Given a diffop yields the changes it encodes against the original strings.
     ///
     /// This is the same as the [`DiffOp::iter_slices`] method.
+    ///
+    /// ## Panics
+    ///
+    /// This method can panic if the input strings passed to the constructor
+    /// are incompatible with the input strings passed to the diffing algorithm.
     pub fn iter_slices(&self, op: &DiffOp) -> impl Iterator<Item = (ChangeTag, &'x T)> {
+        // note: this is equivalent to the code in `DiffOp::iter_slices`.  It is
+        // a copy/paste because the slicing currently cannot be well abstracted
+        // because of lifetime issues caused by the `Index` trait.
         match *op {
             DiffOp::Equal { old_index, len, .. } => {
                 Some((ChangeTag::Equal, self.old.slice(old_index..old_index + len)))

@@ -58,7 +58,10 @@ impl TextDiffConfig {
     /// Creates a diff of lines.
     ///
     /// This splits the text `old` and `new` into lines preserving newlines
-    /// in the input.
+    /// in the input.  Line diffs are very common and because of that enjoy
+    /// special handling in similar.  When a line diff is created with this
+    /// method the `newline_terminated` flag is flipped to `true` and will
+    /// influence the behavior of unified diff generation.
     pub fn diff_lines<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
         &self,
         old: &'old T,
@@ -209,7 +212,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
 
     /// Creates a diff of lines.
     ///
-    /// Equivalent to `TextDiff::configure().diff_lines(old, new)`.
+    /// For more information see [`TextDiffConfig::diff_lines`].
     pub fn from_lines<T: DiffableStrRef + ?Sized>(
         old: &'old T,
         new: &'new T,
@@ -219,7 +222,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
 
     /// Creates a diff of words.
     ///
-    /// Equivalent to `TextDiff::configure().diff_words(old, new)`.
+    /// For more information see [`TextDiffConfig::diff_words`].
     pub fn from_words<T: DiffableStrRef + ?Sized>(
         old: &'old T,
         new: &'new T,
@@ -229,7 +232,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
 
     /// Creates a diff of chars.
     ///
-    /// Equivalent to `TextDiff::configure().diff_chars(old, new)`.
+    /// For more information see [`TextDiffConfig::diff_chars`].
     pub fn from_chars<T: DiffableStrRef + ?Sized>(
         old: &'old T,
         new: &'new T,
@@ -239,7 +242,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
 
     /// Creates a diff of unicode words.
     ///
-    /// Equivalent to `TextDiff::configure().diff_unicode_words(old, new)`.
+    /// For more information see [`TextDiffConfig::diff_unicode_words`].
     ///
     /// This requires the `unicode` feature.
     #[cfg(feature = "unicode")]
@@ -252,7 +255,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
 
     /// Creates a diff of graphemes.
     ///
-    /// Equivalent to `TextDiff::configure().diff_graphemes(old, new)`.
+    /// For more information see [`TextDiffConfig::diff_graphemes`].
     ///
     /// This requires the `unicode` feature.
     #[cfg(feature = "unicode")]
@@ -267,7 +270,7 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
 impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'new, 'bufs, T> {
     /// Creates a diff of arbitrary slices.
     ///
-    /// Equivalent to `TextDiff::configure().diff_slices(old, new)`.
+    /// For more information see [`TextDiffConfig::diff_slices`].
     pub fn from_slices(
         old: &'bufs [&'old T],
         new: &'bufs [&'new T],
