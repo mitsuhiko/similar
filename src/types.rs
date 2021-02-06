@@ -363,6 +363,9 @@ impl DiffOp {
     /// This is similar to [`DiffOp::iter_changes`] but instead of yielding the
     /// individual changes it yields consequitive changed slices.
     ///
+    /// This will only ever yield a single tuple or two tuples in case a
+    /// [`DiffOp::Replace`] operation is passed.
+    ///
     /// ```rust
     /// use similar::{ChangeTag, Algorithm};
     /// use similar::capture_diff_slices;

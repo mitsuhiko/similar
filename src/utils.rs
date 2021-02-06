@@ -3,10 +3,12 @@
 //! This module provides specialized utilities and simplified diff operations
 //! for common operations.
 
+use std::hash::Hash;
 use std::ops::{Index, Range};
 
-use crate::algorithms::{myers, Capture, Replace};
-use crate::{ChangeTag, DiffOp, DiffableStr, DiffableStrRef, TextDiff};
+use crate::{
+    capture_diff_slices, Algorithm, ChangeTag, DiffOp, DiffableStr, DiffableStrRef, TextDiff,
+};
 
 struct SliceRemapper<'x, T: ?Sized> {
     source: &'x T,
@@ -95,10 +97,9 @@ impl<'x, 'slices, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
         self.new.slice(range)
     }
 
-    /// Given a diffop yields the changes it encodes against the original string.
+    /// Given a diffop yields the changes it encodes against the original strings.
     ///
-    /// This will only ever yield a single tuple or two tuples in case a
-    /// [`DiffOp::Replace`] operation is passed.
+    /// This is the same as the [`DiffOp::iter_slices`] method.
     pub fn iter_slices(&self, op: &DiffOp) -> impl Iterator<Item = (ChangeTag, &'x T)> {
         match *op {
             DiffOp::Equal { old_index, len, .. } => {
@@ -146,28 +147,41 @@ impl<'x, 'slices, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
 
 /// Shortcut for diffing two slices.
 ///
-/// This function produces the diff of two slices with the
-/// [myers](crate::algorithms::myers) diffing algorithm and returns a vector
+/// This function produces the diff of two slices and returns a vector
 /// with the changes.
-pub fn diff_slices<'x, T: PartialEq>(old: &'x [T], new: &'x [T]) -> Vec<(ChangeTag, &'x [T])> {
-    let mut d = Replace::new(Capture::new());
-    myers::diff_slices(&mut d, old, new).unwrap();
-    let ops = d.into_inner().into_ops();
+///
+/// ```rust
+/// use similar::{Algorithm, ChangeTag};
+/// use similar::utils::diff_slices;
+///
+/// let old = "foo\nbar\nbaz".lines().collect::<Vec<_>>();
+/// let new = "foo\nbar\nBAZ".lines().collect::<Vec<_>>();
+/// assert_eq!(diff_slices(Algorithm::Myers, &old, &new), vec![
+///     (ChangeTag::Equal, &["foo", "bar"][..]),
+///     (ChangeTag::Delete, &["baz"][..]),
+///     (ChangeTag::Insert, &["BAZ"][..]),
+/// ]);
+/// ```
+pub fn diff_slices<'x, T: PartialEq + Hash + Ord>(
+    alg: Algorithm,
+    old: &'x [T],
+    new: &'x [T],
+) -> Vec<(ChangeTag, &'x [T])> {
+    let ops = capture_diff_slices(alg, old, new);
     ops.iter().flat_map(|op| op.iter_slices(old, new)).collect()
 }
 
 /// Shortcut for making a character level diff.
 ///
-/// This function produces the diff of two slices with the
-/// [myers](crate::algorithms::myers) diffing algorithm and returns a vector
+/// This function produces the diff of two strings and returns a vector
 /// with the changes.  It returns connected slices into the original string
 /// rather than character level slices.
 ///
 /// ```rust
-/// use similar::ChangeTag;
+/// use similar::{Algorithm, ChangeTag};
 /// use similar::utils::diff_chars;
 ///
-/// assert_eq!(diff_chars("foobarbaz", "fooBARbaz"), vec![
+/// assert_eq!(diff_chars(Algorithm::Myers, "foobarbaz", "fooBARbaz"), vec![
 ///     (ChangeTag::Equal, "foo"),
 ///     (ChangeTag::Delete, "bar"),
 ///     (ChangeTag::Insert, "BAR"),
@@ -175,12 +189,45 @@ pub fn diff_slices<'x, T: PartialEq>(old: &'x [T], new: &'x [T]) -> Vec<(ChangeT
 /// ]);
 /// ```
 pub fn diff_chars<'x, T: DiffableStrRef + ?Sized>(
+    alg: Algorithm,
     old: &'x T,
     new: &'x T,
 ) -> Vec<(ChangeTag, &'x T::Output)> {
     let old = old.as_diffable_str();
     let new = new.as_diffable_str();
-    let diff = TextDiff::from_chars(old, new);
+    let diff = TextDiff::configure().algorithm(alg).diff_chars(old, new);
+    let remapper = TextDiffRemapper::from_text_diff(&diff, old, new);
+    diff.ops()
+        .iter()
+        .flat_map(move |x| remapper.iter_slices(x))
+        .collect()
+}
+
+/// Shortcut for making a word level diff.
+///
+/// This function produces the diff of two strings and returns a vector
+/// with the changes.  It returns connected slices into the original string
+/// rather than word level slices.
+///
+/// ```rust
+/// use similar::{Algorithm, ChangeTag};
+/// use similar::utils::diff_words;
+///
+/// assert_eq!(diff_words(Algorithm::Myers, "foo bar baz", "foo bor baz"), vec![
+///     (ChangeTag::Equal, "foo "),
+///     (ChangeTag::Delete, "bar"),
+///     (ChangeTag::Insert, "bor"),
+///     (ChangeTag::Equal, " baz"),
+/// ]);
+/// ```
+pub fn diff_words<'x, T: DiffableStrRef + ?Sized>(
+    alg: Algorithm,
+    old: &'x T,
+    new: &'x T,
+) -> Vec<(ChangeTag, &'x T::Output)> {
+    let old = old.as_diffable_str();
+    let new = new.as_diffable_str();
+    let diff = TextDiff::configure().algorithm(alg).diff_words(old, new);
     let remapper = TextDiffRemapper::from_text_diff(&diff, old, new);
     diff.ops()
         .iter()
@@ -190,15 +237,15 @@ pub fn diff_chars<'x, T: DiffableStrRef + ?Sized>(
 
 /// Shortcut for making a line diff.
 ///
-/// This function produces the diff of two slices with the
-/// [myers](crate::algorithms::myers) diffing algorithm and returns a vector
-/// with the changes.  It returns slices of individual lines.
+/// This function produces the diff of two slices and returns a vector
+/// with the changes.  Unlike [`diff_chars`] or [`diff_slices`] it returns a
+/// change tag for each line.
 ///
 /// ```rust
-/// use similar::ChangeTag;
+/// use similar::{Algorithm, ChangeTag};
 /// use similar::utils::diff_lines;
 ///
-/// assert_eq!(diff_lines("foo\nbar\nbaz\nblah", "foo\nbar\nbaz\nblurgh"), vec![
+/// assert_eq!(diff_lines(Algorithm::Myers, "foo\nbar\nbaz\nblah", "foo\nbar\nbaz\nblurgh"), vec![
 ///     (ChangeTag::Equal, "foo\n"),
 ///     (ChangeTag::Equal, "bar\n"),
 ///     (ChangeTag::Equal, "baz\n"),
@@ -207,10 +254,11 @@ pub fn diff_chars<'x, T: DiffableStrRef + ?Sized>(
 /// ]);
 /// ```
 pub fn diff_lines<'x, T: DiffableStrRef + ?Sized>(
+    alg: Algorithm,
     old: &'x T,
     new: &'x T,
 ) -> Vec<(ChangeTag, &'x T::Output)> {
-    let diff = TextDiff::from_lines(old, new);
+    let diff = TextDiff::configure().algorithm(alg).diff_lines(old, new);
     diff.iter_all_changes()
         .map(|change| (change.tag(), change.value()))
         .collect()
