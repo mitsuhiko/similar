@@ -1,4 +1,4 @@
-# Similar: A Diffing Library for Rust
+# Similar: A Diffing Library
 
 [![Build Status](https://github.com/mitsuhiko/similar/workflows/Tests/badge.svg?branch=main)](https://github.com/mitsuhiko/similar/actions?query=workflow%3ATests)
 [![Crates.io](https://img.shields.io/crates/d/similar.svg)](https://crates.io/crates/similar)
