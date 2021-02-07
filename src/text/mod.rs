@@ -485,6 +485,12 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     /// level diff on adjacent line replacements.  The exact behavior of
     /// this function with regards to how it detects those inline changes
     /// is currently not defined and will likely change over time.
+    ///
+    /// As of similar 1.2.0 the behavior of this function changes depending on
+    /// if the `unicode` feature is enabled or not.  It will prefer unicode word
+    /// splitting over word splitting depending on the feature flag.
+    ///
+    /// Requires the `inline` feature.
     #[cfg(feature = "inline")]
     pub fn iter_inline_changes<'x, 'slf>(
         &'slf self,

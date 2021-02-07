@@ -18,7 +18,17 @@ impl<'bufs, 's, T: DiffableStr + ?Sized> MultiLookup<'bufs, 's, T> {
         let mut seqs = Vec::new();
         for (string_idx, string) in strings.iter().enumerate() {
             let mut offset = 0;
-            for word in string.tokenize_unicode_words() {
+            let iter = {
+                #[cfg(feature = "unicode")]
+                {
+                    string.tokenize_unicode_words()
+                }
+                #[cfg(not(feature = "unicode"))]
+                {
+                    string.tokenize_words()
+                }
+            };
+            for word in iter {
                 seqs.push((word, string_idx, offset));
                 offset += word.len();
             }

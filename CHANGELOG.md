@@ -2,6 +2,10 @@
 
 All notable changes to similar are documented here.
 
+## 1.2.0
+
+* Make the unicode feature optional for inline diffing.
+
 ## 1.1.0
 
 * More generic lifetimes for `iter_changes` and `iter_inline_changes`.

@@ -18,7 +18,7 @@ all-features = true
 [features]
 default = ["text"]
 text = []
-inline = ["unicode"]
+inline = ["text"]
 
 # this annoyingly currently also turns on bstr and not just bstr/unicode
 # unclear if this is fixable
