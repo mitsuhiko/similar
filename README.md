@@ -38,6 +38,7 @@ fn main() {
 
 * Myer's diff
 * Patience diff
+* Hunt–McIlroy / Hunt–Szymanski LCS diff
 * Diffing on arbitrary comparable sequences
 * Line, word, character and grapheme level diffing
 * Text and Byte diffing

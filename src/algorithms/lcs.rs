@@ -6,7 +6,7 @@ use std::ops::{Index, Range};
 
 use crate::algorithms::DiffHook;
 
-/// Myers' diff algorithm.
+/// Hunt–McIlroy / Hunt–Szymanski LCS diff algorithm.
 ///
 /// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
 pub fn diff<Old, New, D>(
