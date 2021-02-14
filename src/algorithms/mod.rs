@@ -47,6 +47,7 @@ pub use replace::Replace;
 #[doc(no_inline)]
 pub use crate::Algorithm;
 
+pub mod lcs;
 pub mod myers;
 pub mod patience;
 
@@ -71,6 +72,7 @@ where
     match alg {
         Algorithm::Myers => myers::diff(d, old, old_range, new, new_range),
         Algorithm::Patience => patience::diff(d, old, old_range, new, new_range),
+        Algorithm::Lcs => lcs::diff(d, old, old_range, new, new_range),
     }
 }
 

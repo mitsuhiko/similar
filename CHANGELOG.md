@@ -5,6 +5,7 @@ All notable changes to similar are documented here.
 ## 1.2.0
 
 * Make the unicode feature optional for inline diffing.
+* Added Hunt–McIlroy LCS algorithm.
 
 ## 1.1.0
 
