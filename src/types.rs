@@ -10,6 +10,8 @@ pub enum Algorithm {
     Myers,
     /// Picks the patience algorithm from [`crate::algorithms::patience`]
     Patience,
+    /// Picks the LCS algorithm from [`crate::algorithms::lcs`]
+    Lcs,
 }
 
 impl Default for Algorithm {
