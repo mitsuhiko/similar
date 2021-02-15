@@ -13,8 +13,9 @@ pub use self::abstraction::{DiffableStr, DiffableStrRef};
 pub use self::inline::InlineChange;
 
 use self::utils::{upper_seq_ratio, QuickSeqRatio};
+use crate::iter::{AllChangesIter, ChangesIter};
 use crate::udiff::UnifiedDiff;
-use crate::{capture_diff_slices, get_diff_ratio, group_diff_ops, Algorithm, Change, DiffOp};
+use crate::{capture_diff_slices, get_diff_ratio, group_diff_ops, Algorithm, DiffOp};
 
 /// A builder type config for more complex uses of [`TextDiff`].
 ///
@@ -437,7 +438,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     pub fn iter_changes<'x, 'slf>(
         &'slf self,
         op: &DiffOp,
-    ) -> impl Iterator<Item = Change<'x, T>> + 'slf
+    ) -> ChangesIter<'slf, 'x, [&'x T], [&'x T], T>
     where
         'x: 'slf,
         'old: 'x,
@@ -462,16 +463,13 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     ///
     /// This is a shortcut for combining [`TextDiff::ops`] with
     /// [`TextDiff::iter_changes`].
-    pub fn iter_all_changes<'x, 'slf>(&'slf self) -> impl Iterator<Item = Change<'x, T>> + 'slf
+    pub fn iter_all_changes<'x, 'slf>(&'slf self) -> AllChangesIter<'slf, 'x, T>
     where
         'x: 'slf,
         'old: 'x,
         'new: 'x,
     {
-        // unclear why this needs Box::new here.  It seems to infer some really
-        // odd lifetimes I can't figure out how to work with.
-        Box::new(self.ops().iter().flat_map(move |op| self.iter_changes(&op)))
-            as Box<dyn Iterator<Item = _>>
+        AllChangesIter::new(&self.old[..], &self.new[..], self.ops())
     }
 
     /// Utility to return a unified diff formatter.
@@ -673,6 +671,8 @@ fn test_get_close_matches() {
 
 #[test]
 fn test_lifetimes_on_iter() {
+    use crate::Change;
+
     fn diff_lines<'x, T>(old: &'x T, new: &'x T) -> Vec<Change<'x, T::Output>>
     where
         T: DiffableStrRef + ?Sized,

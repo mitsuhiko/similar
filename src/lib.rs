@@ -128,6 +128,7 @@
 //!   in a line diff.  This currently also enables the `unicode` feature.
 #![warn(missing_docs)]
 pub mod algorithms;
+pub mod iter;
 #[cfg(feature = "text")]
 pub mod udiff;
 #[cfg(feature = "text")]
