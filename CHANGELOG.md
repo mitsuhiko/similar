@@ -2,6 +2,10 @@
 
 All notable changes to similar are documented here.
 
+## 1.3.0
+
+* Added support for Rust 1.43.0 for better compatibility.
+
 ## 1.2.0
 
 * Make the unicode feature optional for inline diffing.
