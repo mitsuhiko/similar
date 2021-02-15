@@ -26,7 +26,7 @@ unicode = ["text", "unicode-segmentation", "bstr/unicode"]
 bytes = ["bstr", "text"]
 
 [dev-dependencies]
-insta = "1.5.2"
+insta = "1.6.2"
 console = "0.14.0"
 
 [dependencies]
