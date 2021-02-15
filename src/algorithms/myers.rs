@@ -118,7 +118,7 @@ where
     New: Index<usize> + ?Sized,
     New::Output: PartialEq<Old::Output>,
 {
-    if old_range.is_empty() || new_range.is_empty() {
+    if old_range.start >= old_range.end || new_range.start >= new_range.end {
         return 0;
     }
     new_range
@@ -141,7 +141,7 @@ where
     New: Index<usize> + ?Sized,
     New::Output: PartialEq<Old::Output>,
 {
-    if old_range.is_empty() || new_range.is_empty() {
+    if old_range.start >= old_range.end || new_range.start >= new_range.end {
         return 0;
     }
     new_range
@@ -312,15 +312,15 @@ where
     old_range.end -= common_suffix_len;
     new_range.end -= common_suffix_len;
 
-    if old_range.is_empty() && new_range.is_empty() {
+    if old_range.start >= old_range.end && new_range.start >= new_range.end {
         // Do nothing
-    } else if new_range.is_empty() {
+    } else if new_range.start >= new_range.end {
         d.delete(
             old_range.start,
             old_range.end - old_range.start,
             new_range.start,
         )?;
-    } else if old_range.is_empty() {
+    } else if old_range.start >= old_range.end {
         d.insert(
             old_range.start,
             new_range.start,

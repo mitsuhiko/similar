@@ -22,10 +22,10 @@ where
     D: DiffHook,
     New::Output: PartialEq<Old::Output>,
 {
-    if new_range.is_empty() {
+    if new_range.start >= new_range.end {
         d.delete(old_range.start, old_range.len(), new_range.start)?;
         return Ok(());
-    } else if old_range.is_empty() {
+    } else if old_range.start >= old_range.end {
         d.insert(old_range.start, new_range.start, new_range.len())?;
         return Ok(());
     }
