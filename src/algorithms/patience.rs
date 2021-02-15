@@ -5,12 +5,15 @@
 //!
 //! Tends to give more human-readable outputs. See [Bram Cohen's blog
 //! post](https://bramcohen.livejournal.com/73318.html) describing it.
+//!
+//! This is based on the patience implementation of [pijul](https://pijul.org/)
+//! by Pierre-Étienne Meunier.
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::{Index, Range};
 
-use crate::algorithms::{myers, DiffHook, Replace};
+use crate::algorithms::{myers, DiffHook, NoFinishHook, Replace};
 
 /// Patience diff algorithm.
 ///
@@ -147,16 +150,15 @@ where
                 self.new_current += 1;
             }
             if self.old_current > a0 {
-                self.d.equal(a0, b0, self.old_current - a0)?
+                self.d.equal(a0, b0, self.old_current - a0)?;
             }
-            myers::diff_offsets(
-                self.d,
+            let mut no_finish_d = NoFinishHook::new(&mut self.d);
+            myers::diff(
+                &mut no_finish_d,
                 self.old,
-                self.old_current,
-                self.old_indexes[old].index,
+                self.old_current..self.old_indexes[old].index,
                 self.new,
-                self.new_current,
-                self.new_indexes[new].index,
+                self.new_current..self.new_indexes[new].index,
             )?;
             self.old_current = self.old_indexes[old].index;
             self.new_current = self.new_indexes[new].index;

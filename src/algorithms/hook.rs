@@ -51,6 +51,7 @@ pub trait DiffHook: Sized {
     ///
     /// You can use the [`Replace`](crate::algorithms::Replace) hook to
     /// automatically generate these.
+    #[inline(always)]
     fn replace(
         &mut self,
         old_index: usize,
@@ -63,6 +64,7 @@ pub trait DiffHook: Sized {
     }
 
     /// Always called at the end of the algorithm.
+    #[inline(always)]
     fn finish(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
@@ -71,10 +73,12 @@ pub trait DiffHook: Sized {
 impl<'a, D: DiffHook + 'a> DiffHook for &'a mut D {
     type Error = D::Error;
 
+    #[inline(always)]
     fn equal(&mut self, old_index: usize, new_index: usize, len: usize) -> Result<(), Self::Error> {
         (*self).equal(old_index, new_index, len)
     }
 
+    #[inline(always)]
     fn delete(
         &mut self,
         old_index: usize,
@@ -84,6 +88,7 @@ impl<'a, D: DiffHook + 'a> DiffHook for &'a mut D {
         (*self).delete(old_index, old_len, new_index)
     }
 
+    #[inline(always)]
     fn insert(
         &mut self,
         old_index: usize,
@@ -93,6 +98,7 @@ impl<'a, D: DiffHook + 'a> DiffHook for &'a mut D {
         (*self).insert(old_index, new_index, new_len)
     }
 
+    #[inline(always)]
     fn replace(
         &mut self,
         old: usize,
@@ -103,7 +109,70 @@ impl<'a, D: DiffHook + 'a> DiffHook for &'a mut D {
         (*self).replace(old, old_len, new, new_len)
     }
 
+    #[inline(always)]
     fn finish(&mut self) -> Result<(), Self::Error> {
         (*self).finish()
+    }
+}
+
+/// Wrapper [`DiffHook`] that prevents calls to [`DiffHook::finish`].
+///
+/// This hook is useful in situations where diff hooks are composed but you
+/// want to prevent that the finish hook method is called.
+pub struct NoFinishHook<D: DiffHook>(D);
+
+impl<D: DiffHook> NoFinishHook<D> {
+    /// Wraps another hook.
+    pub fn new(d: D) -> NoFinishHook<D> {
+        NoFinishHook(d)
+    }
+
+    /// Extracts the inner hook.
+    pub fn into_inner(self) -> D {
+        self.0
+    }
+}
+
+impl<D: DiffHook> DiffHook for NoFinishHook<D> {
+    type Error = D::Error;
+
+    #[inline(always)]
+    fn equal(&mut self, old_index: usize, new_index: usize, len: usize) -> Result<(), Self::Error> {
+        self.0.equal(old_index, new_index, len)
+    }
+
+    #[inline(always)]
+    fn delete(
+        &mut self,
+        old_index: usize,
+        old_len: usize,
+        new_index: usize,
+    ) -> Result<(), Self::Error> {
+        self.0.delete(old_index, old_len, new_index)
+    }
+
+    #[inline(always)]
+    fn insert(
+        &mut self,
+        old_index: usize,
+        new_index: usize,
+        new_len: usize,
+    ) -> Result<(), Self::Error> {
+        self.0.insert(old_index, new_index, new_len)
+    }
+
+    #[inline(always)]
+    fn replace(
+        &mut self,
+        old_index: usize,
+        old_len: usize,
+        new_index: usize,
+        new_len: usize,
+    ) -> Result<(), Self::Error> {
+        self.0.replace(old_index, old_len, new_index, new_len)
+    }
+
+    fn finish(&mut self) -> Result<(), Self::Error> {
+        Ok(())
     }
 }

@@ -1,6 +1,7 @@
 //! This crate implements diffing utilities.  It attempts to provide an abstraction
-//! interface over different types of diffing algorithms.  It's based on the
-//! the diff algorithm implementations of [pijul](https://pijul.org/).
+//! interface over different types of diffing algorithms.  The design of the
+//! library is inspired by pijul's diff library by Pierre-Étienne Meunier and
+//! also inherits the patience diff algorithm from there.
 //!
 //! The API of the crate is split into high and low level functionality.  Most
 //! of what you probably want to use is available top level.  Additionally the
