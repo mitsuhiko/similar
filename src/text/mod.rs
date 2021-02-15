@@ -465,7 +465,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     /// [`TextDiff::iter_changes`].
     pub fn iter_all_changes<'x, 'slf>(&'slf self) -> AllChangesIter<'slf, 'x, T>
     where
-        'x: 'slf,
+        'x: 'slf + 'old + 'new,
         'old: 'x,
         'new: 'x,
     {
@@ -490,14 +490,12 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     ///
     /// Requires the `inline` feature.
     #[cfg(feature = "inline")]
-    pub fn iter_inline_changes<'x, 'slf>(
+    pub fn iter_inline_changes<'slf>(
         &'slf self,
         op: &DiffOp,
-    ) -> impl Iterator<Item = InlineChange<'x, T>> + 'slf
+    ) -> impl Iterator<Item = InlineChange<'slf, T>> + '_
     where
-        'x: 'slf,
-        'old: 'x,
-        'new: 'x,
+        'slf: 'old + 'new,
     {
         inline::iter_inline_changes(self, op)
     }
@@ -542,7 +540,7 @@ pub fn get_close_matches<'a, T: DiffableStr + ?Sized>(
         if ratio >= cutoff {
             // we're putting the word itself in reverse in so that matches with
             // the same ratio are ordered lexicographically.
-            matches.push(((ratio * u32::MAX as f32) as u32, Reverse(possibility)));
+            matches.push(((ratio * std::u32::MAX as f32) as u32, Reverse(possibility)));
         }
     }
 

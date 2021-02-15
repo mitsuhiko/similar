@@ -6,9 +6,11 @@
 [![Documentation](https://docs.rs/similar/badge.svg)](https://docs.rs/similar)
 
 Similar is a dependency free crate for Rust that implements different diffing
-algorithms and high level interfaces for it.  It is based on the [pijul](https://pijul.org/)
-implementation of the Myer's and Patience algorithms and inherits some ideas
-from there.  It was built for the [insta snapshot testing library](https://insta.rs).
+algorithms and high level interfaces for it. It is based on the
+[pijul](https://pijul.org/) implementation of the Patience algorithm and
+inherits some ideas from there. It also incorporates the Myer's diff
+algorithm which was largely written by Brandon Williams.  This library was
+built for the [insta snapshot testing library](https://insta.rs).
 
 ```rust
 use similar::{ChangeTag, TextDiff};
