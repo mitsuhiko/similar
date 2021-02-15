@@ -27,8 +27,9 @@
 use std::ops::Range;
 use std::{fmt, io};
 
+use crate::iter::AllChangesIter;
 use crate::text::{DiffableStr, TextDiff};
-use crate::types::{Algorithm, Change, DiffOp};
+use crate::types::{Algorithm, DiffOp};
 
 struct MissingNewlineHint(bool);
 
@@ -240,13 +241,13 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized>
     }
 
     /// Iterates over all changes in a hunk.
-    pub fn iter_changes(&self) -> impl Iterator<Item = Change<'diff, T>> + '_
+    pub fn iter_changes<'x, 'slf>(&'slf self) -> AllChangesIter<'slf, 'x, T>
     where
-        'diff: 'old + 'new + 'bufs,
+        'x: 'slf + 'old + 'new,
+        'old: 'x,
+        'new: 'x,
     {
-        self.ops()
-            .iter()
-            .flat_map(move |op| self.diff.iter_changes(op))
+        AllChangesIter::new(self.diff.old_slices(), self.diff.new_slices(), self.ops())
     }
 
     /// Write the hunk as bytes to the output stream.

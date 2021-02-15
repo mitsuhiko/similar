@@ -13,8 +13,9 @@ pub use self::abstraction::{DiffableStr, DiffableStrRef};
 pub use self::inline::InlineChange;
 
 use self::utils::{upper_seq_ratio, QuickSeqRatio};
+use crate::iter::{AllChangesIter, ChangesIter};
 use crate::udiff::UnifiedDiff;
-use crate::{capture_diff_slices, get_diff_ratio, group_diff_ops, Algorithm, Change, DiffOp};
+use crate::{capture_diff_slices, get_diff_ratio, group_diff_ops, Algorithm, DiffOp};
 
 /// A builder type config for more complex uses of [`TextDiff`].
 ///
@@ -437,7 +438,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     pub fn iter_changes<'x, 'slf>(
         &'slf self,
         op: &DiffOp,
-    ) -> impl Iterator<Item = Change<'x, T>> + '_
+    ) -> ChangesIter<'slf, 'x, [&'x T], [&'x T], T>
     where
         'x: 'slf,
         'old: 'x,
@@ -462,13 +463,13 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     ///
     /// This is a shortcut for combining [`TextDiff::ops`] with
     /// [`TextDiff::iter_changes`].
-    pub fn iter_all_changes<'x, 'slf>(&'slf self) -> impl Iterator<Item = Change<'x, T>> + '_
+    pub fn iter_all_changes<'x, 'slf>(&'slf self) -> AllChangesIter<'slf, 'x, T>
     where
         'x: 'slf + 'old + 'new,
         'old: 'x,
         'new: 'x,
     {
-        self.ops().iter().flat_map(move |op| self.iter_changes(&op))
+        AllChangesIter::new(&self.old[..], &self.new[..], self.ops())
     }
 
     /// Utility to return a unified diff formatter.
@@ -539,7 +540,7 @@ pub fn get_close_matches<'a, T: DiffableStr + ?Sized>(
         if ratio >= cutoff {
             // we're putting the word itself in reverse in so that matches with
             // the same ratio are ordered lexicographically.
-            matches.push(((ratio * u32::MAX as f32) as u32, Reverse(possibility)));
+            matches.push(((ratio * std::u32::MAX as f32) as u32, Reverse(possibility)));
         }
     }
 
@@ -668,6 +669,8 @@ fn test_get_close_matches() {
 
 #[test]
 fn test_lifetimes_on_iter() {
+    use crate::Change;
+
     fn diff_lines<'x, T>(old: &'x T, new: &'x T) -> Vec<Change<'x, T::Output>>
     where
         T: DiffableStrRef + ?Sized,

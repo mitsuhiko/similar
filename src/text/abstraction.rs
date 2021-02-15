@@ -318,7 +318,11 @@ mod bytes_support {
         }
 
         fn ends_with_newline(&self) -> bool {
-            matches!(self.last_byte(), Some(b'\r') | Some(b'\n'))
+            if let Some(b'\r') | Some(b'\n') = self.last_byte() {
+                true
+            } else {
+                false
+            }
         }
 
         fn len(&self) -> usize {
