@@ -41,7 +41,7 @@ use std::hash::Hash;
 use std::ops::{Index, Range};
 
 pub use capture::Capture;
-pub use hook::DiffHook;
+pub use hook::{DiffHook, NoFinishHook};
 pub use replace::Replace;
 
 #[doc(no_inline)]

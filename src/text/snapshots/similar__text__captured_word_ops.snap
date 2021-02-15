@@ -54,8 +54,10 @@ expression: "&changes"
         value: "some",
     },
     Change {
-        tag: Insert,
-        old_index: None,
+        tag: Equal,
+        old_index: Some(
+            5,
+        ),
         new_index: Some(
             5,
         ),
@@ -70,10 +72,8 @@ expression: "&changes"
         value: "amazing",
     },
     Change {
-        tag: Equal,
-        old_index: Some(
-            5,
-        ),
+        tag: Insert,
+        old_index: None,
         new_index: Some(
             7,
         ),

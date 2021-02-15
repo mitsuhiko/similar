@@ -34,6 +34,7 @@ impl Capture {
 impl DiffHook for Capture {
     type Error = Infallible;
 
+    #[inline(always)]
     fn equal(&mut self, old_index: usize, new_index: usize, len: usize) -> Result<(), Self::Error> {
         self.0.push(DiffOp::Equal {
             old_index,
@@ -43,6 +44,7 @@ impl DiffHook for Capture {
         Ok(())
     }
 
+    #[inline(always)]
     fn delete(
         &mut self,
         old_index: usize,
@@ -57,6 +59,7 @@ impl DiffHook for Capture {
         Ok(())
     }
 
+    #[inline(always)]
     fn insert(
         &mut self,
         old_index: usize,
@@ -71,6 +74,7 @@ impl DiffHook for Capture {
         Ok(())
     }
 
+    #[inline(always)]
     fn replace(
         &mut self,
         old_index: usize,

@@ -10,18 +10,18 @@ expression: d.into_inner().ops()
     },
     Replace {
         old_index: 3,
-        old_len: 2,
+        old_len: 1,
         new_index: 3,
         new_len: 2,
     },
     Equal {
-        old_index: 5,
+        old_index: 4,
         new_index: 5,
         len: 2,
     },
     Replace {
-        old_index: 7,
-        old_len: 1,
+        old_index: 6,
+        old_len: 2,
         new_index: 7,
         new_len: 1,
     },
