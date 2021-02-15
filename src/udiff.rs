@@ -176,7 +176,10 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> UnifiedDiff<'diff, 'old,
     }
 
     /// Write the unified diff as bytes to the output stream.
-    pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error> {
+    pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error>
+    where
+        'diff: 'old + 'new + 'bufs,
+    {
         let mut header = self.header.as_ref();
         for hunk in self.iter_hunks() {
             if let Some((old_file, new_file)) = header.take() {
@@ -237,18 +240,20 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized>
     }
 
     /// Iterates over all changes in a hunk.
-    pub fn iter_changes(&self) -> impl Iterator<Item = Change<'_, T>> + '_ {
-        // unclear why this needs Box::new here.  It seems to infer some really
-        // odd lifetimes I can't figure out how to work with.
-        Box::new(
-            self.ops()
-                .iter()
-                .flat_map(move |op| self.diff.iter_changes(op)),
-        ) as Box<dyn Iterator<Item = _>>
+    pub fn iter_changes(&self) -> impl Iterator<Item = Change<'diff, T>> + '_
+    where
+        'diff: 'old + 'new + 'bufs,
+    {
+        self.ops()
+            .iter()
+            .flat_map(move |op| self.diff.iter_changes(op))
     }
 
     /// Write the hunk as bytes to the output stream.
-    pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error> {
+    pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error>
+    where
+        'diff: 'old + 'new + 'bufs,
+    {
         for (idx, change) in self.iter_changes().enumerate() {
             if idx == 0 {
                 writeln!(w, "{}", self.header())?;
@@ -268,6 +273,8 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized>
 
 impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> fmt::Display
     for UnifiedDiffHunk<'diff, 'old, 'new, 'bufs, T>
+where
+    'diff: 'old + 'new + 'bufs,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (idx, change) in self.iter_changes().enumerate() {
@@ -288,6 +295,8 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> fmt::Display
 
 impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> fmt::Display
     for UnifiedDiff<'diff, 'old, 'new, 'bufs, T>
+where
+    'diff: 'old + 'new + 'bufs,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut header = self.header.as_ref();

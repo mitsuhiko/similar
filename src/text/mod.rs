@@ -437,7 +437,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     pub fn iter_changes<'x, 'slf>(
         &'slf self,
         op: &DiffOp,
-    ) -> impl Iterator<Item = Change<'x, T>> + 'slf
+    ) -> impl Iterator<Item = Change<'x, T>> + '_
     where
         'x: 'slf,
         'old: 'x,
@@ -462,16 +462,13 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     ///
     /// This is a shortcut for combining [`TextDiff::ops`] with
     /// [`TextDiff::iter_changes`].
-    pub fn iter_all_changes<'x, 'slf>(&'slf self) -> impl Iterator<Item = Change<'x, T>> + 'slf
+    pub fn iter_all_changes<'x, 'slf>(&'slf self) -> impl Iterator<Item = Change<'x, T>> + '_
     where
-        'x: 'slf,
+        'x: 'slf + 'old + 'new,
         'old: 'x,
         'new: 'x,
     {
-        // unclear why this needs Box::new here.  It seems to infer some really
-        // odd lifetimes I can't figure out how to work with.
-        Box::new(self.ops().iter().flat_map(move |op| self.iter_changes(&op)))
-            as Box<dyn Iterator<Item = _>>
+        self.ops().iter().flat_map(move |op| self.iter_changes(&op))
     }
 
     /// Utility to return a unified diff formatter.
@@ -492,14 +489,12 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     ///
     /// Requires the `inline` feature.
     #[cfg(feature = "inline")]
-    pub fn iter_inline_changes<'x, 'slf>(
+    pub fn iter_inline_changes<'slf>(
         &'slf self,
         op: &DiffOp,
-    ) -> impl Iterator<Item = InlineChange<'x, T>> + 'slf
+    ) -> impl Iterator<Item = InlineChange<'slf, T>> + '_
     where
-        'x: 'slf,
-        'old: 'x,
-        'new: 'x,
+        'slf: 'old + 'new,
     {
         inline::iter_inline_changes(self, op)
     }
