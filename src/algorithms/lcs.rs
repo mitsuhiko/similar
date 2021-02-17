@@ -2,6 +2,7 @@
 //!
 //! * time: `O((NM)D log (M)D)`
 //! * space `O(MN)`
+use std::collections::BTreeMap;
 use std::ops::{Index, Range};
 
 use crate::algorithms::DiffHook;
@@ -66,7 +67,9 @@ where
             d.equal(old_orig_idx, new_orig_idx, 1)?;
             old_idx += 1;
             new_idx += 1;
-        } else if table[new_idx][old_idx + 1] >= table[new_idx + 1][old_idx] {
+        } else if table.get(&(new_idx, old_idx + 1)).map_or(0, |&x| x)
+            >= table.get(&(new_idx + 1, old_idx)).map_or(0, |&x| x)
+        {
             d.delete(old_orig_idx, 1, new_orig_idx)?;
             old_idx += 1;
         } else {
@@ -117,7 +120,7 @@ fn make_table<Old, New>(
     old_range: Range<usize>,
     new: &New,
     new_range: Range<usize>,
-) -> Vec<Vec<u32>>
+) -> BTreeMap<(usize, usize), u32>
 where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
@@ -125,17 +128,20 @@ where
 {
     let old_len = old_range.len();
     let new_len = new_range.len();
-    let mut table = vec![vec![0; old_len + 1]; new_len + 1];
+    let mut table = BTreeMap::new();
 
-    for i in 0..new_len {
-        let i = new_len - i - 1;
-        table[i][old_len] = 0;
-        for j in 0..old_len {
-            let j = old_len - j - 1;
-            table[i][j] = if new[i] == old[j] {
-                table[i + 1][j + 1] + 1
+    for i in (0..new_len).rev() {
+        for j in (0..old_len).rev() {
+            let val = if new[i] == old[j] {
+                table.get(&(i + 1, j + 1)).map_or(0, |&x| x) + 1
             } else {
-                table[i + 1][j].max(table[i][j + 1])
+                table
+                    .get(&(i + 1, j))
+                    .map_or(0, |&x| x)
+                    .max(table.get(&(i, j + 1)).map_or(0, |&x| x))
+            };
+            if val > 0 {
+                table.insert((i, j), val);
             }
         }
     }
@@ -146,7 +152,13 @@ where
 #[test]
 fn test_table() {
     let table = make_table(&vec![2, 3], 0..2, &vec![0, 1, 2], 0..3);
-    let expected = vec![vec![1, 0, 0], vec![1, 0, 0], vec![1, 0, 0], vec![0, 0, 0]];
+    let expected = {
+        let mut m = BTreeMap::new();
+        m.insert((1, 0), 1);
+        m.insert((0, 0), 1);
+        m.insert((2, 0), 1);
+        m
+    };
     assert_eq!(table, expected);
 }
 

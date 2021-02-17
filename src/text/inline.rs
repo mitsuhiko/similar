@@ -8,6 +8,8 @@ use crate::{capture_diff, get_diff_ratio};
 
 use std::ops::Index;
 
+use super::utils::upper_seq_ratio;
+
 struct MultiLookup<'bufs, 's, T: DiffableStr + ?Sized> {
     strings: &'bufs [&'s T],
     seqs: Vec<(&'s T, usize, usize)>,
@@ -184,6 +186,8 @@ impl<'s, T: DiffableStr + ?Sized> fmt::Display for InlineChange<'s, T> {
     }
 }
 
+const MIN_RATIO: f32 = 0.5;
+
 pub(crate) fn iter_inline_changes<'x, 'diff, 'old, 'new, 'bufs, T>(
     diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
     op: &DiffOp,
@@ -204,6 +208,11 @@ where
     let mut new_index = new_range.start;
     let old_slices = &diff.old_slices()[old_range];
     let new_slices = &diff.new_slices()[new_range];
+
+    if upper_seq_ratio(old_slices, new_slices) < MIN_RATIO {
+        return Box::new(diff.iter_changes(op).map(|x| x.into())) as Box<dyn Iterator<Item = _>>;
+    }
+
     let old_lookup = MultiLookup::new(old_slices);
     let new_lookup = MultiLookup::new(new_slices);
 
@@ -215,7 +224,7 @@ where
         0..new_lookup.len(),
     );
 
-    if get_diff_ratio(&ops, old_lookup.len(), new_lookup.len()) < 0.5 {
+    if get_diff_ratio(&ops, old_lookup.len(), new_lookup.len()) < MIN_RATIO {
         return Box::new(diff.iter_changes(op).map(|x| x.into())) as Box<dyn Iterator<Item = _>>;
     }
 
