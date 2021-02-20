@@ -8,6 +8,7 @@ All notable changes to similar are documented here.
 * Small performance improvments by adding an early opt-out for and inline highlighting.
 * Added deadlines to all diffing algorithms to bail early.
 * Deprecated slice diffing methods in the individual algorithm modules.
+- Use a default timeout for the inline highlighting feature.
 
 ## 1.2.2
 

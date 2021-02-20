@@ -4,9 +4,10 @@ use std::fmt;
 
 use crate::text::{DiffableStr, TextDiff};
 use crate::types::{Algorithm, Change, ChangeTag, DiffOp, DiffTag};
-use crate::{capture_diff, get_diff_ratio};
+use crate::{capture_diff_deadline, get_diff_ratio};
 
 use std::ops::Index;
+use std::time::{Duration, Instant};
 
 use super::utils::upper_seq_ratio;
 
@@ -187,6 +188,7 @@ impl<'s, T: DiffableStr + ?Sized> fmt::Display for InlineChange<'s, T> {
 }
 
 const MIN_RATIO: f32 = 0.5;
+const TIMEOUT_MS: u64 = 500;
 
 pub(crate) fn iter_inline_changes<'x, 'diff, 'old, 'new, 'bufs, T>(
     diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
@@ -216,12 +218,13 @@ where
     let old_lookup = MultiLookup::new(old_slices);
     let new_lookup = MultiLookup::new(new_slices);
 
-    let ops = capture_diff(
+    let ops = capture_diff_deadline(
         Algorithm::Patience,
         &old_lookup,
         0..old_lookup.len(),
         &new_lookup,
         0..new_lookup.len(),
+        Some(Instant::now() + Duration::from_millis(TIMEOUT_MS)),
     );
 
     if get_diff_ratio(&ops, old_lookup.len(), new_lookup.len()) < MIN_RATIO {
