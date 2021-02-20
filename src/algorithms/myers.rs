@@ -132,16 +132,6 @@ impl IndexMut<isize> for V {
     }
 }
 
-/// A `Snake` is a sequence of diagonal edges in the edit graph.  Normally
-/// a snake has a start end end point (and it is possible for a snake to have
-/// a length of zero, meaning the start and end points are the same) however
-/// we do not need the end point which is why it's not implemented here.
-#[derive(Debug)]
-struct Snake {
-    x_start: usize,
-    y_start: usize,
-}
-
 fn max_d(len1: usize, len2: usize) -> usize {
     // XXX look into reducing the need to have the additional '+ 1'
     (len1 + len2 + 1) / 2 + 1
@@ -199,12 +189,17 @@ fn split_at(range: Range<usize>, at: usize) -> (Range<usize>, Range<usize>) {
     (range.start..at, at..range.end)
 }
 
-// The divide part of a divide-and-conquer strategy. A D-path has D+1 snakes
-// some of which may be empty. The divide step requires finding the ceil(D/2) +
-// 1 or middle snake of an optimal D-path. The idea for doing so is to
-// simultaneously run the basic algorithm in both the forward and reverse
-// directions until furthest reaching forward and reverse paths starting at
-// opposing corners 'overlap'.
+/// A `Snake` is a sequence of diagonal edges in the edit graph.  Normally
+/// a snake has a start end end point (and it is possible for a snake to have
+/// a length of zero, meaning the start and end points are the same) however
+/// we do not need the end point which is why it's not implemented here.
+///
+/// The divide part of a divide-and-conquer strategy. A D-path has D+1 snakes
+/// some of which may be empty. The divide step requires finding the ceil(D/2) +
+/// 1 or middle snake of an optimal D-path. The idea for doing so is to
+/// simultaneously run the basic algorithm in both the forward and reverse
+/// directions until furthest reaching forward and reverse paths starting at
+/// opposing corners 'overlap'.
 fn find_middle_snake<Old, New>(
     old: &Old,
     old_range: Range<usize>,
@@ -213,7 +208,7 @@ fn find_middle_snake<Old, New>(
     vf: &mut V,
     vb: &mut V,
     deadline: Option<Instant>,
-) -> Option<Snake>
+) -> Option<(usize, usize)>
 where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
@@ -278,10 +273,7 @@ where
                 // TODO optimize this so we don't have to compare against n
                 if vf[k] + vb[-(k - delta)] >= n {
                     // Return the snake
-                    return Some(Snake {
-                        x_start: x0 + old_range.start,
-                        y_start: y0 + new_range.start,
-                    });
+                    return Some((x0 + old_range.start, y0 + new_range.start));
                 }
             }
         }
@@ -314,10 +306,7 @@ where
                 // TODO optimize this so we don't have to compare against n
                 if vb[k] + vf[-(k - delta)] >= n {
                     // Return the snake
-                    return Some(Snake {
-                        x_start: n - x + old_range.start,
-                        y_start: m - y + new_range.start,
-                    });
+                    return Some((n - x + old_range.start, m - y + new_range.start));
                 }
             }
         }
@@ -377,7 +366,7 @@ where
             new_range.start,
             new_range.end - new_range.start,
         )?;
-    } else if let Some(snake) = find_middle_snake(
+    } else if let Some((x_start, y_start)) = find_middle_snake(
         old,
         old_range.clone(),
         new,
@@ -386,8 +375,8 @@ where
         vb,
         deadline,
     ) {
-        let (old_a, old_b) = split_at(old_range, snake.x_start);
-        let (new_a, new_b) = split_at(new_range, snake.y_start);
+        let (old_a, old_b) = split_at(old_range, x_start);
+        let (new_a, new_b) = split_at(new_range, y_start);
         conquer(d, old, old_a, new, new_a, vf, vb, deadline)?;
         conquer(d, old, old_b, new, new_b, vf, vb, deadline)?;
     } else {
@@ -417,9 +406,10 @@ fn test_find_middle_snake() {
     let max_d = max_d(a.len(), b.len());
     let mut vf = V::new(max_d);
     let mut vb = V::new(max_d);
-    let snake = find_middle_snake(a, 0..a.len(), b, 0..b.len(), &mut vf, &mut vb, None).unwrap();
-    assert_eq!(snake.x_start, 4);
-    assert_eq!(snake.y_start, 1);
+    let (x_start, y_start) =
+        find_middle_snake(a, 0..a.len(), b, 0..b.len(), &mut vf, &mut vb, None).unwrap();
+    assert_eq!(x_start, 4);
+    assert_eq!(y_start, 1);
 }
 
 #[test]
