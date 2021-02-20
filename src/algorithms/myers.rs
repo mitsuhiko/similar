@@ -329,7 +329,7 @@ where
     None
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allowgi(clippy::too_many_arguments)]
 fn conquer<Old, New, D>(
     d: &mut D,
     old: &Old,
@@ -455,6 +455,7 @@ fn test_pat() {
 #[test]
 fn test_deadline_reached() {
     use std::ops::Index;
+    use std::time::Duration;
 
     let a = (0..100).collect::<Vec<_>>();
     let mut b = (0..100).collect::<Vec<_>>();
