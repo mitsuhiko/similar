@@ -94,7 +94,7 @@ impl DiffHook for Capture {
 
 #[test]
 fn test_capture_hook_grouping() {
-    use crate::algorithms::{myers, Replace};
+    use crate::algorithms::{diff_slices, Algorithm, Replace};
 
     let rng = (1..100).collect::<Vec<_>>();
     let mut rng_new = rng.clone();
@@ -104,7 +104,7 @@ fn test_capture_hook_grouping() {
     rng_new[34] = 1000;
 
     let mut d = Replace::new(Capture::new());
-    myers::diff_slices(&mut d, &rng, &rng_new).unwrap();
+    diff_slices(Algorithm::Myers, &mut d, &rng, &rng_new).unwrap();
 
     let ops = d.into_inner().into_grouped_ops(3);
     let tags = ops

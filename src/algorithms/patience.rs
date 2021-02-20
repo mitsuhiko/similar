@@ -12,6 +12,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::{Index, Range};
+use std::time::Instant;
 
 use crate::algorithms::{myers, DiffHook, NoFinishHook, Replace};
 
@@ -24,6 +25,30 @@ pub fn diff<Old, New, D>(
     old_range: Range<usize>,
     new: &New,
     new_range: Range<usize>,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
+    D: DiffHook,
+{
+    diff_deadline(d, old, old_range, new, new_range, None)
+}
+
+/// Patience diff algorithm with deadline.
+///
+/// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
+///
+/// This diff is done with an optional deadline that defines the maximal
+/// execution time permitted before it bails and falls back to an approximation.
+pub fn diff_deadline<Old, New, D>(
+    d: &mut D,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
 ) -> Result<(), D::Error>
 where
     Old: Index<usize> + ?Sized,
@@ -45,18 +70,24 @@ where
         new_current: new_range.start,
         new_end: new_range.end,
         new_indexes: &new_indexes,
+        deadline,
     });
-    myers::diff(
+    myers::diff_deadline(
         &mut d,
         &old_indexes,
         0..old_indexes.len(),
         &new_indexes,
         0..new_indexes.len(),
+        deadline,
     )?;
     Ok(())
 }
 
 /// Shortcut for diffing slices.
+#[deprecated(
+    since = "1.4.0",
+    note = "slice utility function is now only available via similar::algorithms::diff_slices"
+)]
 pub fn diff_slices<D, T>(d: &mut D, old: &[T], new: &[T]) -> Result<(), D::Error>
 where
     D: DiffHook,
@@ -128,6 +159,7 @@ struct Patience<'old, 'new, 'd, Old: ?Sized, New: ?Sized, D> {
     new_current: usize,
     new_end: usize,
     new_indexes: &'new [Indexable<'new, New>],
+    deadline: Option<Instant>,
 }
 
 impl<'old, 'new, 'd, Old, New, D> DiffHook for Patience<'old, 'new, 'd, Old, New, D>
@@ -153,12 +185,13 @@ where
                 self.d.equal(a0, b0, self.old_current - a0)?;
             }
             let mut no_finish_d = NoFinishHook::new(&mut self.d);
-            myers::diff(
+            myers::diff_deadline(
                 &mut no_finish_d,
                 self.old,
                 self.old_current..self.old_indexes[old].index,
                 self.new,
                 self.new_current..self.new_indexes[new].index,
+                self.deadline,
             )?;
             self.old_current = self.old_indexes[old].index;
             self.new_current = self.new_indexes[new].index;
@@ -167,12 +200,13 @@ where
     }
 
     fn finish(&mut self) -> Result<(), D::Error> {
-        myers::diff(
+        myers::diff_deadline(
             self.d,
             self.old,
             self.old_current..self.old_end,
             self.new,
             self.new_current..self.new_end,
+            self.deadline,
         )
     }
 }
@@ -183,7 +217,7 @@ fn test_patience() {
     let b: &[usize] = &[10, 1, 2, 2, 8, 9, 4, 4, 7, 47, 18];
 
     let mut d = Replace::new(crate::algorithms::Capture::new());
-    diff_slices(&mut d, a, b).unwrap();
+    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
 
     insta::assert_debug_snapshot!(d.into_inner().ops());
 }
@@ -195,7 +229,7 @@ fn test_patience_out_of_bounds_bug() {
     let b: &[usize] = &[1, 2, 3];
 
     let mut d = Replace::new(crate::algorithms::Capture::new());
-    diff_slices(&mut d, a, b).unwrap();
+    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
 
     insta::assert_debug_snapshot!(d.into_inner().ops());
 }

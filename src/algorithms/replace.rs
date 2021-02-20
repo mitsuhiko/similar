@@ -134,7 +134,7 @@ impl<D: DiffHook> DiffHook for Replace<D> {
 
 #[test]
 fn test_mayers_replace() {
-    use crate::algorithms::myers;
+    use crate::algorithms::{diff_slices, Algorithm};
     let a: &[&str] = &[
         ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n",
         "a\n",
@@ -159,7 +159,7 @@ fn test_mayers_replace() {
     ];
 
     let mut d = Replace::new(crate::algorithms::Capture::new());
-    myers::diff_slices(&mut d, a, b).unwrap();
+    diff_slices(Algorithm::Myers, &mut d, a, b).unwrap();
 
     insta::assert_debug_snapshot!(&d.into_inner().ops(), @r###"
     [
@@ -196,11 +196,13 @@ fn test_mayers_replace() {
 
 #[test]
 fn test_replace() {
+    use crate::algorithms::{diff_slices, Algorithm};
+
     let a: &[usize] = &[0, 1, 2, 3, 4];
     let b: &[usize] = &[0, 1, 2, 7, 8, 9];
 
     let mut d = Replace::new(crate::algorithms::Capture::new());
-    crate::algorithms::myers::diff_slices(&mut d, a, b).unwrap();
+    diff_slices(Algorithm::Myers, &mut d, a, b).unwrap();
     insta::assert_debug_snapshot!(d.into_inner().ops(), @r###"
     [
         Equal {
