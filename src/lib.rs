@@ -106,6 +106,22 @@
 //! As the [`TextDiff::grouped_ops`] method can isolate clusters of changes
 //! this even works for very long files if paired with this method.
 //!
+//! # Deadlines and Performance
+//!
+//! For large and very distinct inputs the algorithms as implemented can take
+//! a very, very long time to execute.  Too long to make sense in practice.
+//! To work around this issue all diffing algorithms also provide a version
+//! that accepts a deadline which is the point in time as defined by an
+//! [`Instant`](std::time::Instant) after which the algorithm should give up.
+//! What giving up means depends on the algorithm.  For instance due to the
+//! recursive, divide and conquer nature of Myer's diff you will still get a
+//! pretty decent diff in many cases when a deadline is reached.  Whereas on the
+//! other hand the LCS diff is unlikely to give any decent results in such a
+//! situation.
+//!
+//! The [`TextDiff`] type also lets you configure a deadline and/or timeout
+//! when performing a text diff.
+//!
 //! # Feature Flags
 //!
 //! The crate by default does not have any dependencies however for some use

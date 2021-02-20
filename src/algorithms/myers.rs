@@ -8,8 +8,19 @@
 //!
 //! The implementation of this algorithm is based on the implementation by
 //! Brandon Williams.
+//!
+//! # Heuristics
+//!
+//! At present this implementation of Myers' does not implement any more advanced
+//! heuristics that would solve some pathological cases.  For instane passing two
+//! large and completely distinct sequences to the algorithm will make it spin
+//! without making reasonable progress.  Currently the only protection in the
+//! library against this is to pass a deadline to the diffing algorithm.
+//!
+//! For potential improvements here see [similar#15](https://github.com/mitsuhiko/similar/issues/15).
 
 use std::ops::{Index, IndexMut, Range};
+use std::time::Instant;
 
 use crate::algorithms::DiffHook;
 
@@ -29,14 +40,43 @@ where
     D: DiffHook,
     New::Output: PartialEq<Old::Output>,
 {
+    diff_deadline(d, old, old_range, new, new_range, None)
+}
+
+/// Myers' diff algorithm with deadline.
+///
+/// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
+///
+/// This diff is done with an optional deadline that defines the maximal
+/// execution time permitted before it bails and falls back to an approximation.
+pub fn diff_deadline<Old, New, D>(
+    d: &mut D,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    D: DiffHook,
+    New::Output: PartialEq<Old::Output>,
+{
     let max_d = max_d(old_range.len(), new_range.len());
     let mut vf = V::new(max_d);
     let mut vb = V::new(max_d);
-    conquer(d, old, old_range, new, new_range, &mut vf, &mut vb)?;
+    conquer(
+        d, old, old_range, new, new_range, &mut vf, &mut vb, deadline,
+    )?;
     d.finish()
 }
 
 /// Shortcut for diffing slices.
+#[deprecated(
+    since = "1.4.0",
+    note = "slice utility function is now only available via similar::algorithms::diff_slices"
+)]
 pub fn diff_slices<D, T>(d: &mut D, old: &[T], new: &[T]) -> Result<(), D::Error>
 where
     D: DiffHook,
@@ -172,7 +212,8 @@ fn find_middle_snake<Old, New>(
     new_range: Range<usize>,
     vf: &mut V,
     vb: &mut V,
-) -> Snake
+    deadline: Option<Instant>,
+) -> Option<Snake>
 where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
@@ -197,6 +238,13 @@ where
     assert!(vb.len() >= d_max);
 
     for d in 0..d_max as isize {
+        // are we running for too long?
+        if let Some(deadline) = deadline {
+            if Instant::now() > deadline {
+                break;
+            }
+        }
+
         // Forward path
         for k in (-d..=d).rev().step_by(2) {
             let mut x = if k == -d || (k != d && vf[k - 1] < vf[k + 1]) {
@@ -230,10 +278,10 @@ where
                 // TODO optimize this so we don't have to compare against n
                 if vf[k] + vb[-(k - delta)] >= n {
                     // Return the snake
-                    return Snake {
+                    return Some(Snake {
                         x_start: x0 + old_range.start,
                         y_start: y0 + new_range.start,
-                    };
+                    });
                 }
             }
         }
@@ -266,10 +314,10 @@ where
                 // TODO optimize this so we don't have to compare against n
                 if vb[k] + vf[-(k - delta)] >= n {
                     // Return the snake
-                    return Snake {
+                    return Some(Snake {
                         x_start: n - x + old_range.start,
                         y_start: m - y + new_range.start,
-                    };
+                    });
                 }
             }
         }
@@ -277,9 +325,11 @@ where
         // TODO: Maybe there's an opportunity to optimize and bail early?
     }
 
-    unreachable!("unable to find a middle snake");
+    // deadline reached
+    None
 }
 
+#[allow(clippy::too_many_arguments)]
 fn conquer<Old, New, D>(
     d: &mut D,
     old: &Old,
@@ -288,6 +338,7 @@ fn conquer<Old, New, D>(
     mut new_range: Range<usize>,
     vf: &mut V,
     vb: &mut V,
+    deadline: Option<Instant>,
 ) -> Result<(), D::Error>
 where
     Old: Index<usize> + ?Sized,
@@ -326,12 +377,30 @@ where
             new_range.start,
             new_range.end - new_range.start,
         )?;
-    } else {
-        let snake = find_middle_snake(old, old_range.clone(), new, new_range.clone(), vf, vb);
+    } else if let Some(snake) = find_middle_snake(
+        old,
+        old_range.clone(),
+        new,
+        new_range.clone(),
+        vf,
+        vb,
+        deadline,
+    ) {
         let (old_a, old_b) = split_at(old_range, snake.x_start);
         let (new_a, new_b) = split_at(new_range, snake.y_start);
-        conquer(d, old, old_a, new, new_a, vf, vb)?;
-        conquer(d, old, old_b, new, new_b, vf, vb)?;
+        conquer(d, old, old_a, new, new_a, vf, vb, deadline)?;
+        conquer(d, old, old_b, new, new_b, vf, vb, deadline)?;
+    } else {
+        d.delete(
+            old_range.start,
+            old_range.end - old_range.start,
+            new_range.start,
+        )?;
+        d.insert(
+            old_range.start,
+            new_range.start,
+            new_range.end - new_range.start,
+        )?;
     }
 
     if common_suffix_len > 0 {
@@ -348,7 +417,7 @@ fn test_find_middle_snake() {
     let max_d = max_d(a.len(), b.len());
     let mut vf = V::new(max_d);
     let mut vb = V::new(max_d);
-    let snake = find_middle_snake(a, 0..a.len(), b, 0..b.len(), &mut vf, &mut vb);
+    let snake = find_middle_snake(a, 0..a.len(), b, 0..b.len(), &mut vf, &mut vb, None).unwrap();
     assert_eq!(snake.x_start, 4);
     assert_eq!(snake.y_start, 1);
 }
@@ -359,7 +428,7 @@ fn test_diff() {
     let b: &[usize] = &[0, 1, 2, 9, 4];
 
     let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
-    diff_slices(&mut d, a, b).unwrap();
+    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
     insta::assert_debug_snapshot!(d.into_inner().ops());
 }
 
@@ -369,7 +438,7 @@ fn test_contiguous() {
     let b: &[usize] = &[0, 1, 2, 8, 9, 4, 4, 7];
 
     let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
-    diff_slices(&mut d, a, b).unwrap();
+    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
     insta::assert_debug_snapshot!(d.into_inner().ops());
 }
 
@@ -379,6 +448,45 @@ fn test_pat() {
     let b: &[usize] = &[0, 1, 4, 5, 8, 9];
 
     let mut d = crate::algorithms::Capture::new();
-    diff_slices(&mut d, a, b).unwrap();
+    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
     insta::assert_debug_snapshot!(d.ops());
+}
+
+#[test]
+fn test_deadline_reached() {
+    use std::ops::Index;
+    use std::time::Duration;
+
+    let a = (0..100).collect::<Vec<_>>();
+    let mut b = (0..100).collect::<Vec<_>>();
+    b[10] = 99;
+    b[50] = 99;
+    b[25] = 99;
+
+    struct SlowIndex<'a>(&'a [usize]);
+
+    impl<'a> Index<usize> for SlowIndex<'a> {
+        type Output = usize;
+
+        fn index(&self, index: usize) -> &Self::Output {
+            std::thread::sleep(Duration::from_millis(1));
+            &self.0[index]
+        }
+    }
+
+    let slow_a = SlowIndex(&a);
+    let slow_b = SlowIndex(&b);
+
+    // don't give it enough time to do anything interesting
+    let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
+    diff_deadline(
+        &mut d,
+        &slow_a,
+        0..a.len(),
+        &slow_b,
+        0..b.len(),
+        Some(Instant::now() + Duration::from_millis(50)),
+    )
+    .unwrap();
+    insta::assert_debug_snapshot!(d.into_inner().ops());
 }

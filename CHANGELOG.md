@@ -6,6 +6,8 @@ All notable changes to similar are documented here.
 
 * Performance improvements for the LCS algorithm.
 * Small performance improvments by adding an early opt-out for and inline highlighting.
+* Added deadlines to all diffing algorithms to bail early.
+* Deprecated slice diffing methods in the individual algorithm modules.
 
 ## 1.2.2
 

@@ -2,6 +2,7 @@
 use std::borrow::Cow;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::time::{Duration, Instant};
 
 mod abstraction;
 #[cfg(feature = "inline")]
@@ -15,7 +16,22 @@ pub use self::inline::InlineChange;
 use self::utils::{upper_seq_ratio, QuickSeqRatio};
 use crate::iter::{AllChangesIter, ChangesIter};
 use crate::udiff::UnifiedDiff;
-use crate::{capture_diff_slices, get_diff_ratio, group_diff_ops, Algorithm, DiffOp};
+use crate::{capture_diff_slices_deadline, get_diff_ratio, group_diff_ops, Algorithm, DiffOp};
+
+#[derive(Debug, Clone, Copy)]
+enum Deadline {
+    Absolute(Instant),
+    Relative(Duration),
+}
+
+impl Deadline {
+    fn into_instant(self) -> Instant {
+        match self {
+            Deadline::Absolute(instant) => instant,
+            Deadline::Relative(duration) => Instant::now() + duration,
+        }
+    }
+}
 
 /// A builder type config for more complex uses of [`TextDiff`].
 ///
@@ -24,6 +40,7 @@ use crate::{capture_diff_slices, get_diff_ratio, group_diff_ops, Algorithm, Diff
 pub struct TextDiffConfig {
     algorithm: Algorithm,
     newline_terminated: Option<bool>,
+    deadline: Option<Deadline>,
 }
 
 impl Default for TextDiffConfig {
@@ -31,6 +48,7 @@ impl Default for TextDiffConfig {
         TextDiffConfig {
             algorithm: Algorithm::default(),
             newline_terminated: None,
+            deadline: None,
         }
     }
 }
@@ -41,6 +59,24 @@ impl TextDiffConfig {
     /// The default algorithm is [`Algorithm::Myers`].
     pub fn algorithm(&mut self, alg: Algorithm) -> &mut Self {
         self.algorithm = alg;
+        self
+    }
+
+    /// Sets a deadline for the diff operation.
+    ///
+    /// By default a diff will take as long as it takes.  For certain diff
+    /// algorthms like Myer's and Patience a maximum running time can be
+    /// defined after which the algorithm gives up and approximates.
+    pub fn deadline(&mut self, deadline: Instant) -> &mut Self {
+        self.deadline = Some(Deadline::Absolute(deadline));
+        self
+    }
+
+    /// Sets a timeout for thediff operation.
+    ///
+    /// This is like [`deadline`](Self::deadline) but accepts a duration.
+    pub fn timeout(&mut self, timeout: Duration) -> &mut Self {
+        self.deadline = Some(Deadline::Relative(timeout));
         self
     }
 
@@ -291,7 +327,12 @@ impl TextDiffConfig {
         new: Cow<'bufs, [&'new T]>,
         newline_terminated: bool,
     ) -> TextDiff<'old, 'new, 'bufs, T> {
-        let ops = capture_diff_slices(self.algorithm, &old, &new);
+        let ops = capture_diff_slices_deadline(
+            self.algorithm,
+            &old,
+            &new,
+            self.deadline.map(|x| x.into_instant()),
+        );
         TextDiff {
             old,
             new,
