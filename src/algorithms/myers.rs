@@ -22,8 +22,8 @@
 use std::ops::{Index, IndexMut, Range};
 use std::time::Instant;
 
+use crate::algorithms::utils::is_empty_range;
 use crate::algorithms::DiffHook;
-use crate::utils::is_empty_range;
 
 /// Myers' diff algorithm.
 ///

@@ -401,12 +401,6 @@ pub fn diff_lines<'x, T: DiffableStrRef + ?Sized>(
         .collect()
 }
 
-/// Utility function to check if a range is empty that works on older rust versions
-#[inline(always)]
-pub(crate) fn is_empty_range<T: PartialOrd>(range: &Range<T>) -> bool {
-    !(range.start < range.end)
-}
-
 #[test]
 fn test_remapper() {
     let a = "foo bar baz";

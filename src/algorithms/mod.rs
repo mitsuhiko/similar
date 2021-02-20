@@ -36,6 +36,7 @@
 mod capture;
 mod hook;
 mod replace;
+mod utils;
 
 use std::hash::Hash;
 use std::ops::{Index, Range};

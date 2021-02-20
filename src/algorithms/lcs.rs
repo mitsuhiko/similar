@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 use std::ops::{Index, Range};
 use std::time::Instant;
 
+use crate::algorithms::utils::is_empty_range;
 use crate::algorithms::DiffHook;
-use crate::utils::is_empty_range;
 
 /// Hunt–McIlroy / Hunt–Szymanski LCS diff algorithm.
 ///
