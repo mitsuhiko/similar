@@ -23,6 +23,7 @@ use std::ops::{Index, IndexMut, Range};
 use std::time::Instant;
 
 use crate::algorithms::DiffHook;
+use crate::utils::is_empty_range;
 
 /// Myers' diff algorithm.
 ///
@@ -171,7 +172,7 @@ where
     New: Index<usize> + ?Sized,
     New::Output: PartialEq<Old::Output>,
 {
-    if old_range.start >= old_range.end || new_range.start >= new_range.end {
+    if is_empty_range(&old_range) || is_empty_range(&new_range) {
         return 0;
     }
     new_range
@@ -352,15 +353,15 @@ where
     old_range.end -= common_suffix_len;
     new_range.end -= common_suffix_len;
 
-    if old_range.start >= old_range.end && new_range.start >= new_range.end {
+    if is_empty_range(&old_range) && is_empty_range(&new_range) {
         // Do nothing
-    } else if new_range.start >= new_range.end {
+    } else if is_empty_range(&new_range) {
         d.delete(
             old_range.start,
             old_range.end - old_range.start,
             new_range.start,
         )?;
-    } else if old_range.start >= old_range.end {
+    } else if is_empty_range(&old_range) {
         d.insert(
             old_range.start,
             new_range.start,
