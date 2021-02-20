@@ -8,9 +8,19 @@
 //!
 //! The implementation of this algorithm is based on the implementation by
 //! Brandon Williams.
+//!
+//! # Heuristics
+//!
+//! At present this implementation of Myers' does not implement any more advanced
+//! heuristics that would solve some pathological cases.  For instane passing two
+//! large and completely distinct sequences to the algorithm will make it spin
+//! without making reasonable progress.  Currently the only protection in the
+//! library against this is to pass a deadline to the diffing algorithm.
+//!
+//! For potential improvements here see [similar#15](https://github.com/mitsuhiko/similar/issues/15).
 
 use std::ops::{Index, IndexMut, Range};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::algorithms::DiffHook;
 
@@ -319,6 +329,7 @@ where
     None
 }
 
+#[allow(clippy::too_many_arguments)]
 fn conquer<Old, New, D>(
     d: &mut D,
     old: &Old,
@@ -366,32 +377,30 @@ where
             new_range.start,
             new_range.end - new_range.start,
         )?;
+    } else if let Some(snake) = find_middle_snake(
+        old,
+        old_range.clone(),
+        new,
+        new_range.clone(),
+        vf,
+        vb,
+        deadline,
+    ) {
+        let (old_a, old_b) = split_at(old_range, snake.x_start);
+        let (new_a, new_b) = split_at(new_range, snake.y_start);
+        conquer(d, old, old_a, new, new_a, vf, vb, deadline)?;
+        conquer(d, old, old_b, new, new_b, vf, vb, deadline)?;
     } else {
-        if let Some(snake) = find_middle_snake(
-            old,
-            old_range.clone(),
-            new,
-            new_range.clone(),
-            vf,
-            vb,
-            deadline,
-        ) {
-            let (old_a, old_b) = split_at(old_range, snake.x_start);
-            let (new_a, new_b) = split_at(new_range, snake.y_start);
-            conquer(d, old, old_a, new, new_a, vf, vb, deadline)?;
-            conquer(d, old, old_b, new, new_b, vf, vb, deadline)?;
-        } else {
-            d.delete(
-                old_range.start,
-                old_range.end - old_range.start,
-                new_range.start,
-            )?;
-            d.insert(
-                old_range.start,
-                new_range.start,
-                new_range.end - new_range.start,
-            )?;
-        }
+        d.delete(
+            old_range.start,
+            old_range.end - old_range.start,
+            new_range.start,
+        )?;
+        d.insert(
+            old_range.start,
+            new_range.start,
+            new_range.end - new_range.start,
+        )?;
     }
 
     if common_suffix_len > 0 {
