@@ -329,7 +329,7 @@ where
     None
 }
 
-#[allowgi(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 fn conquer<Old, New, D>(
     d: &mut D,
     old: &Old,
