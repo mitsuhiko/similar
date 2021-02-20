@@ -10,7 +10,7 @@
 //! Brandon Williams.
 
 use std::ops::{Index, IndexMut, Range};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::algorithms::DiffHook;
 
@@ -441,4 +441,42 @@ fn test_pat() {
     let mut d = crate::algorithms::Capture::new();
     diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
     insta::assert_debug_snapshot!(d.ops());
+}
+
+#[test]
+fn test_deadline_reached() {
+    use std::ops::Index;
+
+    let a = (0..100).collect::<Vec<_>>();
+    let mut b = (0..100).collect::<Vec<_>>();
+    b[10] = 99;
+    b[50] = 99;
+    b[25] = 99;
+
+    struct SlowIndex<'a>(&'a [usize]);
+
+    impl<'a> Index<usize> for SlowIndex<'a> {
+        type Output = usize;
+
+        fn index(&self, index: usize) -> &Self::Output {
+            std::thread::sleep(Duration::from_millis(1));
+            &self.0[index]
+        }
+    }
+
+    let slow_a = SlowIndex(&a);
+    let slow_b = SlowIndex(&b);
+
+    // don't give it enough time to do anything interesting
+    let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
+    diff_deadline(
+        &mut d,
+        &slow_a,
+        0..a.len(),
+        &slow_b,
+        0..b.len(),
+        Some(Instant::now() + Duration::from_millis(50)),
+    )
+    .unwrap();
+    insta::assert_debug_snapshot!(d.into_inner().ops());
 }
