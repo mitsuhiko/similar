@@ -149,7 +149,7 @@ where
     New: Index<usize> + ?Sized,
     New::Output: PartialEq<Old::Output>,
 {
-    if old_range.start >= old_range.end || new_range.start >= new_range.end {
+    if is_empty_range(&old_range) || is_empty_range(&new_range) {
         return 0;
     }
     new_range
