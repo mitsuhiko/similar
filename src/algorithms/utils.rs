@@ -1,5 +1,6 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::{Index, Range};
 
@@ -10,46 +11,68 @@ pub fn is_empty_range<T: PartialOrd<T>>(range: &Range<T>) -> bool {
     !(range.start < range.end)
 }
 
-pub struct Indexable<'a, Idx: ?Sized> {
+/// Represents an item in the vector returend by [`unique`].
+///
+/// It compares like the underlying item does it was created from but
+/// carries the index it was originally created from.
+pub struct UniqueItem<'a, Idx: ?Sized> {
     lookup: &'a Idx,
     index: usize,
 }
 
-impl<'a, Idx: ?Sized> Indexable<'a, Idx> {
-    /// Returns the index.
-    pub fn index(&self) -> usize {
+impl<'a, Idx: ?Sized> UniqueItem<'a, Idx>
+where
+    Idx: Index<usize>,
+{
+    /// Returns the value.
+    #[inline(always)]
+    pub fn value(&self) -> &Idx::Output {
+        &self.lookup[self.index]
+    }
+
+    /// Returns the original index.
+    #[inline(always)]
+    pub fn original_index(&self) -> usize {
         self.index
     }
 }
 
-impl<'a, Idx: Index<usize> + 'a> std::fmt::Debug for Indexable<'a, Idx>
+impl<'a, Idx: Index<usize> + 'a> Debug for UniqueItem<'a, Idx>
 where
-    Idx::Output: std::fmt::Debug,
+    Idx::Output: Debug,
 {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(fmt, "{:?}", &self.lookup[self.index])
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("UniqueItem")
+            .field("value", &self.value())
+            .field("original_index", &self.original_index())
+            .finish()
     }
 }
 
-impl<'a, 'b, A, B> PartialEq<Indexable<'a, A>> for Indexable<'b, B>
+impl<'a, 'b, A, B> PartialEq<UniqueItem<'a, A>> for UniqueItem<'b, B>
 where
     A: Index<usize> + 'b + ?Sized,
     B: Index<usize> + 'b + ?Sized,
     B::Output: PartialEq<A::Output>,
 {
-    fn eq(&self, b: &Indexable<'a, A>) -> bool {
-        self.lookup[self.index] == b.lookup[b.index]
+    #[inline(always)]
+    fn eq(&self, other: &UniqueItem<'a, A>) -> bool {
+        self.value() == other.value()
     }
 }
 
-pub fn unique<Idx>(seq: &Idx, range: Range<usize>) -> Vec<Indexable<Idx>>
+/// Returns only unique items in the sequence as vector.
+///
+/// Each item is wrapped in a [`UniqueItem`] so that both the value and the
+/// index can be extracted.
+pub fn unique<Idx>(lookup: &Idx, range: Range<usize>) -> Vec<UniqueItem<Idx>>
 where
     Idx: Index<usize> + ?Sized,
     Idx::Output: Hash + Eq,
 {
     let mut by_item = HashMap::new();
     for index in range {
-        match by_item.entry(&seq[index]) {
+        match by_item.entry(&lookup[index]) {
             Entry::Vacant(entry) => {
                 entry.insert(Some(index));
             }
@@ -64,8 +87,17 @@ where
     let mut rv = by_item
         .into_iter()
         .filter_map(|(_, x)| x)
-        .map(|index| Indexable { lookup: seq, index })
+        .map(|index| UniqueItem { lookup, index })
         .collect::<Vec<_>>();
-    rv.sort_by(|a, b| a.index.cmp(&b.index));
+    rv.sort_by_key(|a| a.original_index());
     rv
+}
+
+#[test]
+fn test_unique() {
+    let u = unique(&vec!['a', 'b', 'c', 'd', 'd', 'b'], 0..6)
+        .into_iter()
+        .map(|x| (*x.value(), x.original_index()))
+        .collect::<Vec<_>>();
+    assert_eq!(u, vec![('a', 0), ('c', 2)]);
 }

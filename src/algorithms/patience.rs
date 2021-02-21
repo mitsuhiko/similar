@@ -14,7 +14,7 @@ use std::time::Instant;
 
 use crate::algorithms::{myers, DiffHook, NoFinishHook, Replace};
 
-use super::utils::{unique, Indexable};
+use super::utils::{unique, UniqueItem};
 
 /// Patience diff algorithm.
 ///
@@ -101,11 +101,11 @@ struct Patience<'old, 'new, 'd, Old: ?Sized, New: ?Sized, D> {
     old: &'old Old,
     old_current: usize,
     old_end: usize,
-    old_indexes: &'old [Indexable<'old, Old>],
+    old_indexes: &'old [UniqueItem<'old, Old>],
     new: &'new New,
     new_current: usize,
     new_end: usize,
-    new_indexes: &'new [Indexable<'new, New>],
+    new_indexes: &'new [UniqueItem<'new, New>],
     deadline: Option<Instant>,
 }
 
@@ -121,8 +121,8 @@ where
         for (old, new) in (old..old + len).zip(new..new + len) {
             let a0 = self.old_current;
             let b0 = self.new_current;
-            while self.old_current < self.old_indexes[old].index()
-                && self.new_current < self.new_indexes[new].index()
+            while self.old_current < self.old_indexes[old].original_index()
+                && self.new_current < self.new_indexes[new].original_index()
                 && self.new[self.new_current] == self.old[self.old_current]
             {
                 self.old_current += 1;
@@ -135,13 +135,13 @@ where
             myers::diff_deadline(
                 &mut no_finish_d,
                 self.old,
-                self.old_current..self.old_indexes[old].index(),
+                self.old_current..self.old_indexes[old].original_index(),
                 self.new,
-                self.new_current..self.new_indexes[new].index(),
+                self.new_current..self.new_indexes[new].original_index(),
                 self.deadline,
             )?;
-            self.old_current = self.old_indexes[old].index();
-            self.new_current = self.new_indexes[new].index();
+            self.old_current = self.old_indexes[old].original_index();
+            self.new_current = self.new_indexes[new].original_index();
         }
         Ok(())
     }
