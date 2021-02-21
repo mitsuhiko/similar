@@ -22,7 +22,7 @@
 use std::ops::{Index, IndexMut, Range};
 use std::time::Instant;
 
-use crate::algorithms::utils::is_empty_range;
+use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::DiffHook;
 
 /// Myers' diff algorithm.
@@ -136,53 +136,6 @@ impl IndexMut<isize> for V {
 fn max_d(len1: usize, len2: usize) -> usize {
     // XXX look into reducing the need to have the additional '+ 1'
     (len1 + len2 + 1) / 2 + 1
-}
-
-fn common_prefix_len<Old, New>(
-    old: &Old,
-    old_range: Range<usize>,
-    new: &New,
-    new_range: Range<usize>,
-) -> usize
-where
-    Old: Index<usize> + ?Sized,
-    New: Index<usize> + ?Sized,
-    New::Output: PartialEq<Old::Output>,
-{
-    if is_empty_range(&old_range) || is_empty_range(&new_range) {
-        return 0;
-    }
-    new_range
-        .zip(old_range)
-        .take_while(
-            #[inline(always)]
-            |x| new[x.0] == old[x.1],
-        )
-        .count()
-}
-
-fn common_suffix_len<Old, New>(
-    old: &Old,
-    old_range: Range<usize>,
-    new: &New,
-    new_range: Range<usize>,
-) -> usize
-where
-    Old: Index<usize> + ?Sized,
-    New: Index<usize> + ?Sized,
-    New::Output: PartialEq<Old::Output>,
-{
-    if is_empty_range(&old_range) || is_empty_range(&new_range) {
-        return 0;
-    }
-    new_range
-        .rev()
-        .zip(old_range.rev())
-        .take_while(
-            #[inline(always)]
-            |x| new[x.0] == old[x.1],
-        )
-        .count()
 }
 
 #[inline(always)]

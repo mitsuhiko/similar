@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::ops::{Index, Range};
 use std::time::Instant;
 
-use crate::algorithms::utils::is_empty_range;
+use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::DiffHook;
 
 /// Hunt–McIlroy / Hunt–Szymanski LCS diff algorithm.
@@ -61,39 +61,29 @@ where
         return Ok(());
     }
 
-    let prefix_len = old_range
-        .clone()
-        .zip(new_range.clone())
-        .take_while(|x| new[x.1] == old[x.0])
-        .count();
-    let suffix_len = old_range
-        .clone()
-        .rev()
-        .zip(new_range.clone().rev())
-        .take(old_range.len().min(new_range.len()) - prefix_len)
-        .take_while(|x| new[x.1] == old[x.0])
-        .count();
+    let common_prefix_len = common_prefix_len(old, old_range.clone(), new, new_range.clone());
+    let common_suffix_len = common_suffix_len(old, old_range.clone(), new, new_range.clone());
 
     let maybe_table = make_table(
         old,
-        prefix_len..(old_range.len() - suffix_len),
+        common_prefix_len..(old_range.len() - common_suffix_len),
         new,
-        prefix_len..(new_range.len() - suffix_len),
+        common_prefix_len..(new_range.len() - common_suffix_len),
         deadline,
     );
     let mut old_idx = 0;
     let mut new_idx = 0;
-    let new_len = new_range.len() - prefix_len - suffix_len;
-    let old_len = old_range.len() - prefix_len - suffix_len;
+    let new_len = new_range.len() - common_prefix_len - common_suffix_len;
+    let old_len = old_range.len() - common_prefix_len - common_suffix_len;
 
-    if prefix_len > 0 {
-        d.equal(old_range.start, new_range.start, prefix_len)?;
+    if common_prefix_len > 0 {
+        d.equal(old_range.start, new_range.start, common_prefix_len)?;
     }
 
     if let Some(table) = maybe_table {
         while new_idx < new_len && old_idx < old_len {
-            let old_orig_idx = old_range.start + prefix_len + old_idx;
-            let new_orig_idx = new_range.start + prefix_len + new_idx;
+            let old_orig_idx = old_range.start + common_prefix_len + old_idx;
+            let new_orig_idx = new_range.start + common_prefix_len + new_idx;
 
             if new[new_orig_idx] == old[old_orig_idx] {
                 d.equal(old_orig_idx, new_orig_idx, 1)?;
@@ -110,34 +100,34 @@ where
             }
         }
     } else {
-        let old_orig_idx = old_range.start + prefix_len + old_idx;
-        let new_orig_idx = new_range.start + prefix_len + new_idx;
+        let old_orig_idx = old_range.start + common_prefix_len + old_idx;
+        let new_orig_idx = new_range.start + common_prefix_len + new_idx;
         d.delete(old_orig_idx, old_len, new_orig_idx)?;
         d.insert(old_orig_idx, new_orig_idx, new_len)?;
     }
 
     if old_idx < old_len {
         d.delete(
-            old_range.start + prefix_len + old_idx,
+            old_range.start + common_prefix_len + old_idx,
             old_len - old_idx,
-            new_range.start + prefix_len + new_idx,
+            new_range.start + common_prefix_len + new_idx,
         )?;
         old_idx += old_len - old_idx;
     }
 
     if new_idx < new_len {
         d.insert(
-            old_range.start + prefix_len + old_idx,
-            new_range.start + prefix_len + new_idx,
+            old_range.start + common_prefix_len + old_idx,
+            new_range.start + common_prefix_len + new_idx,
             new_len - new_idx,
         )?;
     }
 
-    if suffix_len > 0 {
+    if common_suffix_len > 0 {
         d.equal(
-            old_range.start + old_len + prefix_len,
-            new_range.start + new_len + prefix_len,
-            suffix_len,
+            old_range.start + old_len + common_prefix_len,
+            new_range.start + new_len + common_prefix_len,
+            common_suffix_len,
         )?;
     }
 
