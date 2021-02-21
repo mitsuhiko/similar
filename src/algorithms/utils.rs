@@ -150,3 +150,43 @@ fn test_unique() {
         .collect::<Vec<_>>();
     assert_eq!(u, vec![('a', 0), ('c', 2)]);
 }
+
+#[test]
+fn test_common_prefix_len() {
+    assert_eq!(
+        common_prefix_len("".as_bytes(), 0..0, "".as_bytes(), 0..0),
+        0
+    );
+    assert_eq!(
+        common_prefix_len("foobarbaz".as_bytes(), 0..9, "foobarblah".as_bytes(), 0..10),
+        7
+    );
+    assert_eq!(
+        common_prefix_len("foobarbaz".as_bytes(), 0..9, "blablabla".as_bytes(), 0..9),
+        0
+    );
+    assert_eq!(
+        common_prefix_len("foobarbaz".as_bytes(), 3..9, "foobarblah".as_bytes(), 3..10),
+        4
+    );
+}
+
+#[test]
+fn test_common_suffix_len() {
+    assert_eq!(
+        common_suffix_len("".as_bytes(), 0..0, "".as_bytes(), 0..0),
+        0
+    );
+    assert_eq!(
+        common_suffix_len("1234".as_bytes(), 0..4, "X0001234".as_bytes(), 0..8),
+        4
+    );
+    assert_eq!(
+        common_suffix_len("1234".as_bytes(), 0..4, "Xxxx".as_bytes(), 0..4),
+        0
+    );
+    assert_eq!(
+        common_suffix_len("1234".as_bytes(), 2..4, "01234".as_bytes(), 2..5),
+        2
+    );
+}
