@@ -356,17 +356,9 @@ where
     if is_empty_range(&old_range) && is_empty_range(&new_range) {
         // Do nothing
     } else if is_empty_range(&new_range) {
-        d.delete(
-            old_range.start,
-            old_range.end - old_range.start,
-            new_range.start,
-        )?;
+        d.delete(old_range.start, old_range.len(), new_range.start)?;
     } else if is_empty_range(&old_range) {
-        d.insert(
-            old_range.start,
-            new_range.start,
-            new_range.end - new_range.start,
-        )?;
+        d.insert(old_range.start, new_range.start, new_range.len())?;
     } else if let Some((x_start, y_start)) = find_middle_snake(
         old,
         old_range.clone(),

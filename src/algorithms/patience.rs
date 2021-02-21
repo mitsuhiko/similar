@@ -8,13 +8,13 @@
 //!
 //! This is based on the patience implementation of [pijul](https://pijul.org/)
 //! by Pierre-Étienne Meunier.
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::{Index, Range};
 use std::time::Instant;
 
 use crate::algorithms::{myers, DiffHook, NoFinishHook, Replace};
+
+use super::utils::{unique, Indexable};
 
 /// Patience diff algorithm.
 ///
@@ -57,8 +57,8 @@ where
     New::Output: PartialEq<Old::Output> + Hash + Eq,
     D: DiffHook,
 {
-    let old_indexes = unique(old, old_range.start, old_range.end);
-    let new_indexes = unique(new, new_range.start, new_range.end);
+    let old_indexes = unique(old, old_range.clone());
+    let new_indexes = unique(new, new_range.clone());
 
     let mut d = Replace::new(Patience {
         d,
@@ -96,59 +96,6 @@ where
     diff(d, old, 0..old.len(), new, 0..new.len())
 }
 
-struct Indexable<'a, T: ?Sized> {
-    value: &'a T,
-    index: usize,
-}
-
-impl<'a, T: Index<usize> + 'a> std::fmt::Debug for Indexable<'a, T>
-where
-    T::Output: std::fmt::Debug,
-{
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(fmt, "{:?}", &self.value[self.index])
-    }
-}
-
-impl<'a, 'b, A, B> PartialEq<Indexable<'a, A>> for Indexable<'b, B>
-where
-    A: Index<usize> + 'b + ?Sized,
-    B: Index<usize> + 'b + ?Sized,
-    B::Output: PartialEq<A::Output>,
-{
-    fn eq(&self, b: &Indexable<'a, A>) -> bool {
-        self.value[self.index] == b.value[b.index]
-    }
-}
-
-fn unique<T>(seq: &T, lower: usize, upper: usize) -> Vec<Indexable<T>>
-where
-    T: Index<usize> + ?Sized,
-    T::Output: Hash + Eq,
-{
-    let mut by_item = HashMap::new();
-    for index in lower..upper {
-        match by_item.entry(&seq[index]) {
-            Entry::Vacant(entry) => {
-                entry.insert(Some(index));
-            }
-            Entry::Occupied(mut entry) => {
-                let entry = entry.get_mut();
-                if entry.is_some() {
-                    *entry = None
-                }
-            }
-        }
-    }
-    let mut rv = by_item
-        .into_iter()
-        .filter_map(|(_, x)| x)
-        .map(|index| Indexable { value: seq, index })
-        .collect::<Vec<_>>();
-    rv.sort_by(|a, b| a.index.cmp(&b.index));
-    rv
-}
-
 struct Patience<'old, 'new, 'd, Old: ?Sized, New: ?Sized, D> {
     d: &'d mut D,
     old: &'old Old,
@@ -174,8 +121,8 @@ where
         for (old, new) in (old..old + len).zip(new..new + len) {
             let a0 = self.old_current;
             let b0 = self.new_current;
-            while self.old_current < self.old_indexes[old].index
-                && self.new_current < self.new_indexes[new].index
+            while self.old_current < self.old_indexes[old].index()
+                && self.new_current < self.new_indexes[new].index()
                 && self.new[self.new_current] == self.old[self.old_current]
             {
                 self.old_current += 1;
@@ -188,13 +135,13 @@ where
             myers::diff_deadline(
                 &mut no_finish_d,
                 self.old,
-                self.old_current..self.old_indexes[old].index,
+                self.old_current..self.old_indexes[old].index(),
                 self.new,
-                self.new_current..self.new_indexes[new].index,
+                self.new_current..self.new_indexes[new].index(),
                 self.deadline,
             )?;
-            self.old_current = self.old_indexes[old].index;
-            self.new_current = self.new_indexes[new].index;
+            self.old_current = self.old_indexes[old].index();
+            self.new_current = self.new_indexes[new].index();
         }
         Ok(())
     }
