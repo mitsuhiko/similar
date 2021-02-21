@@ -5,9 +5,11 @@ use std::ops::{Index, Range};
 
 /// Utility function to check if a range is empty that works on older rust versions
 #[inline(always)]
-pub fn is_empty_range<T: PartialOrd>(range: &Range<T>) -> bool {
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+pub fn is_empty_range<T: PartialOrd<T>>(range: &Range<T>) -> bool {
     !(range.start < range.end)
 }
+
 pub struct Indexable<'a, Idx: ?Sized> {
     lookup: &'a Idx,
     index: usize,
