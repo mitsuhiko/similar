@@ -2,14 +2,14 @@ use std::hash::Hash;
 use std::ops::{Index, Range};
 use std::time::Instant;
 
-use crate::algorithms::{diff_deadline, diff_slices_deadline, Capture, Replace};
+use crate::algorithms::{diff_deadline, Capture, Compact, Replace};
 use crate::{Algorithm, DiffOp};
 
 /// Creates a diff between old and new with the given algorithm capturing the ops.
 ///
 /// This is like [`diff`](crate::algorithms::diff) but instead of using an
-/// arbitrary hook this will always use [`Replace`] + [`Capture`] and return the
-/// captured [`DiffOp`]s.
+/// arbitrary hook this will always use [`Compact`] + [`Replace`] + [`Capture`]
+/// and return the captured [`DiffOp`]s.
 pub fn capture_diff<Old, New>(
     alg: Algorithm,
     old: &Old,
@@ -43,9 +43,9 @@ where
     Old::Output: Hash + Eq + Ord,
     New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
 {
-    let mut d = Replace::new(Capture::new());
+    let mut d = Compact::new(Replace::new(Capture::new()), old, new);
     diff_deadline(alg, &mut d, old, old_range, new, new_range, deadline).unwrap();
-    d.into_inner().into_ops()
+    d.into_inner().into_inner().into_ops()
 }
 
 /// Creates a diff between old and new with the given algorithm capturing the ops.
@@ -68,9 +68,7 @@ pub fn capture_diff_slices_deadline<T>(
 where
     T: Eq + Hash + Ord,
 {
-    let mut d = Replace::new(Capture::new());
-    diff_slices_deadline(alg, &mut d, old, new, deadline).unwrap();
-    d.into_inner().into_ops()
+    capture_diff_deadline(alg, old, 0..old.len(), new, 0..new.len(), deadline)
 }
 
 /// Return a measure of similarity in the range `0..=1`.

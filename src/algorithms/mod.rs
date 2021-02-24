@@ -34,6 +34,7 @@
 //! [`capture_diff_slices`](crate::capture_diff_slices).
 
 mod capture;
+mod compact;
 mod hook;
 mod replace;
 mod utils;
@@ -43,6 +44,7 @@ use std::ops::{Index, Range};
 use std::time::Instant;
 
 pub use capture::Capture;
+pub use compact::Compact;
 pub use hook::{DiffHook, NoFinishHook};
 pub use replace::Replace;
 

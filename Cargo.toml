@@ -38,6 +38,10 @@ name = "assert"
 required-features = ["text", "inline"]
 
 [[example]]
+name = "patience"
+required-features = ["text", "inline"]
+
+[[example]]
 name = "terminal"
 required-features = ["text"]
 
