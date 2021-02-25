@@ -192,10 +192,10 @@ where
     Int: Add<Output = Int> + From<u8> + Default + Copy,
 {
     /// Creates an int hasher for two sequences.
-    pub fn new<'old, 'new, Old, New>(
-        old: &'old Old,
+    pub fn new<Old, New>(
+        old: &Old,
         old_range: Range<usize>,
-        new: &'new New,
+        new: &New,
         new_range: Range<usize>,
     ) -> Self
     where
