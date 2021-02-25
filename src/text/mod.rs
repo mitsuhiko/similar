@@ -14,7 +14,7 @@ pub use self::abstraction::{DiffableStr, DiffableStrRef};
 pub use self::inline::InlineChange;
 
 use self::utils::{upper_seq_ratio, QuickSeqRatio};
-use crate::algorithms::IntHasher;
+use crate::algorithms::IdentifyDistinct;
 use crate::iter::{AllChangesIter, ChangesIter};
 use crate::udiff::UnifiedDiff;
 use crate::{capture_diff_deadline, get_diff_ratio, group_diff_ops, Algorithm, DiffOp};
@@ -330,7 +330,7 @@ impl TextDiffConfig {
     ) -> TextDiff<'old, 'new, 'bufs, T> {
         let deadline = self.deadline.map(|x| x.into_instant());
         let ops = if old.len() > 100 || new.len() > 100 {
-            let ih = IntHasher::<u32>::new(&old[..], 0..old.len(), &new[..], 0..new.len());
+            let ih = IdentifyDistinct::<u32>::new(&old[..], 0..old.len(), &new[..], 0..new.len());
             capture_diff_deadline(
                 self.algorithm,
                 ih.old_lookup(),

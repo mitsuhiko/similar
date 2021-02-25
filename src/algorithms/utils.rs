@@ -156,22 +156,22 @@ impl<Int> Index<usize> for OffsetLookup<Int> {
     }
 }
 
-/// A utility struct to convert items to unique integers.
+/// A utility struct to convert distinct items to unique integers.
 ///
 /// This can be helpful on larger inputs to speed up the comparisons
 /// performed by doing a first pass where the data set gets reduced
 /// to (small) integers.
 ///
 /// The idea is that instead of passing two sequences to a diffling algorithm
-/// you first pass it via [`IntHasher`]:
+/// you first pass it via [`IdentifyDistinct`]:
 ///
 /// ```rust
 /// use similar::capture_diff;
-/// use similar::algorithms::{Algorithm, IntHasher};
+/// use similar::algorithms::{Algorithm, IdentifyDistinct};
 ///
 /// let old = &["foo", "bar", "baz"][..];
 /// let new = &["foo", "blah", "baz"][..];
-/// let h = IntHasher::<u32>::new(old, 0..old.len(), new, 0..new.len());
+/// let h = IdentifyDistinct::<u32>::new(old, 0..old.len(), new, 0..new.len());
 /// let ops = capture_diff(
 ///     Algorithm::Myers,
 ///     h.old_lookup(),
@@ -182,12 +182,12 @@ impl<Int> Index<usize> for OffsetLookup<Int> {
 /// ```
 ///
 /// The indexes are the same as with the passed source ranges.
-pub struct IntHasher<Int> {
+pub struct IdentifyDistinct<Int> {
     old: OffsetLookup<Int>,
     new: OffsetLookup<Int>,
 }
 
-impl<Int> IntHasher<Int>
+impl<Int> IdentifyDistinct<Int>
 where
     Int: Add<Output = Int> + From<u8> + Default + Copy,
 {
@@ -278,7 +278,7 @@ where
             new_seq.push(id);
         }
 
-        IntHasher {
+        IdentifyDistinct {
             old: OffsetLookup {
                 offset: old_start,
                 vec: old_seq,
@@ -322,7 +322,7 @@ fn test_unique() {
 
 #[test]
 fn test_int_hasher() {
-    let ih = IntHasher::<u8>::new(
+    let ih = IdentifyDistinct::<u8>::new(
         &["", "foo", "bar", "baz"],
         1..4,
         &["", "foo", "blah", "baz"],
