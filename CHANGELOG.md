@@ -6,9 +6,15 @@ All notable changes to similar are documented here.
 
 * Performance improvements for the LCS algorithm.
 * Small performance improvments by adding an early opt-out for and inline highlighting.
+* Added `IdentifyDistinct` to convert sequences to ints.
+* Small performance improvements for larger text diffs by using `IdentifyDistinct`
+  automatically above a threshold.
 * Added deadlines to all diffing algorithms to bail early.
 * Deprecated slice diffing methods in the individual algorithm modules.
-- Use a default timeout for the inline highlighting feature.
+* Use a default timeout for the inline highlighting feature.
+* Added a compacting step to clean up diffs.  This results in nicer looking diffs and
+  fewer edits.  This is happening automatically for captured diffs and is exposed
+  through the `Capture` type.
 
 ## 1.2.2
 
