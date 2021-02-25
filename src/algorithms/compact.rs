@@ -1,3 +1,5 @@
+//! Implements basic compacting.  This is based on the compaction logic from
+//! diffy by Brandon Williams.
 use std::ops::Index;
 
 use crate::{DiffOp, DiffTag};
@@ -241,7 +243,7 @@ where
                 ops.remove(pointer);
                 pointer -= 1;
             }
-            _ => {}
+            _ => unreachable!("unexpected tag"),
         }
     }
     pointer
@@ -346,7 +348,7 @@ where
                 ops[pointer].grow_right(next_op.old_range().len());
                 ops.remove(pointer + 1);
             }
-            _ => {}
+            _ => unreachable!("unexpected tag"),
         }
     }
     pointer
