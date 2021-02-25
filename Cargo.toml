@@ -61,5 +61,9 @@ required-features = ["text", "bytes"]
 name = "close-matches"
 required-features = ["text"]
 
+[[example]]
+name = "large"
+required-features = ["text"]
+
 [profile.release]
 debug = true
