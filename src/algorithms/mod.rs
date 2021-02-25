@@ -34,17 +34,20 @@
 //! [`capture_diff_slices`](crate::capture_diff_slices).
 
 mod capture;
+mod compact;
 mod hook;
 mod replace;
-mod utils;
+pub(crate) mod utils;
 
 use std::hash::Hash;
 use std::ops::{Index, Range};
 use std::time::Instant;
 
 pub use capture::Capture;
+pub use compact::Compact;
 pub use hook::{DiffHook, NoFinishHook};
 pub use replace::Replace;
+pub use utils::IdentifyDistinct;
 
 #[doc(no_inline)]
 pub use crate::Algorithm;

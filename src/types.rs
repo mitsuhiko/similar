@@ -1,6 +1,7 @@
 use std::fmt;
 use std::ops::{Index, Range};
 
+use crate::algorithms::utils::is_empty_range;
 use crate::algorithms::DiffHook;
 use crate::iter::ChangesIter;
 
@@ -341,6 +342,87 @@ impl DiffOp {
             } => Some((ChangeTag::Delete, &old[old_index..old_index + old_len]))
                 .into_iter()
                 .chain(Some((ChangeTag::Insert, &new[new_index..new_index + new_len])).into_iter()),
+        }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        let (_, old, new) = self.as_tag_tuple();
+        is_empty_range(&old) && is_empty_range(&new)
+    }
+
+    pub(crate) fn shift_left(&mut self, adjust: usize) {
+        self.adjust((adjust, true), (0, false));
+    }
+
+    pub(crate) fn shift_right(&mut self, adjust: usize) {
+        self.adjust((adjust, false), (0, false));
+    }
+
+    pub(crate) fn grow_left(&mut self, adjust: usize) {
+        self.adjust((adjust, true), (adjust, false));
+    }
+
+    pub(crate) fn grow_right(&mut self, adjust: usize) {
+        self.adjust((0, false), (adjust, false));
+    }
+
+    pub(crate) fn shrink_left(&mut self, adjust: usize) {
+        self.adjust((0, false), (adjust, true));
+    }
+
+    pub(crate) fn shrink_right(&mut self, adjust: usize) {
+        self.adjust((adjust, false), (adjust, true));
+    }
+
+    fn adjust(&mut self, adjust_offset: (usize, bool), adjust_len: (usize, bool)) {
+        #[inline(always)]
+        fn modify(val: &mut usize, adj: (usize, bool)) {
+            if adj.1 {
+                *val -= adj.0;
+            } else {
+                *val += adj.0;
+            }
+        }
+
+        match self {
+            DiffOp::Equal {
+                old_index,
+                new_index,
+                len,
+            } => {
+                modify(old_index, adjust_offset);
+                modify(new_index, adjust_offset);
+                modify(len, adjust_len);
+            }
+            DiffOp::Delete {
+                old_index,
+                old_len,
+                new_index,
+            } => {
+                modify(old_index, adjust_offset);
+                modify(old_len, adjust_len);
+                modify(new_index, adjust_offset);
+            }
+            DiffOp::Insert {
+                old_index,
+                new_index,
+                new_len,
+            } => {
+                modify(old_index, adjust_offset);
+                modify(new_index, adjust_offset);
+                modify(new_len, adjust_len);
+            }
+            DiffOp::Replace {
+                old_index,
+                old_len,
+                new_index,
+                new_len,
+            } => {
+                modify(old_index, adjust_offset);
+                modify(old_len, adjust_len);
+                modify(new_index, adjust_offset);
+                modify(new_len, adjust_len);
+            }
         }
     }
 }

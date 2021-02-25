@@ -14,9 +14,10 @@ pub use self::abstraction::{DiffableStr, DiffableStrRef};
 pub use self::inline::InlineChange;
 
 use self::utils::{upper_seq_ratio, QuickSeqRatio};
+use crate::algorithms::IdentifyDistinct;
 use crate::iter::{AllChangesIter, ChangesIter};
 use crate::udiff::UnifiedDiff;
-use crate::{capture_diff_slices_deadline, get_diff_ratio, group_diff_ops, Algorithm, DiffOp};
+use crate::{capture_diff_deadline, get_diff_ratio, group_diff_ops, Algorithm, DiffOp};
 
 #[derive(Debug, Clone, Copy)]
 enum Deadline {
@@ -327,12 +328,27 @@ impl TextDiffConfig {
         new: Cow<'bufs, [&'new T]>,
         newline_terminated: bool,
     ) -> TextDiff<'old, 'new, 'bufs, T> {
-        let ops = capture_diff_slices_deadline(
-            self.algorithm,
-            &old,
-            &new,
-            self.deadline.map(|x| x.into_instant()),
-        );
+        let deadline = self.deadline.map(|x| x.into_instant());
+        let ops = if old.len() > 100 || new.len() > 100 {
+            let ih = IdentifyDistinct::<u32>::new(&old[..], 0..old.len(), &new[..], 0..new.len());
+            capture_diff_deadline(
+                self.algorithm,
+                ih.old_lookup(),
+                ih.old_range(),
+                ih.new_lookup(),
+                ih.new_range(),
+                deadline,
+            )
+        } else {
+            capture_diff_deadline(
+                self.algorithm,
+                &old[..],
+                0..old.len(),
+                &new[..],
+                0..new.len(),
+                deadline,
+            )
+        };
         TextDiff {
             old,
             new,

@@ -65,8 +65,8 @@ where
     New::Output: PartialEq<Old::Output>,
 {
     let max_d = max_d(old_range.len(), new_range.len());
-    let mut vf = V::new(max_d);
     let mut vb = V::new(max_d);
+    let mut vf = V::new(max_d);
     conquer(
         d, old, old_range, new, new_range, &mut vf, &mut vb, deadline,
     )?;
