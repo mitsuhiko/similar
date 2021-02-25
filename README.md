@@ -46,6 +46,11 @@ fn main() {
 * Text and Byte diffing
 * Unified diff generation
 
+## Related Projects
+
+* [insta](https://insta.rs) snapshot testing library
+* [similar-asserts](https://github.com/mitsuhiko/similar-asserts) assertion library
+
 ## License and Links
 
 - [Documentation](https://docs.rs/similar/)
