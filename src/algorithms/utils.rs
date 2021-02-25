@@ -323,9 +323,9 @@ fn test_unique() {
 #[test]
 fn test_int_hasher() {
     let ih = IdentifyDistinct::<u8>::new(
-        &["", "foo", "bar", "baz"],
+        &["", "foo", "bar", "baz"][..],
         1..4,
-        &["", "foo", "blah", "baz"],
+        &["", "foo", "blah", "baz"][..],
         1..4,
     );
     assert_eq!(ih.old_lookup()[1], 0);
