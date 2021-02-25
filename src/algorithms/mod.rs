@@ -37,7 +37,7 @@ mod capture;
 mod compact;
 mod hook;
 mod replace;
-mod utils;
+pub(crate) mod utils;
 
 use std::hash::Hash;
 use std::ops::{Index, Range};

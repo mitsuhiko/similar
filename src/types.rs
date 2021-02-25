@@ -1,6 +1,7 @@
 use std::fmt;
 use std::ops::{Index, Range};
 
+use crate::algorithms::utils::is_empty_range;
 use crate::algorithms::DiffHook;
 use crate::iter::ChangesIter;
 
@@ -346,7 +347,7 @@ impl DiffOp {
 
     pub(crate) fn is_empty(&self) -> bool {
         let (_, old, new) = self.as_tag_tuple();
-        old.is_empty() && new.is_empty()
+        is_empty_range(&old) && is_empty_range(&new)
     }
 
     pub(crate) fn shift_left(&mut self, adjust: usize) {
