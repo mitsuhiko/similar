@@ -30,7 +30,7 @@ All notable changes to similar are documented here.
 * Make the unicode feature optional for inline diffing.
 * Added Hunt–McIlroy LCS algorithm (`lcs`).
 * Changed the implementation of Mayer's diff.  This has slightly changed the
-  behavior but resulted in snigificantly improved performance and more
+  behavior but resulted in significantly improved performance and more
   readable code.
 * Added `NoFinishHook` to aid composing of diff hooks.
 
