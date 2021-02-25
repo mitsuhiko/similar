@@ -4,7 +4,7 @@ expression: "&diff.unified_diff().missing_newline_hint(false).header(\"a.txt\",\
 ---
 --- a.txt
 +++ b.txt
-@@ -0 +0 @@
+@@ -1 +1 @@
 -a
 +b
 

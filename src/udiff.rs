@@ -24,7 +24,6 @@
 //! The former uses [`DiffableStr::to_string_lossy`], the latter uses
 //! [`DiffableStr::as_bytes`] for each line.
 #[cfg(feature = "text")]
-use std::ops::Range;
 use std::{fmt, io};
 
 use crate::iter::AllChangesIter;
@@ -46,10 +45,6 @@ impl fmt::Display for MissingNewlineHint {
 struct UnifiedDiffHunkRange(usize, usize);
 
 impl UnifiedDiffHunkRange {
-    fn new(range: Range<usize>) -> UnifiedDiffHunkRange {
-        UnifiedDiffHunkRange(range.start, range.end)
-    }
-
     fn start(&self) -> usize {
         self.0
     }
@@ -61,7 +56,7 @@ impl UnifiedDiffHunkRange {
 
 impl fmt::Display for UnifiedDiffHunkRange {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut beginning = self.start();
+        let mut beginning = self.start() + 1;
         let len = self.end() - self.start();
         if len == 1 {
             write!(f, "{}", beginning)
@@ -84,9 +79,15 @@ pub struct UnifiedHunkHeader {
 impl UnifiedHunkHeader {
     /// Creates a hunk header from a (non empty) slice of diff ops.
     pub fn new(ops: &[DiffOp]) -> UnifiedHunkHeader {
+        let first = ops[0];
+        let last = ops[ops.len() - 1];
+        let old_start = first.old_range().start;
+        let new_start = first.new_range().start;
+        let old_end = last.old_range().end;
+        let new_end = last.new_range().end;
         UnifiedHunkHeader {
-            old_range: UnifiedDiffHunkRange::new(ops[0].old_range()),
-            new_range: UnifiedDiffHunkRange::new(ops[ops.len() - 1].new_range()),
+            old_range: UnifiedDiffHunkRange(old_start, old_end),
+            new_range: UnifiedDiffHunkRange(new_start, new_end),
         }
     }
 }

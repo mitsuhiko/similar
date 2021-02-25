@@ -4,7 +4,7 @@ expression: "&diff.unified_diff().header(\"a.txt\", \"b.txt\").to_string()"
 ---
 --- a.txt
 +++ b.txt
-@@ -15,3 +19,3 @@
+@@ -16,7 +16,7 @@
  p
  q
  r
@@ -13,7 +13,7 @@ expression: "&diff.unified_diff().header(\"a.txt\", \"b.txt\").to_string()"
  t
  u
  v
-@@ -37,3 +41,3 @@
+@@ -38,7 +38,7 @@
  L
  M
  N

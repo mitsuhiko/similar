@@ -15,6 +15,7 @@ All notable changes to similar are documented here.
 * Added a compacting step to clean up diffs.  This results in nicer looking diffs and
   fewer edits.  This is happening automatically for captured diffs and is exposed
   through the `Capture` type.
+* Fix incorrect ranges in unified diff output.
 
 ## 1.2.2
 
