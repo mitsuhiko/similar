@@ -47,6 +47,7 @@ pub use capture::Capture;
 pub use compact::Compact;
 pub use hook::{DiffHook, NoFinishHook};
 pub use replace::Replace;
+pub use utils::IntHasher;
 
 #[doc(no_inline)]
 pub use crate::Algorithm;
@@ -101,10 +102,32 @@ where
     Old::Output: Hash + Eq + Ord,
     New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
 {
+    let h = IntHasher::<u32>::new(old, old_range.clone(), new, new_range.clone());
     match alg {
-        Algorithm::Myers => myers::diff_deadline(d, old, old_range, new, new_range, deadline),
-        Algorithm::Patience => patience::diff_deadline(d, old, old_range, new, new_range, deadline),
-        Algorithm::Lcs => lcs::diff_deadline(d, old, old_range, new, new_range, deadline),
+        Algorithm::Myers => myers::diff_deadline(
+            d,
+            h.old_lookup(),
+            old_range,
+            h.new_lookup(),
+            new_range,
+            deadline,
+        ),
+        Algorithm::Patience => patience::diff_deadline(
+            d,
+            h.old_lookup(),
+            old_range,
+            h.new_lookup(),
+            new_range,
+            deadline,
+        ),
+        Algorithm::Lcs => lcs::diff_deadline(
+            d,
+            h.old_lookup(),
+            old_range,
+            h.new_lookup(),
+            new_range,
+            deadline,
+        ),
     }
 }
 
