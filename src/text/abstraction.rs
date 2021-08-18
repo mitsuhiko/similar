@@ -40,7 +40,7 @@ impl<'a, T: DiffableStr + ?Sized> DiffableStrRef for Cow<'a, T> {
     type Output = T;
 
     fn as_diffable_str(&self) -> &T {
-        &self
+        self
     }
 }
 
