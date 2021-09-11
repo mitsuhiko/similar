@@ -11,7 +11,7 @@ use std::ops::{Index, Range};
 use crate::{Change, ChangeTag, DiffOp, DiffTag};
 
 /// Iterator for [`DiffOp::iter_changes`].
-pub struct ChangesIter<'lookup, 'data, Old: ?Sized, New: ?Sized, T: ?Sized> {
+pub struct ChangesIter<'lookup, Old: ?Sized, New: ?Sized, T> {
     old: &'lookup Old,
     new: &'lookup New,
     old_range: Range<usize>,
@@ -21,15 +21,13 @@ pub struct ChangesIter<'lookup, 'data, Old: ?Sized, New: ?Sized, T: ?Sized> {
     old_i: usize,
     new_i: usize,
     tag: DiffTag,
-    _marker: PhantomData<&'data T>,
+    _marker: PhantomData<T>,
 }
 
-impl<'lookup, 'data, Old, New, T> ChangesIter<'lookup, 'data, Old, New, T>
+impl<'lookup, Old, New, T> ChangesIter<'lookup, Old, New, T>
 where
-    Old: Index<usize, Output = &'data T> + ?Sized,
-    New: Index<usize, Output = &'data T> + ?Sized,
-    T: 'data + ?Sized,
-    'data: 'lookup,
+    Old: Index<usize, Output = T> + ?Sized,
+    New: Index<usize, Output = T> + ?Sized,
 {
     pub(crate) fn new(old: &'lookup Old, new: &'lookup New, op: DiffOp) -> Self {
         let (tag, old_range, new_range) = op.as_tag_tuple();
@@ -52,20 +50,19 @@ where
     }
 }
 
-impl<'lookup, 'data, Old, New, T> Iterator for ChangesIter<'lookup, 'data, Old, New, T>
+impl<'lookup, Old, New, T> Iterator for ChangesIter<'lookup, Old, New, T>
 where
-    Old: Index<usize, Output = &'data T> + ?Sized,
-    New: Index<usize, Output = &'data T> + ?Sized,
-    T: 'data + ?Sized,
-    'data: 'lookup,
+    Old: Index<usize, Output = T> + ?Sized,
+    New: Index<usize, Output = T> + ?Sized,
+    T: Clone,
 {
-    type Item = Change<'data, T>;
+    type Item = Change<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.tag {
             DiffTag::Equal => {
                 if self.old_i < self.old_range.end {
-                    let value = self.old[self.old_i];
+                    let value = self.old[self.old_i].clone();
                     self.old_i += 1;
                     self.old_index += 1;
                     self.new_index += 1;
@@ -81,7 +78,7 @@ where
             }
             DiffTag::Delete => {
                 if self.old_i < self.old_range.end {
-                    let value = self.old[self.old_i];
+                    let value = self.old[self.old_i].clone();
                     self.old_i += 1;
                     self.old_index += 1;
                     Some(Change {
@@ -96,7 +93,7 @@ where
             }
             DiffTag::Insert => {
                 if self.new_i < self.new_range.end {
-                    let value = self.new[self.new_i];
+                    let value = self.new[self.new_i].clone();
                     self.new_i += 1;
                     self.new_index += 1;
                     Some(Change {
@@ -111,7 +108,7 @@ where
             }
             DiffTag::Replace => {
                 if self.old_i < self.old_range.end {
-                    let value = self.old[self.old_i];
+                    let value = self.old[self.old_i].clone();
                     self.old_i += 1;
                     self.old_index += 1;
                     Some(Change {
@@ -121,7 +118,7 @@ where
                         value,
                     })
                 } else if self.new_i < self.new_range.end {
-                    let value = self.new[self.new_i];
+                    let value = self.new[self.new_i].clone();
                     self.new_i += 1;
                     self.new_index += 1;
                     Some(Change {
@@ -147,7 +144,7 @@ mod text {
         old: &'slf [&'data T],
         new: &'slf [&'data T],
         ops: &'slf [DiffOp],
-        current_iter: Option<ChangesIter<'slf, 'data, [&'data T], [&'data T], T>>,
+        current_iter: Option<ChangesIter<'slf, [&'data T], [&'data T], &'data T>>,
     }
 
     impl<'slf, 'data, T> AllChangesIter<'slf, 'data, T>
@@ -173,7 +170,7 @@ mod text {
         T: PartialEq + 'data + ?Sized,
         'data: 'slf,
     {
-        type Item = Change<'data, T>;
+        type Item = Change<&'data T>;
 
         fn next(&mut self) -> Option<Self::Item> {
             loop {

@@ -59,15 +59,15 @@ impl fmt::Display for ChangeTag {
 /// This type has additional methods that are only available for types
 /// implementing [`DiffableStr`](crate::text::DiffableStr).
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
-pub struct Change<'s, T: ?Sized> {
+pub struct Change<T> {
     pub(crate) tag: ChangeTag,
     pub(crate) old_index: Option<usize>,
     pub(crate) new_index: Option<usize>,
-    pub(crate) value: &'s T,
+    pub(crate) value: T,
 }
 
 /// These methods are available for all change types.
-impl<'s, T: ?Sized> Change<'s, T> {
+impl<T: Clone> Change<T> {
     /// Returns the change tag.
     pub fn tag(&self) -> ChangeTag {
         self.tag
@@ -89,8 +89,8 @@ impl<'s, T: ?Sized> Change<'s, T> {
     /// this value is more or less useful.  If you always want to have a utf-8
     /// string it's best to use the [`Change::as_str`] and
     /// [`Change::to_string_lossy`] methods.
-    pub fn value(&self) -> &'s T {
-        self.value
+    pub fn value(&self) -> T {
+        self.value.clone()
     }
 }
 
@@ -270,16 +270,14 @@ impl DiffOp {
     ///     (ChangeTag::Insert, "blah"),
     /// ]);
     /// ```
-    pub fn iter_changes<'x, 'lookup, Old, New, T>(
+    pub fn iter_changes<'lookup, Old, New, T>(
         &self,
         old: &'lookup Old,
         new: &'lookup New,
-    ) -> ChangesIter<'lookup, 'x, Old, New, T>
+    ) -> ChangesIter<'lookup, Old, New, T>
     where
-        Old: Index<usize, Output = &'x T> + ?Sized,
-        New: Index<usize, Output = &'x T> + ?Sized,
-        T: 'x + ?Sized,
-        'x: 'lookup,
+        Old: Index<usize, Output = T> + ?Sized,
+        New: Index<usize, Output = T> + ?Sized,
     {
         ChangesIter::new(old, new, *self)
     }
@@ -436,7 +434,7 @@ mod text_additions {
     /// The text interface can produce changes over [`DiffableStr`] implementing
     /// values.  As those are generic interfaces for different types of strings
     /// utility methods to make working with standard rust strings more enjoyable.
-    impl<'s, T: DiffableStr + ?Sized> Change<'s, T> {
+    impl<'s, T: DiffableStr + ?Sized> Change<&'s T> {
         /// Returns the value as string if it is utf-8.
         pub fn as_str(&self) -> Option<&'s str> {
             T::as_str(self.value)
@@ -457,7 +455,7 @@ mod text_additions {
         }
     }
 
-    impl<'s, T: DiffableStr + ?Sized> fmt::Display for Change<'s, T> {
+    impl<'s, T: DiffableStr + ?Sized> fmt::Display for Change<&'s T> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(
                 f,

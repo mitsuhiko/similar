@@ -159,8 +159,8 @@ impl<'s, T: DiffableStr + ?Sized> InlineChange<'s, T> {
     }
 }
 
-impl<'s, T: DiffableStr + ?Sized> From<Change<'s, T>> for InlineChange<'s, T> {
-    fn from(change: Change<'s, T>) -> InlineChange<'s, T> {
+impl<'s, T: DiffableStr + ?Sized> From<Change<&'s T>> for InlineChange<'s, T> {
+    fn from(change: Change<&'s T>) -> InlineChange<'s, T> {
         InlineChange {
             tag: change.tag(),
             old_index: change.old_index(),
