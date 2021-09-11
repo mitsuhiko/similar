@@ -2,7 +2,7 @@
 
 All notable changes to similar are documented here.
 
-## Unreleased
+## 2.0.0
 
 * Change the `Change` type and associated methods to work on any `T: Clone` instead
   of `&T`.  This makes the `iter_changes` method also work on slices of integers
