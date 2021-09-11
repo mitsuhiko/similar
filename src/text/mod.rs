@@ -495,7 +495,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     pub fn iter_changes<'x, 'slf>(
         &'slf self,
         op: &DiffOp,
-    ) -> ChangesIter<'slf, 'x, [&'x T], [&'x T], T>
+    ) -> ChangesIter<'slf, [&'x T], [&'x T], &'x T>
     where
         'x: 'slf,
         'old: 'x,
@@ -728,7 +728,7 @@ fn test_get_close_matches() {
 fn test_lifetimes_on_iter() {
     use crate::Change;
 
-    fn diff_lines<'x, T>(old: &'x T, new: &'x T) -> Vec<Change<'x, T::Output>>
+    fn diff_lines<'x, T>(old: &'x T, new: &'x T) -> Vec<Change<&'x T::Output>>
     where
         T: DiffableStrRef + ?Sized,
     {
