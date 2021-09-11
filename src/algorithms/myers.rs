@@ -73,19 +73,6 @@ where
     d.finish()
 }
 
-/// Shortcut for diffing slices.
-#[deprecated(
-    since = "1.4.0",
-    note = "slice utility function is now only available via similar::algorithms::diff_slices"
-)]
-pub fn diff_slices<D, T>(d: &mut D, old: &[T], new: &[T]) -> Result<(), D::Error>
-where
-    D: DiffHook,
-    T: PartialEq,
-{
-    diff(d, old, 0..old.len(), new, 0..new.len())
-}
-
 // A D-path is a path which starts at (0,0) that has exactly D non-diagonal
 // edges. All D-paths consist of a (D - 1)-path followed by a non-diagonal edge
 // and then a possibly empty sequence of diagonal edges called a snake.

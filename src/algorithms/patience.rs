@@ -83,19 +83,6 @@ where
     Ok(())
 }
 
-/// Shortcut for diffing slices.
-#[deprecated(
-    since = "1.4.0",
-    note = "slice utility function is now only available via similar::algorithms::diff_slices"
-)]
-pub fn diff_slices<D, T>(d: &mut D, old: &[T], new: &[T]) -> Result<(), D::Error>
-where
-    D: DiffHook,
-    T: Eq + Hash,
-{
-    diff(d, old, 0..old.len(), new, 0..new.len())
-}
-
 struct Patience<'old, 'new, 'd, Old: ?Sized, New: ?Sized, D> {
     d: &'d mut D,
     old: &'old Old,

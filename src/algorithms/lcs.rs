@@ -134,19 +134,6 @@ where
     d.finish()
 }
 
-/// Shortcut for diffing slices.
-#[deprecated(
-    since = "1.4.0",
-    note = "slice utility function is now only available via similar::algorithms::diff_slices"
-)]
-pub fn diff_slices<D, T>(d: &mut D, old: &[T], new: &[T]) -> Result<(), D::Error>
-where
-    D: DiffHook,
-    T: PartialEq,
-{
-    diff(d, old, 0..old.len(), new, 0..new.len())
-}
-
 fn make_table<Old, New>(
     old: &Old,
     old_range: Range<usize>,

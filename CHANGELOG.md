@@ -2,6 +2,10 @@
 
 All notable changes to similar are documented here.
 
+## 2.1.0
+
+* Removed deprecated alternative slice diffing functions.
+
 ## 2.0.0
 
 * Change the `Change` type and associated methods to work on any `T: Clone` instead
