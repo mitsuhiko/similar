@@ -52,6 +52,7 @@ pub use utils::IdentifyDistinct;
 #[doc(no_inline)]
 pub use crate::Algorithm;
 
+pub mod histogram;
 pub mod lcs;
 pub mod myers;
 pub mod patience;
