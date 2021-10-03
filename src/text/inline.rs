@@ -81,7 +81,7 @@ impl<'bufs, 's, T: DiffableStr + ?Sized> Index<usize> for MultiLookup<'bufs, 's,
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.seqs[index].0
+        self.seqs[index].0
     }
 }
 
