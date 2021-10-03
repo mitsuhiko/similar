@@ -7,6 +7,11 @@ use crate::iter::ChangesIter;
 
 /// An enum representing a diffing algorithm.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "snake_case")
+)]
 pub enum Algorithm {
     /// Picks the myers algorithm from [`crate::algorithms::myers`]
     Myers,
@@ -25,6 +30,11 @@ impl Default for Algorithm {
 
 /// The tag of a change.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "snake_case")
+)]
 pub enum ChangeTag {
     /// The change indicates equality (not a change)
     Equal,
@@ -59,6 +69,7 @@ impl fmt::Display for ChangeTag {
 /// This type has additional methods that are only available for types
 /// implementing [`DiffableStr`](crate::text::DiffableStr).
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Change<T> {
     pub(crate) tag: ChangeTag,
     pub(crate) old_index: Option<usize>,
@@ -98,6 +109,11 @@ impl<T: Clone> Change<T> {
 ///
 /// This is used by [`Capture`](crate::algorithms::Capture).
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "snake_case", tag = "op")
+)]
 pub enum DiffOp {
     /// A segment is equal (see [`DiffHook::equal`])
     Equal {
@@ -141,6 +157,11 @@ pub enum DiffOp {
 
 /// The tag of a diff operation.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Ord, PartialOrd)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "snake_case")
+)]
 pub enum DiffTag {
     /// The diff op encodes an equal segment.
     Equal,

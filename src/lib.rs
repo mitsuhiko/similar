@@ -142,6 +142,8 @@
 //! * `inline`: this feature gives access to additional functionality of the
 //!   text diffing to provide inline information about which values changed
 //!   in a line diff.  This currently also enables the `unicode` feature.
+//! * `serde`: this feature enables serialization to some types in this
+//!   crate.  For enums without payload deserialization is then also supported.
 #![warn(missing_docs)]
 pub mod algorithms;
 pub mod iter;

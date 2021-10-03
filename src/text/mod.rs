@@ -740,3 +740,31 @@ fn test_lifetimes_on_iter() {
     let changes = diff_lines(&a, &b);
     insta::assert_debug_snapshot!(&changes);
 }
+
+#[test]
+#[cfg(feature = "serde")]
+fn test_serde() {
+    let diff = TextDiff::from_lines(
+        "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
+        "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
+    );
+    let changes = diff
+        .ops()
+        .iter()
+        .flat_map(|op| diff.iter_changes(op))
+        .collect::<Vec<_>>();
+    let json = serde_json::to_string_pretty(&changes).unwrap();
+    insta::assert_snapshot!(&json);
+}
+
+#[test]
+#[cfg(feature = "serde")]
+fn test_serde_ops() {
+    let diff = TextDiff::from_lines(
+        "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
+        "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
+    );
+    let changes = diff.ops();
+    let json = serde_json::to_string_pretty(&changes).unwrap();
+    insta::assert_snapshot!(&json);
+}

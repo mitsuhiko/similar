@@ -5,6 +5,7 @@ All notable changes to similar are documented here.
 ## 2.1.0
 
 * Removed deprecated alternative slice diffing functions.
+* Added `serde` feature to allow serialization with serde.
 
 ## 2.0.0
 
