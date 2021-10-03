@@ -63,5 +63,9 @@ required-features = ["text"]
 name = "large"
 required-features = ["text"]
 
+[[example]]
+name = "serde"
+required-features = ["text", "serde"]
+
 [profile.release]
 debug = true
