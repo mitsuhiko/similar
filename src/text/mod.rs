@@ -37,21 +37,11 @@ impl Deadline {
 /// A builder type config for more complex uses of [`TextDiff`].
 ///
 /// Requires the `text` feature.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct TextDiffConfig {
     algorithm: Algorithm,
     newline_terminated: Option<bool>,
     deadline: Option<Deadline>,
-}
-
-impl Default for TextDiffConfig {
-    fn default() -> TextDiffConfig {
-        TextDiffConfig {
-            algorithm: Algorithm::default(),
-            newline_terminated: None,
-            deadline: None,
-        }
-    }
 }
 
 impl TextDiffConfig {
