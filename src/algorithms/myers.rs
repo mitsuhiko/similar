@@ -12,7 +12,7 @@
 //! # Heuristics
 //!
 //! At present this implementation of Myers' does not implement any more advanced
-//! heuristics that would solve some pathological cases.  For instane passing two
+//! heuristics that would solve some pathological cases.  For instance passing two
 //! large and completely distinct sequences to the algorithm will make it spin
 //! without making reasonable progress.  Currently the only protection in the
 //! library against this is to pass a deadline to the diffing algorithm.

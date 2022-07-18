@@ -16,7 +16,7 @@ All notable changes to similar are documented here.
 ## 1.3.0
 
 * Performance improvements for the LCS algorithm.
-* Small performance improvments by adding an early opt-out for and inline highlighting.
+* Small performance improvements by adding an early opt-out for and inline highlighting.
 * Added `IdentifyDistinct` to convert sequences to ints.
 * Small performance improvements for larger text diffs by using `IdentifyDistinct`
   automatically above a threshold.
