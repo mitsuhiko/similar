@@ -11,7 +11,7 @@ pub fn is_empty_range<T: PartialOrd<T>>(range: &Range<T>) -> bool {
     !(range.start < range.end)
 }
 
-/// Represents an item in the vector returend by [`unique`].
+/// Represents an item in the vector returned by [`unique`].
 ///
 /// It compares like the underlying item does it was created from but
 /// carries the index it was originally created from.
