@@ -139,8 +139,7 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> UnifiedDiff<'diff, 'old,
     /// Changes the context radius.
     ///
     /// The context radius is the number of lines between changes that should
-    /// be emitted.  This defaults to `3`.  This value must be one or larger or
-    /// creating the diff will panic.
+    /// be emitted.  This defaults to `3`.
     pub fn context_radius(&mut self, n: usize) -> &mut Self {
         self.context_radius = n;
         self
