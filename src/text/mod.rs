@@ -758,3 +758,12 @@ fn test_serde_ops() {
     let json = serde_json::to_string_pretty(&changes).unwrap();
     insta::assert_snapshot!(&json);
 }
+
+#[test]
+#[should_panic = "n must be 1 or larger"]
+fn test_regression_issue_37() {
+    let config = TextDiffConfig::default();
+    let diff = config.diff_lines("", "");
+    let mut output = diff.unified_diff();
+    output.context_radius(0).to_string();
+}

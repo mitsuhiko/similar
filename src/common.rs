@@ -101,6 +101,8 @@ pub fn get_diff_ratio(ops: &[DiffOp], old_len: usize, new_len: usize) -> f32 {
 /// This will leave holes behind in long periods of equal ranges so that
 /// you can build things like unified diffs.
 pub fn group_diff_ops(mut ops: Vec<DiffOp>, n: usize) -> Vec<Vec<DiffOp>> {
+    assert!(n > 0, "n must be 1 or larger");
+
     if ops.is_empty() {
         return vec![];
     }
