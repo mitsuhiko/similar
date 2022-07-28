@@ -57,7 +57,7 @@ impl UnifiedDiffHunkRange {
 impl fmt::Display for UnifiedDiffHunkRange {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut beginning = self.start() + 1;
-        let len = self.end() - self.start();
+        let len = self.end().saturating_sub(self.start());
         if len == 1 {
             write!(f, "{}", beginning)
         } else {

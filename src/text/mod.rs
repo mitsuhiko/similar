@@ -760,10 +760,12 @@ fn test_serde_ops() {
 }
 
 #[test]
-#[should_panic = "n must be 1 or larger"]
 fn test_regression_issue_37() {
     let config = TextDiffConfig::default();
-    let diff = config.diff_lines("", "");
+    let diff = config.diff_lines("\u{18}\n\n", "\n\n\r");
     let mut output = diff.unified_diff();
-    output.context_radius(0).to_string();
+    assert_eq!(
+        output.context_radius(0).to_string(),
+        "@@ -1 +1,0 @@\n-\u{18}\n@@ -2,0 +2,2 @@\n+\n+\r"
+    );
 }
