@@ -2,6 +2,10 @@
 
 All notable changes to similar are documented here.
 
+## 2.2.0
+
+* Fixed a panic in text diff generation. (#37)
+
 ## 2.1.0
 
 * Removed deprecated alternative slice diffing functions.
