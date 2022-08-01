@@ -37,7 +37,7 @@ struct SliceRemapper<'x, T: ?Sized> {
     indexes: Vec<Range<usize>>,
 }
 
-impl<'x, 'slices, T: DiffableStr + ?Sized> SliceRemapper<'x, T> {
+impl<'x, T: DiffableStr + ?Sized> SliceRemapper<'x, T> {
     fn new(source: &'x T, slices: &[&'x T]) -> SliceRemapper<'x, T> {
         let indexes = slices
             .iter()
@@ -99,7 +99,7 @@ pub struct TextDiffRemapper<'x, T: ?Sized> {
     new: SliceRemapper<'x, T>,
 }
 
-impl<'x, 'slices, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
+impl<'x, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
     /// Creates a new remapper from strings and slices.
     pub fn new(
         old_slices: &[&'x T],
