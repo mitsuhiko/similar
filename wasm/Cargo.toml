@@ -1,8 +1,20 @@
 [package]
 name = "wasm"
-version = "0.1.0"
-edition = "2021"
+version = "2.2.0"
+authors = [
+    "Armin Ronacher <armin.ronacher@active-4.com>",
+    "Pierre-Étienne Meunier <pe@pijul.org>",
+    "Brandon Williams <bwilliams.eng@gmail.com>",
+]
+rust-version = "1.41"
+license = "Apache-2.0"
+description = "A diff library for Rust"
+repository = "https://github.com/mitsuhiko/similar"
+edition = "2018"
 publish = false
+
+[lib]
+crate-type = ["rlib", "cdylib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,3 +22,9 @@ publish = false
 ouroboros = "0.15.5"
 upstream = { version = "2.2.0", path = "..", package = "similar" }
 wit-bindgen-rust = { git = "https://github.com/wasmerio/wit-bindgen", branch = "wasmer", version = "0.1.0" }
+
+[package.metadata.wapm]
+namespace = "Michael-F-Bryan"
+package = "similar"
+abi = "none"
+bindings = { wit-exports = "similar.wit", wit-bindgen = "0.1.0" }

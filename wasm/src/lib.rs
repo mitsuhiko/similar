@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, convert::TryInto};
 
 use upstream::TextDiffConfig;
 use wit_bindgen_rust::Handle;
