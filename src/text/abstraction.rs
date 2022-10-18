@@ -1,6 +1,6 @@
+use std::borrow::Cow;
 use std::hash::Hash;
 use std::ops::Range;
-use std::{borrow::Cow, sync::Arc};
 
 /// Reference to a [`DiffableStr`].
 ///
@@ -37,14 +37,6 @@ impl DiffableStrRef for String {
 }
 
 impl<'a, T: DiffableStr + ?Sized> DiffableStrRef for Cow<'a, T> {
-    type Output = T;
-
-    fn as_diffable_str(&self) -> &T {
-        self
-    }
-}
-
-impl<T: DiffableStr + ?Sized> DiffableStrRef for Arc<T> {
     type Output = T;
 
     fn as_diffable_str(&self) -> &T {
