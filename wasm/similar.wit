@@ -1,0 +1,116 @@
+/// A quick way to get a unified diff as a string.
+unified-diff: func(
+    alg: algorithm,
+    old: string,
+    new: string,
+    context-radius: u32,
+    header: option<tuple<string, string>>,
+) -> string
+
+resource config {
+    static default: func() -> config
+    /// Changes the algorithm.
+    ///
+    /// The default algorithm is myers.
+    algorithm: func(alg: algorithm)
+    /// Changes the newline termination flag.
+    ///
+    /// The default is automatic based on input.  This flag controls the
+    /// behavior of [`TextDiff::iter_changes`] and unified diff generation
+    /// with regards to newlines.  When the flag is set to `false` (which
+    /// is the default) then newlines are added.  Otherwise the newlines
+    /// from the source sequences are reused.
+    newline-terminated: func(yes: bool)
+    /// Creates a diff of words.
+    ///
+    /// This splits the text into words and whitespace.
+    ///
+    /// Note on word diffs: because the text differ will tokenize the strings
+    /// into small segments it can be inconvenient to work with the results
+    /// depending on the use case.
+    diff-words: func(old: string, new: string) -> text-diff
+    /// Creates a diff of characters.
+    ///
+    /// Note on character diffs: because the text differ will tokenize the strings
+    /// into small segments it can be inconvenient to work with the results
+    /// depending on the use case.
+    diff-chars: func(old: string, new: string) -> text-diff
+}
+
+/// Captures diff op codes for textual diffs.
+resource text-diff {
+    /// The name of the algorithm that created the diff.
+    algorithm: func() -> algorithm
+    /// Returns true if items in the slice are newline terminated.
+    ///
+    /// This flag is used by the unified diff writer to determine if extra
+    /// newlines have to be added.
+    newline-terminated: func() -> bool
+    /// Return a measure of the sequences’ similarity in the range `0..=1`.
+    ///
+    /// A ratio of `1.0` means the two sequences are a complete match, a ratio
+    /// of `0.0` would indicate completely distinct sequences.
+    ratio: func() -> float32
+    changes: func() -> list<change>
+}
+
+/// The different algorithms that can be used when diffing.
+enum algorithm {
+    /// Myers' diff algorithm.
+    ///
+    /// * time: `O((N+M)D)`
+    /// * space `O(N+M)`
+    ///
+    /// See [the original article by Eugene W. Myers](http://www.xmailserver.org/diff2.pdf)
+    /// describing it.
+    ///
+    /// The implementation of this algorithm is based on the implementation by
+    /// Brandon Williams.
+    ///
+    /// # Heuristics
+    ///
+    /// At present this implementation of Myers' does not implement any more
+    /// advanced heuristics that would solve some pathological cases.  For
+    /// instance passing two large and completely distinct sequences to the
+    /// algorithm will make it spin without making reasonable progress.
+    /// Currently, the only protection in the library against this is to pass a
+    /// deadline to the diffing algorithm.
+    ///
+    /// For potential improvements here see
+    /// [similar#15](https://github.com/mitsuhiko/similar/issues/15).
+    myers,
+    /// Patience diff algorithm.
+    ///
+    /// * time: `O(N log N + M log M + (N+M)D)`
+    /// * space: `O(N+M)`
+    ///
+    /// Tends to give more human-readable outputs. See [Bram Cohen's blog
+    /// post](https://bramcohen.livejournal.com/73318.html) describing it.
+    ///
+    /// This is based on the patience implementation of
+    /// [pijul](https://pijul.org/) by Pierre-Étienne Meunier.
+    patience,
+    /// Hunt–McIlroy / Hunt–Szymanski LCS diff algorithm.
+    ///
+    /// time: O((NM)D log (M)D)
+    /// space O(MN)
+    lcs,
+}
+
+/// The tag of a change.
+enum change-tag {
+    /// The change indicates equality (not a change).
+    equal,
+    /// The change indicates deleted text.
+    delete,
+    /// The change indicates inserted text.
+    insert,
+}
+
+record change {
+    tag: change-tag,
+    old-index: option<u32>,
+    new-index: option<u32>,
+    value: string,
+    missing-newline: bool,
+}
