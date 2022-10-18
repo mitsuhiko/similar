@@ -10,6 +10,38 @@ wit_bindgen_rust::export!("similar.wit");
 pub struct Similar;
 
 impl crate::similar::Similar for Similar {
+    fn diff_lines(alg: Algorithm, old: String, new: String) -> Vec<(similar::ChangeTag, String)> {
+        upstream::utils::diff_lines(alg.into(), &old, &new)
+            .into_iter()
+            .map(|(tag, s)| (tag.into(), s.to_string()))
+            .collect()
+    }
+
+    fn diff_words(alg: Algorithm, old: String, new: String) -> Vec<(similar::ChangeTag, String)> {
+        upstream::utils::diff_words(alg.into(), &old, &new)
+            .into_iter()
+            .map(|(tag, s)| (tag.into(), s.to_string()))
+            .collect()
+    }
+
+    fn diff_chars(alg: Algorithm, old: String, new: String) -> Vec<(similar::ChangeTag, String)> {
+        upstream::utils::diff_chars(alg.into(), &old, &new)
+            .into_iter()
+            .map(|(tag, s)| (tag.into(), s.to_string()))
+            .collect()
+    }
+
+    fn diff_lists(
+        alg: Algorithm,
+        old: Vec<String>,
+        new: Vec<String>,
+    ) -> Vec<(similar::ChangeTag, Vec<String>)> {
+        upstream::utils::diff_slices(alg.into(), &old, &new)
+            .into_iter()
+            .map(|(tag, items)| (tag.into(), items.to_vec()))
+            .collect()
+    }
+
     fn unified_diff(
         alg: Algorithm,
         old: String,
@@ -40,6 +72,12 @@ impl crate::similar::Config for Config {
 
     fn newline_terminated(&self, yes: bool) {
         self.0.borrow_mut().newline_terminated(yes);
+    }
+
+    fn diff_lines(&self, old: String, new: String) -> Handle<TextDiff> {
+        Handle::new(TextDiff::new(old, new, |old, new| {
+            self.0.borrow().diff_lines(old, new)
+        }))
     }
 
     fn diff_words(&self, old: String, new: String) -> Handle<TextDiff> {

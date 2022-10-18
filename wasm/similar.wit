@@ -1,3 +1,15 @@
+/// Shortcut for making a line level diff.
+diff-lines: func(alg: algorithm, old: string, new: string) -> list<tuple<change-tag, string>>
+
+/// Shortcut for making a word level diff.
+diff-words: func(alg: algorithm, old: string, new: string) -> list<tuple<change-tag, string>>
+
+/// Shortcut for making a character level diff.
+diff-chars: func(alg: algorithm, old: string, new: string) -> list<tuple<change-tag, string>>
+
+/// Shortcut for diffing two lists of strings.
+diff-lists: func(alg: algorithm, old: list<string>, new: list<string>) -> list<tuple<change-tag, list<string>>>
+
 /// A quick way to get a unified diff as a string.
 unified-diff: func(
     alg: algorithm,
@@ -21,6 +33,14 @@ resource config {
     /// is the default) then newlines are added.  Otherwise the newlines
     /// from the source sequences are reused.
     newline-terminated: func(yes: bool)
+    /// Creates a diff of lines.
+    ///
+    /// This splits the text `old` and `new` into lines preserving newlines
+    /// in the input.  Line diffs are very common and because of that enjoy
+    /// special handling in similar.  When a line diff is created with this
+    /// method the `newline_terminated` flag is flipped to `true` and will
+    /// influence the behavior of unified diff generation.
+    diff-lines: func(old: string, new: string) -> text-diff
     /// Creates a diff of words.
     ///
     /// This splits the text into words and whitespace.
