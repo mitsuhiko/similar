@@ -64,6 +64,12 @@ where
     let common_prefix_len = common_prefix_len(old, old_range.clone(), new, new_range.clone());
     let common_suffix_len = common_suffix_len(old, old_range.clone(), new, new_range.clone());
 
+    // If the sequences are not different then we're done
+    if common_prefix_len == old_range.len() && (old_range.len() == new_range.len()) {
+        d.equal(0, 0, old_range.len())?;
+        return Ok(());
+    }
+
     let maybe_table = make_table(
         old,
         common_prefix_len..(old_range.len() - common_suffix_len),
@@ -213,6 +219,16 @@ fn test_contiguous() {
 fn test_pat() {
     let a: &[usize] = &[0, 1, 3, 4, 5];
     let b: &[usize] = &[0, 1, 4, 5, 8, 9];
+
+    let mut d = crate::algorithms::Capture::new();
+    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+    insta::assert_debug_snapshot!(d.ops());
+}
+
+#[test]
+fn test_same() {
+    let a: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
+    let b: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
 
     let mut d = crate::algorithms::Capture::new();
     diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
