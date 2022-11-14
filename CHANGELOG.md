@@ -2,6 +2,10 @@
 
 All notable changes to similar are documented here.
 
+## 2.2.1
+
+* Fixed a panic in LCS diffs on matching input.  (#43)
+
 ## 2.2.0
 
 * Fixed a panic in text diff generation. (#37)
