@@ -1,4 +1,4 @@
-//! Hunt–McIlroy / Hunt–Szymanski LCS diff algorithm.
+//! LCS diff algorithm.
 //!
 //! * time: `O((NM)D log (M)D)`
 //! * space `O(MN)`
@@ -9,7 +9,7 @@ use std::time::Instant;
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::DiffHook;
 
-/// Hunt–McIlroy / Hunt–Szymanski LCS diff algorithm.
+/// LCS diff algorithm.
 ///
 /// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
 ///
@@ -33,7 +33,7 @@ where
     diff_deadline(d, old, old_range, new, new_range, None)
 }
 
-/// Hunt–McIlroy / Hunt–Szymanski LCS diff algorithm.
+/// LCS diff algorithm.
 ///
 /// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
 ///
