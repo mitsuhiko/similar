@@ -78,8 +78,8 @@
 //!
 //! ## Bytes vs Unicode
 //!
-//! Similar module concerns itself with a loser definition of "text" than you would
-//! normally see in Rust.  While by default it can only operate on [`str`] types
+//! Similar module concerns itself with a looser definition of "text" than you would
+//! normally see in Rust.  While by default it can only operate on [`str`] types,
 //! by enabling the `bytes` feature it gains support for byte slices with some
 //! caveats.
 //!
@@ -95,11 +95,11 @@
 //! # Ops vs Changes
 //!
 //! Because very commonly two compared sequences will largely match this module
-//! splits it's functionality into two layers:
+//! splits its functionality into two layers:
 //!
 //! Changes are encoded as [diff operations](crate::DiffOp).  These are
 //! ranges of the differences by index in the source sequence.  Because this
-//! can be cumbersome to work with a separate method [`DiffOp::iter_changes`]
+//! can be cumbersome to work with, a separate method [`DiffOp::iter_changes`]
 //! (and [`TextDiff::iter_changes`] when working with text diffs) is provided
 //! which expands all the changes on an item by item level encoded in an operation.
 //!
