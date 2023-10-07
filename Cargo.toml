@@ -1,7 +1,11 @@
 [package]
 name = "similar"
-version = "2.2.1"
-authors = ["Armin Ronacher <armin.ronacher@active-4.com>", "Pierre-Étienne Meunier <pe@pijul.org>", "Brandon Williams <bwilliams.eng@gmail.com>"]
+version = "2.3.0"
+authors = [
+    "Armin Ronacher <armin.ronacher@active-4.com>",
+    "Pierre-Étienne Meunier <pe@pijul.org>",
+    "Brandon Williams <bwilliams.eng@gmail.com>",
+]
 edition = "2018"
 rust-version = "1.41"
 license = "Apache-2.0"
@@ -9,9 +13,7 @@ description = "A diff library for Rust"
 repository = "https://github.com/mitsuhiko/similar"
 keywords = ["diff", "difference", "patience", "compare", "changes"]
 readme = "README.md"
-exclude = [
-    "assets/*"
-]
+exclude = ["assets/*"]
 
 [package.metadata.docs.rs]
 all-features = true
