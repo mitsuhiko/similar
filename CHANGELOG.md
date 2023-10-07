@@ -2,6 +2,10 @@
 
 All notable changes to similar are documented here.
 
+## 2.3.0
+
+* Added support for `Change::value_ref` and `Change::value_mut`.
+
 ## 2.2.1
 
 * Fixed a panic in LCS diffs on matching input.  (#43)

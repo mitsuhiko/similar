@@ -103,6 +103,16 @@ impl<T: Clone> Change<T> {
     pub fn value(&self) -> T {
         self.value.clone()
     }
+
+    /// Returns the underlying changed value as reference.
+    pub fn value_ref(&self) -> &T {
+        &self.value
+    }
+
+    /// Returns the underlying changed value as mutable reference.
+    pub fn value_mut(&mut self) -> &mut T {
+        &mut self.value
+    }
 }
 
 /// Utility enum to capture a diff operation.
