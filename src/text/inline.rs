@@ -310,7 +310,7 @@ fn test_line_ops_inline() {
         "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
         "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
     );
-    assert_eq!(diff.newline_terminated(), true);
+    assert!(diff.newline_terminated());
     let changes = diff
         .ops()
         .iter()
@@ -326,7 +326,7 @@ fn test_serde() {
         "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
         "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
     );
-    assert_eq!(diff.newline_terminated(), true);
+    assert!(diff.newline_terminated());
     let changes = diff
         .ops()
         .iter()

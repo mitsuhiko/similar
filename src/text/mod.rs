@@ -632,7 +632,7 @@ fn test_unified_diff() {
         "Hello World\nsome stuff here\nsome more stuff here\n",
         "Hello World\nsome amazing stuff here\nsome more stuff here\n",
     );
-    assert_eq!(diff.newline_terminated(), true);
+    assert!(diff.newline_terminated());
     insta::assert_snapshot!(&diff
         .unified_diff()
         .context_radius(3)
@@ -645,7 +645,7 @@ fn test_line_ops() {
     let a = "Hello World\nsome stuff here\nsome more stuff here\n";
     let b = "Hello World\nsome amazing stuff here\nsome more stuff here\n";
     let diff = TextDiff::from_lines(a, b);
-    assert_eq!(diff.newline_terminated(), true);
+    assert!(diff.newline_terminated());
     let changes = diff
         .ops()
         .iter()
@@ -670,7 +670,7 @@ fn test_line_ops() {
 #[test]
 fn test_virtual_newlines() {
     let diff = TextDiff::from_lines("a\nb", "a\nc\n");
-    assert_eq!(diff.newline_terminated(), true);
+    assert!(diff.newline_terminated());
     let changes = diff
         .ops()
         .iter()

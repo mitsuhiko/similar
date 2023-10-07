@@ -155,7 +155,7 @@ impl<'x, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
             DiffOp::Equal { old_index, len, .. } => {
                 Some((ChangeTag::Equal, self.old.slice(old_index..old_index + len)))
                     .into_iter()
-                    .chain(None.into_iter())
+                    .chain(None)
             }
             DiffOp::Insert {
                 new_index, new_len, ..
@@ -164,7 +164,7 @@ impl<'x, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
                 self.new.slice(new_index..new_index + new_len),
             ))
             .into_iter()
-            .chain(None.into_iter()),
+            .chain(None),
             DiffOp::Delete {
                 old_index, old_len, ..
             } => Some((
@@ -172,7 +172,7 @@ impl<'x, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
                 self.old.slice(old_index..old_index + old_len),
             ))
             .into_iter()
-            .chain(None.into_iter()),
+            .chain(None),
             DiffOp::Replace {
                 old_index,
                 old_len,
@@ -183,13 +183,10 @@ impl<'x, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
                 self.old.slice(old_index..old_index + old_len),
             ))
             .into_iter()
-            .chain(
-                Some((
-                    ChangeTag::Insert,
-                    self.new.slice(new_index..new_index + new_len),
-                ))
-                .into_iter(),
-            ),
+            .chain(Some((
+                ChangeTag::Insert,
+                self.new.slice(new_index..new_index + new_len),
+            ))),
         }
         .map(|(tag, opt_val)| (tag, opt_val.expect("slice out of bounds")))
     }

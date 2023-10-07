@@ -317,10 +317,10 @@ where
 ///
 /// `n` configures [`UnifiedDiff::context_radius`] and
 /// `header` configures [`UnifiedDiff::header`] when not `None`.
-pub fn unified_diff<'old, 'new>(
+pub fn unified_diff(
     alg: Algorithm,
-    old: &'old str,
-    new: &'new str,
+    old: &str,
+    new: &str,
     n: usize,
     header: Option<(&str, &str)>,
 ) -> String {

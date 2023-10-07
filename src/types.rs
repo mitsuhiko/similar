@@ -351,18 +351,18 @@ impl DiffOp {
             DiffOp::Equal { old_index, len, .. } => {
                 Some((ChangeTag::Equal, &old[old_index..old_index + len]))
                     .into_iter()
-                    .chain(None.into_iter())
+                    .chain(None)
             }
             DiffOp::Insert {
                 new_index, new_len, ..
             } => Some((ChangeTag::Insert, &new[new_index..new_index + new_len]))
                 .into_iter()
-                .chain(None.into_iter()),
+                .chain(None),
             DiffOp::Delete {
                 old_index, old_len, ..
             } => Some((ChangeTag::Delete, &old[old_index..old_index + old_len]))
                 .into_iter()
-                .chain(None.into_iter()),
+                .chain(None),
             DiffOp::Replace {
                 old_index,
                 old_len,
@@ -370,7 +370,10 @@ impl DiffOp {
                 new_len,
             } => Some((ChangeTag::Delete, &old[old_index..old_index + old_len]))
                 .into_iter()
-                .chain(Some((ChangeTag::Insert, &new[new_index..new_index + new_len])).into_iter()),
+                .chain(Some((
+                    ChangeTag::Insert,
+                    &new[new_index..new_index + new_len],
+                ))),
         }
     }
 
