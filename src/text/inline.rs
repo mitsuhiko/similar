@@ -151,8 +151,8 @@ impl<'s, T: DiffableStr + ?Sized> InlineChange<'s, T> {
     /// By default, words are split by whitespace, which results in coarser diff.
     /// For example: `"f(x) y"` is tokenized as `["f(x)", "y"]`.
     ///
-    /// If you want it to tokenized instead as `["f", "(", "x", ")"]`.
-    /// You should enable the `"unicode"` flag.
+    /// If you want it to be tokenized instead as `["f(", "x", ")"]`,
+    /// you should enable the `"unicode"` flag.
     pub fn iter_strings_lossy(&self) -> impl Iterator<Item = (bool, Cow<'_, str>)> {
         self.values()
             .iter()
