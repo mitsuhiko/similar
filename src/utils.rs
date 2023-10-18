@@ -209,7 +209,7 @@ impl<'x, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
 ///     (ChangeTag::Insert, &["BAZ"][..]),
 /// ]);
 /// ```
-pub fn diff_slices<'x, T: PartialEq + Hash + Ord>(
+pub fn diff_slices<'x, T: PartialEq + Hash + Eq>(
     alg: Algorithm,
     old: &'x [T],
     new: &'x [T],
