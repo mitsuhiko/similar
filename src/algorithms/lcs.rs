@@ -64,7 +64,12 @@ where
     }
 
     let common_prefix_len = common_prefix_len(old, old_range.clone(), new, new_range.clone());
-    let common_suffix_len = common_suffix_len(old, old_range.clone(), new, new_range.clone());
+    let common_suffix_len = common_suffix_len(
+        old,
+        old_range.start + common_prefix_len..old_range.end,
+        new,
+        new_range.start + common_prefix_len..new_range.end,
+    );
 
     // If the sequences are not different then we're done
     if common_prefix_len == old_range.len() && (old_range.len() == new_range.len()) {
@@ -265,4 +270,27 @@ fn test_finish_called() {
     let slice: &[u8] = &[];
     diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
     assert!(d.0);
+}
+
+#[test]
+fn test_bad_range_regression() {
+    use crate::algorithms::Capture;
+    use crate::DiffOp;
+    let mut d = Capture::new();
+    diff(&mut d, &[0], 0..1, &[0, 0], 0..2).unwrap();
+    assert_eq!(
+        d.into_ops(),
+        vec![
+            DiffOp::Equal {
+                old_index: 0,
+                new_index: 0,
+                len: 1
+            },
+            DiffOp::Insert {
+                old_index: 1,
+                new_index: 1,
+                new_len: 1
+            }
+        ]
+    );
 }
