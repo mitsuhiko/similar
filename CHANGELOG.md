@@ -4,7 +4,7 @@ All notable changes to similar are documented here.
 
 ## 2.4.0
 
-* Fixed a bug where the LCS diff algorithm didn't always call `D::finish`.
+* Fixed a bug where the LCS diff algorithm didn't always call `D::finish`.  (#58)
 
 ## 2.3.0
 
