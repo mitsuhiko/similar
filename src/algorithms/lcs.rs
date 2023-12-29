@@ -55,9 +55,11 @@ where
 {
     if is_empty_range(&new_range) {
         d.delete(old_range.start, old_range.len(), new_range.start)?;
+        d.finish()?;
         return Ok(());
     } else if is_empty_range(&old_range) {
         d.insert(old_range.start, new_range.start, new_range.len())?;
+        d.finish()?;
         return Ok(());
     }
 
@@ -67,6 +69,7 @@ where
     // If the sequences are not different then we're done
     if common_prefix_len == old_range.len() && (old_range.len() == new_range.len()) {
         d.equal(0, 0, old_range.len())?;
+        d.finish()?;
         return Ok(());
     }
 
@@ -233,4 +236,33 @@ fn test_same() {
     let mut d = crate::algorithms::Capture::new();
     diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
     insta::assert_debug_snapshot!(d.ops());
+}
+
+#[test]
+fn test_finish_called() {
+    struct HasRunFinish(bool);
+
+    impl DiffHook for HasRunFinish {
+        type Error = ();
+        fn finish(&mut self) -> Result<(), Self::Error> {
+            self.0 = true;
+            Ok(())
+        }
+    }
+
+    let mut d = HasRunFinish(false);
+    let slice = &[1, 2];
+    let slice2 = &[1, 2, 3];
+    diff(&mut d, slice, 0..slice.len(), slice2, 0..slice2.len()).unwrap();
+    assert!(d.0);
+
+    let mut d = HasRunFinish(false);
+    let slice = &[1, 2];
+    diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
+    assert!(d.0);
+
+    let mut d = HasRunFinish(false);
+    let slice: &[u8] = &[];
+    diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
+    assert!(d.0);
 }
