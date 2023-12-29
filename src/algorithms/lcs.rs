@@ -95,8 +95,8 @@ where
                 d.equal(old_orig_idx, new_orig_idx, 1)?;
                 old_idx += 1;
                 new_idx += 1;
-            } else if table.get(&(new_idx, old_idx + 1)).map_or(0, |&x| x)
-                >= table.get(&(new_idx + 1, old_idx)).map_or(0, |&x| x)
+            } else if table.get(&(new_idx, old_idx + 1)).unwrap_or(&0)
+                >= table.get(&(new_idx + 1, old_idx)).unwrap_or(&0)
             {
                 d.delete(old_orig_idx, 1, new_orig_idx)?;
                 old_idx += 1;
@@ -166,12 +166,12 @@ where
 
         for j in (0..old_len).rev() {
             let val = if new[i] == old[j] {
-                table.get(&(i + 1, j + 1)).map_or(0, |&x| x) + 1
+                table.get(&(i + 1, j + 1)).unwrap_or(&0) + 1
             } else {
-                table
+                *table
                     .get(&(i + 1, j))
-                    .map_or(0, |&x| x)
-                    .max(table.get(&(i, j + 1)).map_or(0, |&x| x))
+                    .unwrap_or(&0)
+                    .max(table.get(&(i, j + 1)).unwrap_or(&0))
             };
             if val > 0 {
                 table.insert((i, j), val);
