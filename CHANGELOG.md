@@ -6,7 +6,7 @@ All notable changes to similar are documented here.
 
 * Fixed a bug where the LCS diff algorithm didn't always call `D::finish`.  (#58)
 * Fixed a bug in LCS that caused a panic if the common prefix and the
-  common suffix overlapped.
+  common suffix overlapped.  (#59)
 
 ## 2.3.0
 
