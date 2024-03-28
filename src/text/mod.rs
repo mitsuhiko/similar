@@ -547,7 +547,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     where
         'slf: 'old + 'new,
     {
-        self.iter_inline_changes_deadline(op, Some(Instant::now() + Duration::from_millis(500)))
+        inline::iter_inline_changes(self, op, Some(Instant::now() + Duration::from_millis(500)))
     }
 
     /// Iterates over the changes the op expands to with inline emphasis with a deadline.
