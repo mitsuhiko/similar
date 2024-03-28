@@ -531,6 +531,9 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     /// this function with regards to how it detects those inline changes
     /// is currently not defined and will likely change over time.
     ///
+    /// This method has a hardcoded 500ms deadline which is often not ideal.  For
+    /// fine tuning use [`iter_inline_changes_deadline`](Self::iter_inline_changes_deadline).
+    ///
     /// As of similar 1.2.0 the behavior of this function changes depending on
     /// if the `unicode` feature is enabled or not.  It will prefer unicode word
     /// splitting over word splitting depending on the feature flag.
@@ -544,7 +547,22 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     where
         'slf: 'old + 'new,
     {
-        inline::iter_inline_changes(self, op)
+        inline::iter_inline_changes(self, op, Some(Instant::now() + Duration::from_millis(500)))
+    }
+
+    /// Iterates over the changes the op expands to with inline emphasis with a deadline.
+    ///
+    /// Like [`iter_inline_changes`](Self::iter_inline_changes) but with an explicit deadline.
+    #[cfg(feature = "inline")]
+    pub fn iter_inline_changes_deadline<'slf>(
+        &'slf self,
+        op: &DiffOp,
+        deadline: Option<Instant>,
+    ) -> impl Iterator<Item = InlineChange<'slf, T>> + '_
+    where
+        'slf: 'old + 'new,
+    {
+        inline::iter_inline_changes(self, op, deadline)
     }
 }
 
