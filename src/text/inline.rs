@@ -1,4 +1,3 @@
-#![cfg(feature = "inline")]
 use std::borrow::Cow;
 use std::fmt;
 
