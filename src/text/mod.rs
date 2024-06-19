@@ -605,7 +605,7 @@ pub fn get_close_matches<'a, T: DiffableStr + ?Sized>(
         if ratio >= cutoff {
             // we're putting the word itself in reverse in so that matches with
             // the same ratio are ordered lexicographically.
-            matches.push(((ratio * std::u32::MAX as f32) as u32, Reverse(possibility)));
+            matches.push(((ratio * u32::MAX as f32) as u32, Reverse(possibility)));
         }
     }
 
