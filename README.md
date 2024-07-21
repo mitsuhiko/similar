@@ -1,6 +1,5 @@
 # Similar: A Diffing Library
 
-[![Build Status](https://github.com/mitsuhiko/similar/workflows/Tests/badge.svg?branch=main)](https://github.com/mitsuhiko/similar/actions?query=workflow%3ATests)
 [![Crates.io](https://img.shields.io/crates/d/similar.svg)](https://crates.io/crates/similar)
 [![License](https://img.shields.io/github/license/mitsuhiko/similar)](https://github.com/mitsuhiko/similar/blob/main/LICENSE)
 [![rustc 1.60.0](https://img.shields.io/badge/rust-1.60%2B-orange.svg)](https://img.shields.io/badge/rust-1.60%2B-orange.svg)
