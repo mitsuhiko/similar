@@ -2,6 +2,10 @@
 
 All notable changes to similar are documented here.
 
+## 2.6.0
+
+* Bump bstr dependency to 1.5.  #69
+
 ## 2.5.0
 
 * Added support for `TextDiff::iter_inline_changes_deadline`.  #61
