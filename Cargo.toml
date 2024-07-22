@@ -18,6 +18,9 @@ exclude = ["assets/*"]
 [package.metadata.docs.rs]
 all-features = true
 
+[workspace]
+members = ["wasm"]
+
 [features]
 default = ["text"]
 text = []
