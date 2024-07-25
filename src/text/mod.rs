@@ -25,6 +25,25 @@ enum Deadline {
     Relative(Duration),
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for Deadline {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        // always do absolute for we can catch overflow errors before they happen
+        Duration::arbitrary(u)
+            .map(|duration| {
+                let now = Instant::now();
+                if bool::arbitrary(u).is_ok() {
+                    now.checked_add(duration)
+                } else {
+                    now.checked_sub(duration)
+                }
+            })
+            .map(|option| option.ok_or(arbitrary::Error::IncorrectFormat))
+            .and_then(std::convert::identity)
+            .map(Deadline::Absolute)
+    }
+}
+
 impl Deadline {
     fn into_instant(self) -> Instant {
         match self {
@@ -38,6 +57,7 @@ impl Deadline {
 ///
 /// Requires the `text` feature.
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct TextDiffConfig {
     algorithm: Algorithm,
     newline_terminated: Option<bool>,
