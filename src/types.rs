@@ -12,6 +12,7 @@ use crate::iter::ChangesIter;
     derive(serde::Serialize, serde::Deserialize),
     serde(rename_all = "snake_case")
 )]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum Algorithm {
     /// Picks the myers algorithm from [`crate::algorithms::myers`]
     Myers,

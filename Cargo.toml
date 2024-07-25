@@ -26,6 +26,8 @@ inline = ["text"]
 unicode = ["text", "unicode-segmentation", "bstr?/unicode", "bstr?/std"]
 bytes = ["bstr", "text"]
 
+arbitrary = ["dep:arbitrary"]
+
 [dev-dependencies]
 insta = "1.10.0"
 console = "0.15.0"
@@ -35,6 +37,7 @@ serde_json = "1.0.68"
 unicode-segmentation = { version = "1.7.1", optional = true }
 bstr = { version = "1.5.0", optional = true, default-features = false }
 serde = { version = "1.0.130", optional = true, features = ["derive"] }
+arbitrary = { version = "1.1.6", optional = true, features = ["derive"] }
 
 [[example]]
 name = "patience"
@@ -70,3 +73,6 @@ required-features = ["text", "serde"]
 
 [profile.release]
 debug = true
+
+[workspace]
+members = ["fuzz"]
