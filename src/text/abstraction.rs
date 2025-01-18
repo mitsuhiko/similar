@@ -36,7 +36,7 @@ impl DiffableStrRef for String {
     }
 }
 
-impl<'a, T: DiffableStr + ?Sized> DiffableStrRef for Cow<'a, T> {
+impl<T: DiffableStr + ?Sized> DiffableStrRef for Cow<'_, T> {
     type Output = T;
 
     fn as_diffable_str(&self) -> &T {

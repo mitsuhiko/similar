@@ -388,7 +388,7 @@ fn test_deadline_reached() {
 
     struct SlowIndex<'a>(&'a [usize]);
 
-    impl<'a> Index<usize> for SlowIndex<'a> {
+    impl Index<usize> for SlowIndex<'_> {
         type Output = usize;
 
         fn index(&self, index: usize) -> &Self::Output {

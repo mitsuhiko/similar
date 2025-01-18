@@ -50,7 +50,7 @@ where
     }
 }
 
-impl<'lookup, Old, New, T> Iterator for ChangesIter<'lookup, Old, New, T>
+impl<Old, New, T> Iterator for ChangesIter<'_, Old, New, T>
 where
     Old: Index<usize, Output = T> + ?Sized,
     New: Index<usize, Output = T> + ?Sized,

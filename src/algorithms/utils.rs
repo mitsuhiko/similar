@@ -20,7 +20,7 @@ pub struct UniqueItem<'a, Idx: ?Sized> {
     index: usize,
 }
 
-impl<'a, Idx: ?Sized> UniqueItem<'a, Idx>
+impl<Idx: ?Sized> UniqueItem<'_, Idx>
 where
     Idx: Index<usize>,
 {
@@ -209,7 +209,7 @@ where
             New(&'new New),
         }
 
-        impl<'old, 'new, Old, New> Hash for Key<'old, 'new, Old, New>
+        impl<Old, New> Hash for Key<'_, '_, Old, New>
         where
             Old: Hash + ?Sized,
             New: Hash + ?Sized,
@@ -222,7 +222,7 @@ where
             }
         }
 
-        impl<'old, 'new, Old, New> PartialEq for Key<'old, 'new, Old, New>
+        impl<Old, New> PartialEq for Key<'_, '_, Old, New>
         where
             Old: Eq + ?Sized,
             New: Eq + PartialEq<Old> + ?Sized,
@@ -237,7 +237,7 @@ where
             }
         }
 
-        impl<'old, 'new, Old, New> Eq for Key<'old, 'new, Old, New>
+        impl<Old, New> Eq for Key<'_, '_, Old, New>
         where
             Old: Eq + ?Sized,
             New: Eq + PartialEq<Old> + ?Sized,

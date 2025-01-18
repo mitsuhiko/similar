@@ -489,7 +489,7 @@ mod text_additions {
         }
     }
 
-    impl<'s, T: DiffableStr + ?Sized> fmt::Display for Change<&'s T> {
+    impl<T: DiffableStr + ?Sized> fmt::Display for Change<&T> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(
                 f,
