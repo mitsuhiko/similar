@@ -6,7 +6,7 @@ use crate::types::{Algorithm, Change, ChangeTag, DiffOp, DiffTag};
 use crate::{capture_diff_deadline, get_diff_ratio};
 
 use std::ops::Index;
-use std::time::Instant;
+use web_time::Instant;
 
 use super::utils::upper_seq_ratio;
 

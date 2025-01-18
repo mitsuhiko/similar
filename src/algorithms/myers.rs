@@ -20,7 +20,7 @@
 //! For potential improvements here see [similar#15](https://github.com/mitsuhiko/similar/issues/15).
 
 use std::ops::{Index, IndexMut, Range};
-use std::time::Instant;
+use web_time::Instant;
 
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::DiffHook;
@@ -378,7 +378,7 @@ fn test_pat() {
 #[test]
 fn test_deadline_reached() {
     use std::ops::Index;
-    use std::time::Duration;
+    use web_time::Duration;
 
     let a = (0..100).collect::<Vec<_>>();
     let mut b = (0..100).collect::<Vec<_>>();

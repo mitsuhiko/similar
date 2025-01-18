@@ -1,6 +1,6 @@
 use std::hash::Hash;
 use std::ops::{Index, Range};
-use std::time::Instant;
+use web_time::Instant;
 
 use crate::algorithms::{diff_deadline, Capture, Compact, Replace};
 use crate::{Algorithm, DiffOp};

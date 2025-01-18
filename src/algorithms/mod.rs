@@ -41,7 +41,7 @@ pub(crate) mod utils;
 
 use std::hash::Hash;
 use std::ops::{Index, Range};
-use std::time::Instant;
+use web_time::Instant;
 
 pub use capture::Capture;
 pub use compact::Compact;

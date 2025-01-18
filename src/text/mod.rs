@@ -2,7 +2,7 @@
 use std::borrow::Cow;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 mod abstraction;
 #[cfg(feature = "inline")]
