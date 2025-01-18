@@ -58,7 +58,7 @@ impl<'x, T: DiffableStr + ?Sized> SliceRemapper<'x, T> {
     }
 }
 
-impl<'x, T: DiffableStr + ?Sized> Index<Range<usize>> for SliceRemapper<'x, T> {
+impl<T: DiffableStr + ?Sized> Index<Range<usize>> for SliceRemapper<'_, T> {
     type Output = T;
 
     fn index(&self, range: Range<usize>) -> &Self::Output {

@@ -44,17 +44,13 @@ where
     }
 }
 
-impl<'old, 'new, Old: ?Sized, New: ?Sized, D: DiffHook> AsRef<D>
-    for Compact<'old, 'new, Old, New, D>
-{
+impl<Old: ?Sized, New: ?Sized, D: DiffHook> AsRef<D> for Compact<'_, '_, Old, New, D> {
     fn as_ref(&self) -> &D {
         &self.d
     }
 }
 
-impl<'old, 'new, Old: ?Sized, New: ?Sized, D: DiffHook> AsMut<D>
-    for Compact<'old, 'new, Old, New, D>
-{
+impl<Old: ?Sized, New: ?Sized, D: DiffHook> AsMut<D> for Compact<'_, '_, Old, New, D> {
     fn as_mut(&mut self) -> &mut D {
         &mut self.d
     }
