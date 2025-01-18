@@ -20,10 +20,10 @@
 //! For potential improvements here see [similar#15](https://github.com/mitsuhiko/similar/issues/15).
 
 use std::ops::{Index, IndexMut, Range};
-use std::time::Instant;
 
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::DiffHook;
+use crate::Instant;
 
 /// Myers' diff algorithm.
 ///

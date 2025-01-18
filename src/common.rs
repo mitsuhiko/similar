@@ -1,8 +1,8 @@
 use std::hash::Hash;
 use std::ops::{Index, Range};
-use std::time::Instant;
 
 use crate::algorithms::{diff_deadline, Capture, Compact, Replace};
+use crate::Instant;
 use crate::{Algorithm, DiffOp};
 
 /// Creates a diff between old and new with the given algorithm capturing the ops.

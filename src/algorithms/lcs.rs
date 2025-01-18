@@ -4,10 +4,10 @@
 //! * space `O(MN)`
 use std::collections::BTreeMap;
 use std::ops::{Index, Range};
-use std::time::Instant;
 
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::DiffHook;
+use crate::Instant;
 
 /// LCS diff algorithm.
 ///
