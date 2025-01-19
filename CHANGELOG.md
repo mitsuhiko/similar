@@ -5,6 +5,9 @@ All notable changes to similar are documented here.
 ## 2.7.0
 
 * Add optional support for `web-time` to support web WASM targets.  #73
+* Crate will no longer panic wheh deadlines are used in WASM.  At worst
+  deadlines are silently ignored.  To enforce deadlines enable the
+  `wasm32_web_time` feature.  #74
 
 ## 2.6.0
 
