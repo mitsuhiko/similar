@@ -3,10 +3,10 @@ use std::fmt;
 
 use crate::text::{DiffableStr, TextDiff};
 use crate::types::{Algorithm, Change, ChangeTag, DiffOp, DiffTag};
+use crate::Instant;
 use crate::{capture_diff_deadline, get_diff_ratio};
 
 use std::ops::Index;
-use std::time::Instant;
 
 use super::utils::upper_seq_ratio;
 

@@ -112,12 +112,11 @@
 //! a very, very long time to execute.  Too long to make sense in practice.
 //! To work around this issue all diffing algorithms also provide a version
 //! that accepts a deadline which is the point in time as defined by an
-//! [`Instant`](std::time::Instant) after which the algorithm should give up.
-//! What giving up means depends on the algorithm.  For instance due to the
-//! recursive, divide and conquer nature of Myer's diff you will still get a
-//! pretty decent diff in many cases when a deadline is reached.  Whereas on the
-//! other hand the LCS diff is unlikely to give any decent results in such a
-//! situation.
+//! [`Instant`] after which the algorithm should give up.  What giving up means
+//! depends on the algorithm.  For instance due to the recursive, divide and
+//! conquer nature of Myer's diff you will still get a pretty decent diff in
+//! many cases when a deadline is reached.  Whereas on the other hand the LCS
+//! diff is unlikely to give any decent results in such a situation.
 //!
 //! The [`TextDiff`] type also lets you configure a deadline and/or timeout
 //! when performing a text diff.
@@ -144,6 +143,10 @@
 //!   in a line diff.  This currently also enables the `unicode` feature.
 //! * `serde`: this feature enables serialization to some types in this
 //!   crate.  For enums without payload deserialization is then also supported.
+//! * `wasm32_web_time`: this feature swaps out the use of [`std::time`] for
+//!   the `web_time` crate.  Because this is a change to the public interface,
+//!   this feature must be used with care.  The instant type for this crate is
+//!   then re-exported top-level module.
 #![warn(missing_docs)]
 pub mod algorithms;
 pub mod iter;
@@ -161,3 +164,14 @@ pub use self::common::*;
 #[cfg(feature = "text")]
 pub use self::text::*;
 pub use self::types::*;
+
+/// Internal alias for portability
+#[cfg(not(feature = "wasm32_web_time"))]
+pub(crate) use std::time::Instant;
+
+/// WASM (browser) specific instant type.
+///
+/// This type is only available when the `wasm32_web_time` feature is enabled.  In that
+/// case this is an alias for [`web_time::Instant`].
+#[cfg(feature = "wasm32_web_time")]
+pub use web_time::Instant;
