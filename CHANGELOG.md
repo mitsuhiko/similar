@@ -2,6 +2,10 @@
 
 All notable changes to similar are documented here.
 
+## 2.7.0
+
+* Add optional support for `web-time` to support web WASM targets.  #73
+
 ## 2.6.0
 
 * Bump bstr dependency to 1.5.  #69
