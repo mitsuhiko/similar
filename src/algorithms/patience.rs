@@ -12,7 +12,7 @@ use std::hash::Hash;
 use std::ops::{Index, Range};
 
 use crate::algorithms::{myers, DiffHook, NoFinishHook, Replace};
-use crate::Instant;
+use crate::deadline_support::Instant;
 
 use super::utils::{unique, UniqueItem};
 

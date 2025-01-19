@@ -121,6 +121,11 @@
 //! The [`TextDiff`] type also lets you configure a deadline and/or timeout
 //! when performing a text diff.
 //!
+//! Note that on wasm targets calling [`Instant::now`] will result in a panic
+//! unless you enable the `wasm32_web_time` feataure.  By default similar will
+//! silently disable the deadline checks internally unless that feature is
+//! enabled.
+//!
 //! # Feature Flags
 //!
 //! The crate by default does not have any dependencies however for some use
@@ -156,6 +161,7 @@ pub mod udiff;
 pub mod utils;
 
 mod common;
+mod deadline_support;
 #[cfg(feature = "text")]
 mod text;
 mod types;
@@ -165,13 +171,6 @@ pub use self::common::*;
 pub use self::text::*;
 pub use self::types::*;
 
-/// Internal alias for portability
-#[cfg(not(feature = "wasm32_web_time"))]
-pub(crate) use std::time::Instant;
-
-/// WASM (browser) specific instant type.
-///
-/// This type is only available when the `wasm32_web_time` feature is enabled.  In that
-/// case this is an alias for [`web_time::Instant`].
+// re-export the type for web-time feature
 #[cfg(feature = "wasm32_web_time")]
-pub use web_time::Instant;
+pub use deadline_support::Instant;

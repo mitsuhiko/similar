@@ -7,7 +7,7 @@ use std::ops::{Index, Range};
 
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::DiffHook;
-use crate::Instant;
+use crate::deadline_support::{deadline_exceeded, Instant};
 
 /// LCS diff algorithm.
 ///
@@ -166,10 +166,8 @@ where
 
     for i in (0..new_len).rev() {
         // are we running for too long?  give up on the table
-        if let Some(deadline) = deadline {
-            if Instant::now() > deadline {
-                return None;
-            }
+        if deadline_exceeded(deadline) {
+            return None;
         }
 
         for j in (0..old_len).rev() {

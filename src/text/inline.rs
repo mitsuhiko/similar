@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 use std::fmt;
 
+use crate::deadline_support::Instant;
 use crate::text::{DiffableStr, TextDiff};
 use crate::types::{Algorithm, Change, ChangeTag, DiffOp, DiffTag};
-use crate::Instant;
 use crate::{capture_diff_deadline, get_diff_ratio};
 
 use std::ops::Index;
