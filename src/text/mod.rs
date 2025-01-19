@@ -15,9 +15,9 @@ pub use self::inline::InlineChange;
 
 use self::utils::{upper_seq_ratio, QuickSeqRatio};
 use crate::algorithms::IdentifyDistinct;
+use crate::deadline_support::{duration_to_deadline, Instant};
 use crate::iter::{AllChangesIter, ChangesIter};
 use crate::udiff::UnifiedDiff;
-use crate::Instant;
 use crate::{capture_diff_deadline, get_diff_ratio, group_diff_ops, Algorithm, DiffOp};
 
 #[derive(Debug, Clone, Copy)]
@@ -27,10 +27,10 @@ enum Deadline {
 }
 
 impl Deadline {
-    fn into_instant(self) -> Instant {
+    fn into_instant(self) -> Option<Instant> {
         match self {
-            Deadline::Absolute(instant) => instant,
-            Deadline::Relative(duration) => Instant::now() + duration,
+            Deadline::Absolute(instant) => Some(instant),
+            Deadline::Relative(duration) => duration_to_deadline(duration),
         }
     }
 }
@@ -319,7 +319,7 @@ impl TextDiffConfig {
         new: Cow<'bufs, [&'new T]>,
         newline_terminated: bool,
     ) -> TextDiff<'old, 'new, 'bufs, T> {
-        let deadline = self.deadline.map(|x| x.into_instant());
+        let deadline = self.deadline.and_then(|x| x.into_instant());
         let ops = if old.len() > 100 || new.len() > 100 {
             let ih = IdentifyDistinct::<u32>::new(&old[..], 0..old.len(), &new[..], 0..new.len());
             capture_diff_deadline(
@@ -548,7 +548,9 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     where
         'slf: 'old + 'new,
     {
-        inline::iter_inline_changes(self, op, Some(Instant::now() + Duration::from_millis(500)))
+        use crate::deadline_support::duration_to_deadline;
+
+        inline::iter_inline_changes(self, op, duration_to_deadline(Duration::from_millis(500)))
     }
 
     /// Iterates over the changes the op expands to with inline emphasis with a deadline.

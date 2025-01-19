@@ -12,6 +12,10 @@ test:
 	@cargo test --no-default-features
 	@cargo test --no-default-features --features bytes
 
+.PHONY: wasi-test
+wasi-test:
+	@cargo test --all-features --target=wasm32-wasip1 -- --nocapture
+
 format:
 	@rustup component add rustfmt 2> /dev/null
 	@cargo fmt --all

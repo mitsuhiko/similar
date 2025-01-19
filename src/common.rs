@@ -2,7 +2,7 @@ use std::hash::Hash;
 use std::ops::{Index, Range};
 
 use crate::algorithms::{diff_deadline, Capture, Compact, Replace};
-use crate::Instant;
+use crate::deadline_support::Instant;
 use crate::{Algorithm, DiffOp};
 
 /// Creates a diff between old and new with the given algorithm capturing the ops.
