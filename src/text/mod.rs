@@ -57,7 +57,7 @@ impl TextDiffConfig {
     /// Sets a deadline for the diff operation.
     ///
     /// By default a diff will take as long as it takes.  For certain diff
-    /// algorithms like Myer's and Patience a maximum running time can be
+    /// algorithms like Myers' and Patience a maximum running time can be
     /// defined after which the algorithm gives up and approximates.
     pub fn deadline(&mut self, deadline: Instant) -> &mut Self {
         self.deadline = Some(Deadline::Absolute(deadline));
