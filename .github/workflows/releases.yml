@@ -1,0 +1,40 @@
+name: Releases
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
+
+jobs:
+  publish-to-wapm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.41.0
+          profile: minimal
+          override: true
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install WebAssembly targets
+        run: rustup target add wasm32-unknown-unknown
+      - name: Setup Wasmer
+        uses: wasmerio/setup-wasmer@v1
+      - name: Install cargo-wapm
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-wapm --verbose --debug
+      - name: Login to wapm.io
+        run: |
+          wapm config set registry.url https://registry.wapm.io
+          wapm login ${{ secrets.WAPM_IO_TOKEN }}
+      - name: Publish to wapm.io
+        run: cargo wapm
+        working-directory: wasm
