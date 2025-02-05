@@ -114,7 +114,7 @@
 //! that accepts a deadline which is the point in time as defined by an
 //! [`Instant`] after which the algorithm should give up.  What giving up means
 //! depends on the algorithm.  For instance due to the recursive, divide and
-//! conquer nature of Myer's diff you will still get a pretty decent diff in
+//! conquer nature of Myers' diff you will still get a pretty decent diff in
 //! many cases when a deadline is reached.  Whereas on the other hand the LCS
 //! diff is unlikely to give any decent results in such a situation.
 //!
