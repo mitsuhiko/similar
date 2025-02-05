@@ -1,6 +1,7 @@
 //! Implements basic compacting.  This is based on the compaction logic from
 //! diffy by Brandon Williams.
-use std::ops::Index;
+use alloc::vec::Vec;
+use core::ops::Index;
 
 use crate::{DiffOp, DiffTag};
 

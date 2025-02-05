@@ -1,5 +1,7 @@
-use std::hash::Hash;
-use std::ops::{Index, Range};
+use alloc::vec;
+use alloc::vec::Vec;
+use core::hash::Hash;
+use core::ops::{Index, Range};
 
 use crate::algorithms::{diff_deadline, Capture, Compact, Replace};
 use crate::deadline_support::Instant;
@@ -160,26 +162,31 @@ pub fn group_diff_ops(mut ops: Vec<DiffOp>, n: usize) -> Vec<Vec<DiffOp>> {
     rv
 }
 
-#[test]
-fn test_non_string_iter_change() {
-    use crate::ChangeTag;
+#[cfg(test)]
+mod test {
+    use super::*;
 
-    let old = vec![1, 2, 3];
-    let new = vec![1, 2, 4];
-    let ops = capture_diff_slices(Algorithm::Myers, &old, &new);
-    let changes: Vec<_> = ops
-        .iter()
-        .flat_map(|x| x.iter_changes(&old, &new))
-        .map(|x| (x.tag(), x.value()))
-        .collect();
+    #[test]
+    fn test_non_string_iter_change() {
+        use crate::ChangeTag;
 
-    assert_eq!(
-        changes,
-        vec![
-            (ChangeTag::Equal, 1),
-            (ChangeTag::Equal, 2),
-            (ChangeTag::Delete, 3),
-            (ChangeTag::Insert, 4),
-        ]
-    );
+        let old = vec![1, 2, 3];
+        let new = vec![1, 2, 4];
+        let ops = capture_diff_slices(Algorithm::Myers, &old, &new);
+        let changes: Vec<_> = ops
+            .iter()
+            .flat_map(|x| x.iter_changes(&old, &new))
+            .map(|x| (x.tag(), x.value()))
+            .collect();
+
+        assert_eq!(
+            changes,
+            vec![
+                (ChangeTag::Equal, 1),
+                (ChangeTag::Equal, 2),
+                (ChangeTag::Delete, 3),
+                (ChangeTag::Insert, 4),
+            ]
+        );
+    }
 }

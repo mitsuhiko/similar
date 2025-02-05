@@ -1,5 +1,9 @@
+use core::hash::Hash;
+
+#[cfg(not(feature = "std"))]
+use hashbrown::HashMap;
+#[cfg(feature = "std")]
 use std::collections::HashMap;
-use std::hash::Hash;
 
 use super::DiffableStrRef;
 

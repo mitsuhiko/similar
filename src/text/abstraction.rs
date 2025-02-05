@@ -1,6 +1,9 @@
-use std::borrow::Cow;
-use std::hash::Hash;
-use std::ops::Range;
+use alloc::borrow::{Cow, ToOwned};
+use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::hash::Hash;
+use core::ops::Range;
 
 /// Reference to a [`DiffableStr`].
 ///
@@ -310,7 +313,7 @@ mod bytes_support {
         }
 
         fn as_str(&self) -> Option<&str> {
-            std::str::from_utf8(self).ok()
+            core::str::from_utf8(self).ok()
         }
 
         fn to_string_lossy(&self) -> Cow<'_, str> {
@@ -335,112 +338,117 @@ mod bytes_support {
     }
 }
 
-#[test]
-fn test_split_lines() {
-    assert_eq!(
-        DiffableStr::tokenize_lines("first\nsecond\rthird\r\nfourth\nlast"),
-        vec!["first\n", "second\r", "third\r\n", "fourth\n", "last"]
-    );
-    assert_eq!(DiffableStr::tokenize_lines("\n\n"), vec!["\n", "\n"]);
-    assert_eq!(DiffableStr::tokenize_lines("\n"), vec!["\n"]);
-    assert!(DiffableStr::tokenize_lines("").is_empty());
-}
+#[cfg(test)]
+mod test {
+    use super::*;
 
-#[test]
-fn test_split_words() {
-    assert_eq!(
-        DiffableStr::tokenize_words("foo    bar baz\n\n  aha"),
-        ["foo", "    ", "bar", " ", "baz", "\n\n  ", "aha"]
-    );
-}
+    #[test]
+    fn test_split_lines() {
+        assert_eq!(
+            DiffableStr::tokenize_lines("first\nsecond\rthird\r\nfourth\nlast"),
+            vec!["first\n", "second\r", "third\r\n", "fourth\n", "last"]
+        );
+        assert_eq!(DiffableStr::tokenize_lines("\n\n"), vec!["\n", "\n"]);
+        assert_eq!(DiffableStr::tokenize_lines("\n"), vec!["\n"]);
+        assert!(DiffableStr::tokenize_lines("").is_empty());
+    }
 
-#[test]
-fn test_split_chars() {
-    assert_eq!(
-        DiffableStr::tokenize_chars("abcfö❄️"),
-        vec!["a", "b", "c", "f", "ö", "❄", "\u{fe0f}"]
-    );
-}
+    #[test]
+    fn test_split_words() {
+        assert_eq!(
+            DiffableStr::tokenize_words("foo    bar baz\n\n  aha"),
+            ["foo", "    ", "bar", " ", "baz", "\n\n  ", "aha"]
+        );
+    }
 
-#[test]
-#[cfg(feature = "unicode")]
-fn test_split_graphemes() {
-    assert_eq!(
-        DiffableStr::tokenize_graphemes("abcfö❄️"),
-        vec!["a", "b", "c", "f", "ö", "❄️"]
-    );
-}
+    #[test]
+    fn test_split_chars() {
+        assert_eq!(
+            DiffableStr::tokenize_chars("abcfö❄️"),
+            vec!["a", "b", "c", "f", "ö", "❄", "\u{fe0f}"]
+        );
+    }
 
-#[test]
-#[cfg(feature = "bytes")]
-fn test_split_lines_bytes() {
-    assert_eq!(
-        DiffableStr::tokenize_lines("first\nsecond\rthird\r\nfourth\nlast".as_bytes()),
-        vec![
-            "first\n".as_bytes(),
-            "second\r".as_bytes(),
-            "third\r\n".as_bytes(),
-            "fourth\n".as_bytes(),
-            "last".as_bytes()
-        ]
-    );
-    assert_eq!(
-        DiffableStr::tokenize_lines("\n\n".as_bytes()),
-        vec!["\n".as_bytes(), "\n".as_bytes()]
-    );
-    assert_eq!(
-        DiffableStr::tokenize_lines("\n".as_bytes()),
-        vec!["\n".as_bytes()]
-    );
-    assert!(DiffableStr::tokenize_lines("".as_bytes()).is_empty());
-}
+    #[test]
+    #[cfg(feature = "unicode")]
+    fn test_split_graphemes() {
+        assert_eq!(
+            DiffableStr::tokenize_graphemes("abcfö❄️"),
+            vec!["a", "b", "c", "f", "ö", "❄️"]
+        );
+    }
 
-#[test]
-#[cfg(feature = "bytes")]
-fn test_split_words_bytes() {
-    assert_eq!(
-        DiffableStr::tokenize_words("foo    bar baz\n\n  aha".as_bytes()),
-        [
-            &b"foo"[..],
-            &b"    "[..],
-            &b"bar"[..],
-            &b" "[..],
-            &b"baz"[..],
-            &b"\n\n  "[..],
-            &b"aha"[..]
-        ]
-    );
-}
+    #[test]
+    #[cfg(feature = "bytes")]
+    fn test_split_lines_bytes() {
+        assert_eq!(
+            DiffableStr::tokenize_lines("first\nsecond\rthird\r\nfourth\nlast".as_bytes()),
+            vec![
+                "first\n".as_bytes(),
+                "second\r".as_bytes(),
+                "third\r\n".as_bytes(),
+                "fourth\n".as_bytes(),
+                "last".as_bytes()
+            ]
+        );
+        assert_eq!(
+            DiffableStr::tokenize_lines("\n\n".as_bytes()),
+            vec!["\n".as_bytes(), "\n".as_bytes()]
+        );
+        assert_eq!(
+            DiffableStr::tokenize_lines("\n".as_bytes()),
+            vec!["\n".as_bytes()]
+        );
+        assert!(DiffableStr::tokenize_lines("".as_bytes()).is_empty());
+    }
 
-#[test]
-#[cfg(feature = "bytes")]
-fn test_split_chars_bytes() {
-    assert_eq!(
-        DiffableStr::tokenize_chars("abcfö❄️".as_bytes()),
-        vec![
-            &b"a"[..],
-            &b"b"[..],
-            &b"c"[..],
-            &b"f"[..],
-            "ö".as_bytes(),
-            "❄".as_bytes(),
-            "\u{fe0f}".as_bytes()
-        ]
-    );
-}
+    #[test]
+    #[cfg(feature = "bytes")]
+    fn test_split_words_bytes() {
+        assert_eq!(
+            DiffableStr::tokenize_words("foo    bar baz\n\n  aha".as_bytes()),
+            [
+                &b"foo"[..],
+                &b"    "[..],
+                &b"bar"[..],
+                &b" "[..],
+                &b"baz"[..],
+                &b"\n\n  "[..],
+                &b"aha"[..]
+            ]
+        );
+    }
 
-#[test]
-#[cfg(all(feature = "bytes", feature = "unicode"))]
-fn test_split_graphemes_bytes() {
-    assert_eq!(
-        DiffableStr::tokenize_graphemes("abcfö❄️".as_bytes()),
-        vec![
-            &b"a"[..],
-            &b"b"[..],
-            &b"c"[..],
-            &b"f"[..],
-            "ö".as_bytes(),
-            "❄️".as_bytes()
-        ]
-    );
+    #[test]
+    #[cfg(feature = "bytes")]
+    fn test_split_chars_bytes() {
+        assert_eq!(
+            DiffableStr::tokenize_chars("abcfö❄️".as_bytes()),
+            vec![
+                &b"a"[..],
+                &b"b"[..],
+                &b"c"[..],
+                &b"f"[..],
+                "ö".as_bytes(),
+                "❄".as_bytes(),
+                "\u{fe0f}".as_bytes()
+            ]
+        );
+    }
+
+    #[test]
+    #[cfg(all(feature = "bytes", feature = "unicode"))]
+    fn test_split_graphemes_bytes() {
+        assert_eq!(
+            DiffableStr::tokenize_graphemes("abcfö❄️".as_bytes()),
+            vec![
+                &b"a"[..],
+                &b"b"[..],
+                &b"c"[..],
+                &b"f"[..],
+                "ö".as_bytes(),
+                "❄️".as_bytes()
+            ]
+        );
+    }
 }

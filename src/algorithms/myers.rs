@@ -19,7 +19,9 @@
 //!
 //! For potential improvements here see [similar#15](https://github.com/mitsuhiko/similar/issues/15).
 
-use std::ops::{Index, IndexMut, Range};
+use alloc::vec;
+use alloc::vec::Vec;
+use core::ops::{Index, IndexMut, Range};
 
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::DiffHook;
@@ -330,113 +332,121 @@ where
     Ok(())
 }
 
-#[test]
-fn test_find_middle_snake() {
-    let a = &b"ABCABBA"[..];
-    let b = &b"CBABAC"[..];
-    let max_d = max_d(a.len(), b.len());
-    let mut vf = V::new(max_d);
-    let mut vb = V::new(max_d);
-    let (x_start, y_start) =
-        find_middle_snake(a, 0..a.len(), b, 0..b.len(), &mut vf, &mut vb, None).unwrap();
-    assert_eq!(x_start, 4);
-    assert_eq!(y_start, 1);
-}
+#[cfg(test)]
+mod test {
+    extern crate std;
 
-#[test]
-fn test_diff() {
-    let a: &[usize] = &[0, 1, 2, 3, 4];
-    let b: &[usize] = &[0, 1, 2, 9, 4];
+    use super::*;
 
-    let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
-    insta::assert_debug_snapshot!(d.into_inner().ops());
-}
-
-#[test]
-fn test_contiguous() {
-    let a: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
-    let b: &[usize] = &[0, 1, 2, 8, 9, 4, 4, 7];
-
-    let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
-    insta::assert_debug_snapshot!(d.into_inner().ops());
-}
-
-#[test]
-fn test_pat() {
-    let a: &[usize] = &[0, 1, 3, 4, 5];
-    let b: &[usize] = &[0, 1, 4, 5, 8, 9];
-
-    let mut d = crate::algorithms::Capture::new();
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
-    insta::assert_debug_snapshot!(d.ops());
-}
-
-#[test]
-fn test_deadline_reached() {
-    use std::ops::Index;
-    use std::time::Duration;
-
-    let a = (0..100).collect::<Vec<_>>();
-    let mut b = (0..100).collect::<Vec<_>>();
-    b[10] = 99;
-    b[50] = 99;
-    b[25] = 99;
-
-    struct SlowIndex<'a>(&'a [usize]);
-
-    impl Index<usize> for SlowIndex<'_> {
-        type Output = usize;
-
-        fn index(&self, index: usize) -> &Self::Output {
-            std::thread::sleep(Duration::from_millis(1));
-            &self.0[index]
-        }
+    #[test]
+    fn test_find_middle_snake() {
+        let a = &b"ABCABBA"[..];
+        let b = &b"CBABAC"[..];
+        let max_d = max_d(a.len(), b.len());
+        let mut vf = V::new(max_d);
+        let mut vb = V::new(max_d);
+        let (x_start, y_start) =
+            find_middle_snake(a, 0..a.len(), b, 0..b.len(), &mut vf, &mut vb, None).unwrap();
+        assert_eq!(x_start, 4);
+        assert_eq!(y_start, 1);
     }
 
-    let slow_a = SlowIndex(&a);
-    let slow_b = SlowIndex(&b);
+    #[test]
+    fn test_diff() {
+        let a: &[usize] = &[0, 1, 2, 3, 4];
+        let b: &[usize] = &[0, 1, 2, 9, 4];
 
-    // don't give it enough time to do anything interesting
-    let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
-    diff_deadline(
-        &mut d,
-        &slow_a,
-        0..a.len(),
-        &slow_b,
-        0..b.len(),
-        Some(Instant::now() + Duration::from_millis(50)),
-    )
-    .unwrap();
-    insta::assert_debug_snapshot!(d.into_inner().ops());
-}
-
-#[test]
-fn test_finish_called() {
-    struct HasRunFinish(bool);
-
-    impl DiffHook for HasRunFinish {
-        type Error = ();
-        fn finish(&mut self) -> Result<(), Self::Error> {
-            self.0 = true;
-            Ok(())
-        }
+        let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
+        diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+        insta::assert_debug_snapshot!(d.into_inner().ops());
     }
 
-    let mut d = HasRunFinish(false);
-    let slice = &[1, 2];
-    let slice2 = &[1, 2, 3];
-    diff(&mut d, slice, 0..slice.len(), slice2, 0..slice2.len()).unwrap();
-    assert!(d.0);
+    #[test]
+    fn test_contiguous() {
+        let a: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
+        let b: &[usize] = &[0, 1, 2, 8, 9, 4, 4, 7];
 
-    let mut d = HasRunFinish(false);
-    let slice = &[1, 2];
-    diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
-    assert!(d.0);
+        let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
+        diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+        insta::assert_debug_snapshot!(d.into_inner().ops());
+    }
 
-    let mut d = HasRunFinish(false);
-    let slice: &[u8] = &[];
-    diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
-    assert!(d.0);
+    #[test]
+    fn test_pat() {
+        let a: &[usize] = &[0, 1, 3, 4, 5];
+        let b: &[usize] = &[0, 1, 4, 5, 8, 9];
+
+        let mut d = crate::algorithms::Capture::new();
+        diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+        insta::assert_debug_snapshot!(d.ops());
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn test_deadline_reached() {
+        use core::ops::Index;
+        use core::time::Duration;
+
+        let a = (0..100).collect::<Vec<_>>();
+        let mut b = (0..100).collect::<Vec<_>>();
+        b[10] = 99;
+        b[50] = 99;
+        b[25] = 99;
+
+        struct SlowIndex<'a>(&'a [usize]);
+
+        impl Index<usize> for SlowIndex<'_> {
+            type Output = usize;
+
+            fn index(&self, index: usize) -> &Self::Output {
+                std::thread::sleep(Duration::from_millis(1));
+                &self.0[index]
+            }
+        }
+
+        let slow_a = SlowIndex(&a);
+        let slow_b = SlowIndex(&b);
+
+        // don't give it enough time to do anything interesting
+        let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
+        diff_deadline(
+            &mut d,
+            &slow_a,
+            0..a.len(),
+            &slow_b,
+            0..b.len(),
+            Some(Instant::now() + Duration::from_millis(50)),
+        )
+        .unwrap();
+        insta::assert_debug_snapshot!(d.into_inner().ops());
+    }
+
+    #[test]
+    fn test_finish_called() {
+        struct HasRunFinish(bool);
+
+        impl DiffHook for HasRunFinish {
+            type Error = ();
+            fn finish(&mut self) -> Result<(), Self::Error> {
+                self.0 = true;
+                Ok(())
+            }
+        }
+
+        let mut d = HasRunFinish(false);
+        let slice = &[1, 2];
+        let slice2 = &[1, 2, 3];
+        diff(&mut d, slice, 0..slice.len(), slice2, 0..slice2.len()).unwrap();
+        assert!(d.0);
+
+        let mut d = HasRunFinish(false);
+        let slice = &[1, 2];
+        diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
+        assert!(d.0);
+
+        let mut d = HasRunFinish(false);
+        let slice: &[u8] = &[];
+        diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
+        assert!(d.0);
+    }
 }

@@ -1,8 +1,12 @@
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::hash::{Hash, Hasher};
-use std::ops::{Add, Index, Range};
+use alloc::vec::Vec;
+use core::fmt::{self, Debug};
+use core::hash::{Hash, Hasher};
+use core::ops::{Add, Index, Range};
+
+#[cfg(not(feature = "std"))]
+use hashbrown::{hash_map::Entry, HashMap};
+#[cfg(feature = "std")]
+use std::collections::{hash_map::Entry, HashMap};
 
 /// Utility function to check if a range is empty that works on older rust versions
 #[inline(always)]
@@ -41,7 +45,7 @@ impl<'a, Idx: Index<usize> + 'a> Debug for UniqueItem<'a, Idx>
 where
     Idx::Output: Debug,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("UniqueItem")
             .field("value", &self.value())
             .field("original_index", &self.original_index())
@@ -311,69 +315,77 @@ where
     }
 }
 
-#[test]
-fn test_unique() {
-    let u = unique(&vec!['a', 'b', 'c', 'd', 'd', 'b'], 0..6)
-        .into_iter()
-        .map(|x| (*x.value(), x.original_index()))
-        .collect::<Vec<_>>();
-    assert_eq!(u, vec![('a', 0), ('c', 2)]);
-}
+#[cfg(test)]
+mod test {
+    extern crate std;
 
-#[test]
-fn test_int_hasher() {
-    let ih = IdentifyDistinct::<u8>::new(
-        &["", "foo", "bar", "baz"][..],
-        1..4,
-        &["", "foo", "blah", "baz"][..],
-        1..4,
-    );
-    assert_eq!(ih.old_lookup()[1], 0);
-    assert_eq!(ih.old_lookup()[2], 1);
-    assert_eq!(ih.old_lookup()[3], 2);
-    assert_eq!(ih.new_lookup()[1], 0);
-    assert_eq!(ih.new_lookup()[2], 3);
-    assert_eq!(ih.new_lookup()[3], 2);
-    assert_eq!(ih.old_range(), 1..4);
-    assert_eq!(ih.new_range(), 1..4);
-}
+    use super::*;
+    use alloc::vec;
 
-#[test]
-fn test_common_prefix_len() {
-    assert_eq!(
-        common_prefix_len("".as_bytes(), 0..0, "".as_bytes(), 0..0),
-        0
-    );
-    assert_eq!(
-        common_prefix_len("foobarbaz".as_bytes(), 0..9, "foobarblah".as_bytes(), 0..10),
-        7
-    );
-    assert_eq!(
-        common_prefix_len("foobarbaz".as_bytes(), 0..9, "blablabla".as_bytes(), 0..9),
-        0
-    );
-    assert_eq!(
-        common_prefix_len("foobarbaz".as_bytes(), 3..9, "foobarblah".as_bytes(), 3..10),
-        4
-    );
-}
+    #[test]
+    fn test_unique() {
+        let u = unique(&vec!['a', 'b', 'c', 'd', 'd', 'b'], 0..6)
+            .into_iter()
+            .map(|x| (*x.value(), x.original_index()))
+            .collect::<Vec<_>>();
+        assert_eq!(u, vec![('a', 0), ('c', 2)]);
+    }
 
-#[test]
-fn test_common_suffix_len() {
-    assert_eq!(
-        common_suffix_len("".as_bytes(), 0..0, "".as_bytes(), 0..0),
-        0
-    );
-    assert_eq!(
-        common_suffix_len("1234".as_bytes(), 0..4, "X0001234".as_bytes(), 0..8),
-        4
-    );
-    assert_eq!(
-        common_suffix_len("1234".as_bytes(), 0..4, "Xxxx".as_bytes(), 0..4),
-        0
-    );
-    assert_eq!(
-        common_suffix_len("1234".as_bytes(), 2..4, "01234".as_bytes(), 2..5),
-        2
-    );
+    #[test]
+    fn test_int_hasher() {
+        let ih = IdentifyDistinct::<u8>::new(
+            &["", "foo", "bar", "baz"][..],
+            1..4,
+            &["", "foo", "blah", "baz"][..],
+            1..4,
+        );
+        assert_eq!(ih.old_lookup()[1], 0);
+        assert_eq!(ih.old_lookup()[2], 1);
+        assert_eq!(ih.old_lookup()[3], 2);
+        assert_eq!(ih.new_lookup()[1], 0);
+        assert_eq!(ih.new_lookup()[2], 3);
+        assert_eq!(ih.new_lookup()[3], 2);
+        assert_eq!(ih.old_range(), 1..4);
+        assert_eq!(ih.new_range(), 1..4);
+    }
+
+    #[test]
+    fn test_common_prefix_len() {
+        assert_eq!(
+            common_prefix_len("".as_bytes(), 0..0, "".as_bytes(), 0..0),
+            0
+        );
+        assert_eq!(
+            common_prefix_len("foobarbaz".as_bytes(), 0..9, "foobarblah".as_bytes(), 0..10),
+            7
+        );
+        assert_eq!(
+            common_prefix_len("foobarbaz".as_bytes(), 0..9, "blablabla".as_bytes(), 0..9),
+            0
+        );
+        assert_eq!(
+            common_prefix_len("foobarbaz".as_bytes(), 3..9, "foobarblah".as_bytes(), 3..10),
+            4
+        );
+    }
+
+    #[test]
+    fn test_common_suffix_len() {
+        assert_eq!(
+            common_suffix_len("".as_bytes(), 0..0, "".as_bytes(), 0..0),
+            0
+        );
+        assert_eq!(
+            common_suffix_len("1234".as_bytes(), 0..4, "X0001234".as_bytes(), 0..8),
+            4
+        );
+        assert_eq!(
+            common_suffix_len("1234".as_bytes(), 0..4, "Xxxx".as_bytes(), 0..4),
+            0
+        );
+        assert_eq!(
+            common_suffix_len("1234".as_bytes(), 2..4, "01234".as_bytes(), 2..5),
+            2
+        );
+    }
 }

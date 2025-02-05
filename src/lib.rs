@@ -152,7 +152,10 @@
 //!   the `web_time` crate.  Because this is a change to the public interface,
 //!   this feature must be used with care.  The instant type for this crate is
 //!   then re-exported top-level module.
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
+extern crate alloc;
+
 pub mod algorithms;
 pub mod iter;
 #[cfg(feature = "text")]

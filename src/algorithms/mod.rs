@@ -39,8 +39,8 @@ mod hook;
 mod replace;
 pub(crate) mod utils;
 
-use std::hash::Hash;
-use std::ops::{Index, Range};
+use core::hash::Hash;
+use core::ops::{Index, Range};
 
 use crate::deadline_support::Instant;
 pub use capture::Capture;

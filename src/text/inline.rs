@@ -1,12 +1,14 @@
-use std::borrow::Cow;
-use std::fmt;
+use alloc::borrow::Cow;
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::fmt;
+use core::ops::Index;
 
 use crate::deadline_support::Instant;
 use crate::text::{DiffableStr, TextDiff};
 use crate::types::{Algorithm, Change, ChangeTag, DiffOp, DiffTag};
 use crate::{capture_diff_deadline, get_diff_ratio};
-
-use std::ops::Index;
 
 use super::utils::upper_seq_ratio;
 
@@ -309,34 +311,41 @@ where
     Box::new(rv.into_iter()) as Box<dyn Iterator<Item = _>>
 }
 
-#[test]
-fn test_line_ops_inline() {
-    let diff = TextDiff::from_lines(
-        "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
-        "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
-    );
-    assert!(diff.newline_terminated());
-    let changes = diff
-        .ops()
-        .iter()
-        .flat_map(|op| diff.iter_inline_changes(op))
-        .collect::<Vec<_>>();
-    insta::assert_debug_snapshot!(&changes);
-}
+#[cfg(test)]
+mod test {
+    extern crate std;
 
-#[test]
-#[cfg(feature = "serde")]
-fn test_serde() {
-    let diff = TextDiff::from_lines(
-        "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
-        "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
-    );
-    assert!(diff.newline_terminated());
-    let changes = diff
-        .ops()
-        .iter()
-        .flat_map(|op| diff.iter_inline_changes(op))
-        .collect::<Vec<_>>();
-    let json = serde_json::to_string_pretty(&changes).unwrap();
-    insta::assert_snapshot!(&json);
+    use super::*;
+
+    #[test]
+    fn test_line_ops_inline() {
+        let diff = TextDiff::from_lines(
+            "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
+            "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
+        );
+        assert!(diff.newline_terminated());
+        let changes = diff
+            .ops()
+            .iter()
+            .flat_map(|op| diff.iter_inline_changes(op))
+            .collect::<Vec<_>>();
+        insta::assert_debug_snapshot!(&changes);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_serde() {
+        let diff = TextDiff::from_lines(
+            "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
+            "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
+        );
+        assert!(diff.newline_terminated());
+        let changes = diff
+            .ops()
+            .iter()
+            .flat_map(|op| diff.iter_inline_changes(op))
+            .collect::<Vec<_>>();
+        let json = serde_json::to_string_pretty(&changes).unwrap();
+        insta::assert_snapshot!(&json);
+    }
 }
