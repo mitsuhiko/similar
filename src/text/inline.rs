@@ -8,7 +8,7 @@ use core::ops::Index;
 use crate::deadline_support::Instant;
 use crate::text::{DiffableStr, TextDiff};
 use crate::types::{Algorithm, Change, ChangeTag, DiffOp, DiffTag};
-use crate::{capture_diff_deadline, get_diff_ratio};
+use crate::{capture_diff_internal, get_diff_ratio};
 
 use super::utils::upper_seq_ratio;
 
@@ -226,7 +226,7 @@ where
     let old_lookup = MultiLookup::new(old_slices);
     let new_lookup = MultiLookup::new(new_slices);
 
-    let ops = capture_diff_deadline(
+    let ops = capture_diff_internal(
         Algorithm::Patience,
         &old_lookup,
         0..old_lookup.len(),

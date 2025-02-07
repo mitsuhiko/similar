@@ -21,7 +21,7 @@ all-features = true
 
 [features]
 default = ["std", "text"]
-std = ["bstr?/std"]
+std = []
 text = []
 inline = ["text"]
 wasm32_web_time = ["web-time"]

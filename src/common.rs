@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use core::hash::Hash;
 use core::ops::{Index, Range};
 
-use crate::algorithms::{diff_deadline, Capture, Compact, Replace};
+use crate::algorithms::{diff_internal, Capture, Compact, Replace};
 use crate::deadline_support::Instant;
 use crate::{Algorithm, DiffOp};
 
@@ -25,9 +25,10 @@ where
     Old::Output: Hash + Eq + Ord,
     New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
 {
-    capture_diff_deadline(alg, old, old_range, new, new_range, None)
+    capture_diff_internal(alg, old, old_range, new, new_range, None)
 }
 
+#[cfg(any(feature = "std", feature = "wasm32_web_time"))]
 /// Creates a diff between old and new with the given algorithm capturing the ops.
 ///
 /// Works like [`capture_diff`] but with an optional deadline.
@@ -45,8 +46,25 @@ where
     Old::Output: Hash + Eq + Ord,
     New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
 {
+    capture_diff_internal(alg, old, old_range, new, new_range, deadline)
+}
+
+pub(crate) fn capture_diff_internal<Old, New>(
+    alg: Algorithm,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
+) -> Vec<DiffOp>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    Old::Output: Hash + Eq + Ord,
+    New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
+{
     let mut d = Compact::new(Replace::new(Capture::new()), old, new);
-    diff_deadline(alg, &mut d, old, old_range, new, new_range, deadline).unwrap();
+    diff_internal(alg, &mut d, old, old_range, new, new_range, deadline).unwrap();
     d.into_inner().into_inner().into_ops()
 }
 
@@ -55,9 +73,10 @@ pub fn capture_diff_slices<T>(alg: Algorithm, old: &[T], new: &[T]) -> Vec<DiffO
 where
     T: Eq + Hash + Ord,
 {
-    capture_diff_slices_deadline(alg, old, new, None)
+    capture_diff_internal(alg, old, 0..old.len(), new, 0..new.len(), None)
 }
 
+#[cfg(any(feature = "std", feature = "wasm32_web_time"))]
 /// Creates a diff between old and new with the given algorithm capturing the ops.
 ///
 /// Works like [`capture_diff_slices`] but with an optional deadline.
@@ -70,7 +89,7 @@ pub fn capture_diff_slices_deadline<T>(
 where
     T: Eq + Hash + Ord,
 {
-    capture_diff_deadline(alg, old, 0..old.len(), new, 0..new.len(), deadline)
+    capture_diff_internal(alg, old, 0..old.len(), new, 0..new.len(), deadline)
 }
 
 /// Return a measure of similarity in the range `0..=1`.

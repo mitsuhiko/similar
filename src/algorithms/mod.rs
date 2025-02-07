@@ -74,9 +74,10 @@ where
     Old::Output: Hash + Eq + Ord,
     New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
 {
-    diff_deadline(alg, d, old, old_range, new, new_range, None)
+    diff_internal(alg, d, old, old_range, new, new_range, None)
 }
 
+#[cfg(any(feature = "std", feature = "wasm32_web_time"))]
 /// Creates a diff between old and new with the given algorithm with deadline.
 ///
 /// Diffs `old`, between indices `old_range` and `new` between indices `new_range`.
@@ -87,6 +88,25 @@ where
 /// for instance produces a very simplistic diff when the deadline is reached
 /// in all cases).
 pub fn diff_deadline<Old, New, D>(
+    alg: Algorithm,
+    d: &mut D,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    D: DiffHook,
+    Old::Output: Hash + Eq + Ord,
+    New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
+{
+    diff_internal(alg, d, old, old_range, new, new_range, deadline)
+}
+
+pub(crate) fn diff_internal<Old, New, D>(
     alg: Algorithm,
     d: &mut D,
     old: &Old,
@@ -115,9 +135,10 @@ where
     D: DiffHook,
     T: Eq + Hash + Ord,
 {
-    diff(alg, d, old, 0..old.len(), new, 0..new.len())
+    diff_internal(alg, d, old, 0..old.len(), new, 0..new.len(), None)
 }
 
+#[cfg(any(feature = "std", feature = "wasm32_web_time"))]
 /// Shortcut for diffing slices with a specific algorithm.
 pub fn diff_slices_deadline<D, T>(
     alg: Algorithm,
@@ -130,5 +151,5 @@ where
     D: DiffHook,
     T: Eq + Hash + Ord,
 {
-    diff_deadline(alg, d, old, 0..old.len(), new, 0..new.len(), deadline)
+    diff_internal(alg, d, old, 0..old.len(), new, 0..new.len(), deadline)
 }

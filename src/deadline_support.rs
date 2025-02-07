@@ -31,7 +31,7 @@ pub fn deadline_exceeded(deadline: Option<Instant>) -> bool {
     }
 }
 
-/// Converts a duration into a deadline.  This can be a noop on wasm
+/// Converts a duration into a deadline.
 #[allow(unused)]
 pub fn duration_to_deadline(add: Duration) -> Option<Instant> {
     #[cfg(not(any(feature = "std", feature = "wasm32_web_time")))]
