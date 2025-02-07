@@ -1,8 +1,10 @@
 //! Text diffing utilities.
-use std::borrow::Cow;
-use std::cmp::Reverse;
-use std::collections::BinaryHeap;
-use std::time::Duration;
+use alloc::borrow::Cow;
+use alloc::collections::BinaryHeap;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::cmp::Reverse;
+use core::time::Duration;
 
 mod abstraction;
 #[cfg(feature = "inline")]
@@ -624,169 +626,177 @@ pub fn get_close_matches<'a, T: DiffableStr + ?Sized>(
     rv
 }
 
-#[test]
-fn test_captured_ops() {
-    let diff = TextDiff::from_lines(
-        "Hello World\nsome stuff here\nsome more stuff here\n",
-        "Hello World\nsome amazing stuff here\nsome more stuff here\n",
-    );
-    insta::assert_debug_snapshot!(&diff.ops());
-}
+#[cfg(test)]
+mod test {
+    extern crate std;
 
-#[test]
-fn test_captured_word_ops() {
-    let diff = TextDiff::from_words(
-        "Hello World\nsome stuff here\nsome more stuff here\n",
-        "Hello World\nsome amazing stuff here\nsome more stuff here\n",
-    );
-    let changes = diff
-        .ops()
-        .iter()
-        .flat_map(|op| diff.iter_changes(op))
-        .collect::<Vec<_>>();
-    insta::assert_debug_snapshot!(&changes);
-}
+    use super::*;
+    use alloc::string::ToString;
 
-#[test]
-fn test_unified_diff() {
-    let diff = TextDiff::from_lines(
-        "Hello World\nsome stuff here\nsome more stuff here\n",
-        "Hello World\nsome amazing stuff here\nsome more stuff here\n",
-    );
-    assert!(diff.newline_terminated());
-    insta::assert_snapshot!(&diff
-        .unified_diff()
-        .context_radius(3)
-        .header("old", "new")
-        .to_string());
-}
+    #[test]
+    fn test_captured_ops() {
+        let diff = TextDiff::from_lines(
+            "Hello World\nsome stuff here\nsome more stuff here\n",
+            "Hello World\nsome amazing stuff here\nsome more stuff here\n",
+        );
+        insta::assert_debug_snapshot!(&diff.ops());
+    }
 
-#[test]
-fn test_line_ops() {
-    let a = "Hello World\nsome stuff here\nsome more stuff here\n";
-    let b = "Hello World\nsome amazing stuff here\nsome more stuff here\n";
-    let diff = TextDiff::from_lines(a, b);
-    assert!(diff.newline_terminated());
-    let changes = diff
-        .ops()
-        .iter()
-        .flat_map(|op| diff.iter_changes(op))
-        .collect::<Vec<_>>();
-    insta::assert_debug_snapshot!(&changes);
-
-    #[cfg(feature = "bytes")]
-    {
-        let byte_diff = TextDiff::from_lines(a.as_bytes(), b.as_bytes());
-        let byte_changes = byte_diff
+    #[test]
+    fn test_captured_word_ops() {
+        let diff = TextDiff::from_words(
+            "Hello World\nsome stuff here\nsome more stuff here\n",
+            "Hello World\nsome amazing stuff here\nsome more stuff here\n",
+        );
+        let changes = diff
             .ops()
             .iter()
-            .flat_map(|op| byte_diff.iter_changes(op))
+            .flat_map(|op| diff.iter_changes(op))
             .collect::<Vec<_>>();
-        for (change, byte_change) in changes.iter().zip(byte_changes.iter()) {
-            assert_eq!(change.to_string_lossy(), byte_change.to_string_lossy());
+        insta::assert_debug_snapshot!(&changes);
+    }
+
+    #[test]
+    fn test_unified_diff() {
+        let diff = TextDiff::from_lines(
+            "Hello World\nsome stuff here\nsome more stuff here\n",
+            "Hello World\nsome amazing stuff here\nsome more stuff here\n",
+        );
+        assert!(diff.newline_terminated());
+        insta::assert_snapshot!(&diff
+            .unified_diff()
+            .context_radius(3)
+            .header("old", "new")
+            .to_string());
+    }
+
+    #[test]
+    fn test_line_ops() {
+        let a = "Hello World\nsome stuff here\nsome more stuff here\n";
+        let b = "Hello World\nsome amazing stuff here\nsome more stuff here\n";
+        let diff = TextDiff::from_lines(a, b);
+        assert!(diff.newline_terminated());
+        let changes = diff
+            .ops()
+            .iter()
+            .flat_map(|op| diff.iter_changes(op))
+            .collect::<Vec<_>>();
+        insta::assert_debug_snapshot!(&changes);
+
+        #[cfg(feature = "bytes")]
+        {
+            let byte_diff = TextDiff::from_lines(a.as_bytes(), b.as_bytes());
+            let byte_changes = byte_diff
+                .ops()
+                .iter()
+                .flat_map(|op| byte_diff.iter_changes(op))
+                .collect::<Vec<_>>();
+            for (change, byte_change) in changes.iter().zip(byte_changes.iter()) {
+                assert_eq!(change.to_string_lossy(), byte_change.to_string_lossy());
+            }
         }
     }
-}
 
-#[test]
-fn test_virtual_newlines() {
-    let diff = TextDiff::from_lines("a\nb", "a\nc\n");
-    assert!(diff.newline_terminated());
-    let changes = diff
-        .ops()
-        .iter()
-        .flat_map(|op| diff.iter_changes(op))
-        .collect::<Vec<_>>();
-    insta::assert_debug_snapshot!(&changes);
-}
-
-#[test]
-fn test_char_diff() {
-    let diff = TextDiff::from_chars("Hello World", "Hallo Welt");
-    insta::assert_debug_snapshot!(diff.ops());
-
-    #[cfg(feature = "bytes")]
-    {
-        let byte_diff = TextDiff::from_chars("Hello World".as_bytes(), "Hallo Welt".as_bytes());
-        assert_eq!(diff.ops(), byte_diff.ops());
-    }
-}
-
-#[test]
-fn test_ratio() {
-    let diff = TextDiff::from_chars("abcd", "bcde");
-    assert_eq!(diff.ratio(), 0.75);
-    let diff = TextDiff::from_chars("", "");
-    assert_eq!(diff.ratio(), 1.0);
-}
-
-#[test]
-fn test_get_close_matches() {
-    let matches = get_close_matches("appel", &["ape", "apple", "peach", "puppy"][..], 3, 0.6);
-    assert_eq!(matches, vec!["apple", "ape"]);
-    let matches = get_close_matches(
-        "hulo",
-        &[
-            "hi", "hulu", "hali", "hoho", "amaz", "zulo", "blah", "hopp", "uulo", "aulo",
-        ][..],
-        5,
-        0.7,
-    );
-    assert_eq!(matches, vec!["aulo", "hulu", "uulo", "zulo"]);
-}
-
-#[test]
-fn test_lifetimes_on_iter() {
-    use crate::Change;
-
-    fn diff_lines<'x, T>(old: &'x T, new: &'x T) -> Vec<Change<&'x T::Output>>
-    where
-        T: DiffableStrRef + ?Sized,
-    {
-        TextDiff::from_lines(old, new).iter_all_changes().collect()
+    #[test]
+    fn test_virtual_newlines() {
+        let diff = TextDiff::from_lines("a\nb", "a\nc\n");
+        assert!(diff.newline_terminated());
+        let changes = diff
+            .ops()
+            .iter()
+            .flat_map(|op| diff.iter_changes(op))
+            .collect::<Vec<_>>();
+        insta::assert_debug_snapshot!(&changes);
     }
 
-    let a = "1\n2\n3\n".to_string();
-    let b = "1\n99\n3\n".to_string();
-    let changes = diff_lines(&a, &b);
-    insta::assert_debug_snapshot!(&changes);
-}
+    #[test]
+    fn test_char_diff() {
+        let diff = TextDiff::from_chars("Hello World", "Hallo Welt");
+        insta::assert_debug_snapshot!(diff.ops());
 
-#[test]
-#[cfg(feature = "serde")]
-fn test_serde() {
-    let diff = TextDiff::from_lines(
-        "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
-        "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
-    );
-    let changes = diff
-        .ops()
-        .iter()
-        .flat_map(|op| diff.iter_changes(op))
-        .collect::<Vec<_>>();
-    let json = serde_json::to_string_pretty(&changes).unwrap();
-    insta::assert_snapshot!(&json);
-}
+        #[cfg(feature = "bytes")]
+        {
+            let byte_diff = TextDiff::from_chars("Hello World".as_bytes(), "Hallo Welt".as_bytes());
+            assert_eq!(diff.ops(), byte_diff.ops());
+        }
+    }
 
-#[test]
-#[cfg(feature = "serde")]
-fn test_serde_ops() {
-    let diff = TextDiff::from_lines(
-        "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
-        "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
-    );
-    let changes = diff.ops();
-    let json = serde_json::to_string_pretty(&changes).unwrap();
-    insta::assert_snapshot!(&json);
-}
+    #[test]
+    fn test_ratio() {
+        let diff = TextDiff::from_chars("abcd", "bcde");
+        assert_eq!(diff.ratio(), 0.75);
+        let diff = TextDiff::from_chars("", "");
+        assert_eq!(diff.ratio(), 1.0);
+    }
 
-#[test]
-fn test_regression_issue_37() {
-    let config = TextDiffConfig::default();
-    let diff = config.diff_lines("\u{18}\n\n", "\n\n\r");
-    let mut output = diff.unified_diff();
-    assert_eq!(
-        output.context_radius(0).to_string(),
-        "@@ -1 +1,0 @@\n-\u{18}\n@@ -2,0 +2,2 @@\n+\n+\r"
-    );
+    #[test]
+    fn test_get_close_matches() {
+        let matches = get_close_matches("appel", &["ape", "apple", "peach", "puppy"][..], 3, 0.6);
+        assert_eq!(matches, vec!["apple", "ape"]);
+        let matches = get_close_matches(
+            "hulo",
+            &[
+                "hi", "hulu", "hali", "hoho", "amaz", "zulo", "blah", "hopp", "uulo", "aulo",
+            ][..],
+            5,
+            0.7,
+        );
+        assert_eq!(matches, vec!["aulo", "hulu", "uulo", "zulo"]);
+    }
+
+    #[test]
+    fn test_lifetimes_on_iter() {
+        use crate::Change;
+
+        fn diff_lines<'x, T>(old: &'x T, new: &'x T) -> Vec<Change<&'x T::Output>>
+        where
+            T: DiffableStrRef + ?Sized,
+        {
+            TextDiff::from_lines(old, new).iter_all_changes().collect()
+        }
+
+        let a = "1\n2\n3\n".to_string();
+        let b = "1\n99\n3\n".to_string();
+        let changes = diff_lines(&a, &b);
+        insta::assert_debug_snapshot!(&changes);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_serde() {
+        let diff = TextDiff::from_lines(
+            "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
+            "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
+        );
+        let changes = diff
+            .ops()
+            .iter()
+            .flat_map(|op| diff.iter_changes(op))
+            .collect::<Vec<_>>();
+        let json = serde_json::to_string_pretty(&changes).unwrap();
+        insta::assert_snapshot!(&json);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_serde_ops() {
+        let diff = TextDiff::from_lines(
+            "Hello World\nsome stuff here\nsome more stuff here\n\nAha stuff here\nand more stuff",
+            "Stuff\nHello World\nsome amazing stuff here\nsome more stuff here\n",
+        );
+        let changes = diff.ops();
+        let json = serde_json::to_string_pretty(&changes).unwrap();
+        insta::assert_snapshot!(&json);
+    }
+
+    #[test]
+    fn test_regression_issue_37() {
+        let config = TextDiffConfig::default();
+        let diff = config.diff_lines("\u{18}\n\n", "\n\n\r");
+        let mut output = diff.unified_diff();
+        assert_eq!(
+            output.context_radius(0).to_string(),
+            "@@ -1 +1,0 @@\n-\u{18}\n@@ -2,0 +2,2 @@\n+\n+\r"
+        );
+    }
 }

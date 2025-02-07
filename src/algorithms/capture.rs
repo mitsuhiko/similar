@@ -1,4 +1,5 @@
-use std::convert::Infallible;
+use alloc::vec::Vec;
+use core::convert::Infallible;
 
 use crate::algorithms::DiffHook;
 use crate::{group_diff_ops, DiffOp};
@@ -92,26 +93,33 @@ impl DiffHook for Capture {
     }
 }
 
-#[test]
-fn test_capture_hook_grouping() {
-    use crate::algorithms::{diff_slices, Algorithm, Replace};
+#[cfg(test)]
+mod test {
+    extern crate std;
 
-    let rng = (1..100).collect::<Vec<_>>();
-    let mut rng_new = rng.clone();
-    rng_new[10] = 1000;
-    rng_new[13] = 1000;
-    rng_new[16] = 1000;
-    rng_new[34] = 1000;
+    use super::*;
 
-    let mut d = Replace::new(Capture::new());
-    diff_slices(Algorithm::Myers, &mut d, &rng, &rng_new).unwrap();
+    #[test]
+    fn test_capture_hook_grouping() {
+        use crate::algorithms::{diff_slices, Algorithm, Replace};
 
-    let ops = d.into_inner().into_grouped_ops(3);
-    let tags = ops
-        .iter()
-        .map(|group| group.iter().map(|x| x.as_tag_tuple()).collect::<Vec<_>>())
-        .collect::<Vec<_>>();
+        let rng = (1..100).collect::<Vec<_>>();
+        let mut rng_new = rng.clone();
+        rng_new[10] = 1000;
+        rng_new[13] = 1000;
+        rng_new[16] = 1000;
+        rng_new[34] = 1000;
 
-    insta::assert_debug_snapshot!(ops);
-    insta::assert_debug_snapshot!(tags);
+        let mut d = Replace::new(Capture::new());
+        diff_slices(Algorithm::Myers, &mut d, &rng, &rng_new).unwrap();
+
+        let ops = d.into_inner().into_grouped_ops(3);
+        let tags = ops
+            .iter()
+            .map(|group| group.iter().map(|x| x.as_tag_tuple()).collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+
+        insta::assert_debug_snapshot!(ops);
+        insta::assert_debug_snapshot!(tags);
+    }
 }

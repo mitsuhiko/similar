@@ -25,8 +25,9 @@
 //! optimize towards returning the most useful slice that one would expect for
 //! the type of diff performed.
 
-use std::hash::Hash;
-use std::ops::{Index, Range};
+use alloc::vec::Vec;
+use core::hash::Hash;
+use core::ops::{Index, Range};
 
 use crate::{
     capture_diff_slices, Algorithm, ChangeTag, DiffOp, DiffableStr, DiffableStrRef, TextDiff,
@@ -398,15 +399,22 @@ pub fn diff_lines<'x, T: DiffableStrRef + ?Sized>(
         .collect()
 }
 
-#[test]
-fn test_remapper() {
-    let a = "foo bar baz";
-    let words = a.tokenize_words();
-    dbg!(&words);
-    let remap = SliceRemapper::new(a, &words);
-    assert_eq!(remap.slice(0..3), Some("foo bar"));
-    assert_eq!(remap.slice(1..3), Some(" bar"));
-    assert_eq!(remap.slice(0..1), Some("foo"));
-    assert_eq!(remap.slice(0..5), Some("foo bar baz"));
-    assert_eq!(remap.slice(0..6), None);
+#[cfg(test)]
+mod test {
+    extern crate std;
+
+    use super::*;
+
+    #[test]
+    fn test_remapper() {
+        let a = "foo bar baz";
+        let words = a.tokenize_words();
+        std::dbg!(&words);
+        let remap = SliceRemapper::new(a, &words);
+        assert_eq!(remap.slice(0..3), Some("foo bar"));
+        assert_eq!(remap.slice(1..3), Some(" bar"));
+        assert_eq!(remap.slice(0..1), Some("foo"));
+        assert_eq!(remap.slice(0..5), Some("foo bar baz"));
+        assert_eq!(remap.slice(0..6), None);
+    }
 }

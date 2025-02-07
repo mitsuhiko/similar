@@ -23,8 +23,13 @@
 //!
 //! The former uses [`DiffableStr::to_string_lossy`], the latter uses
 //! [`DiffableStr::as_bytes`] for each line.
+
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 #[cfg(feature = "text")]
-use std::{fmt, io};
+use core::fmt;
+#[cfg(feature = "std")]
+use std::io;
 
 use crate::iter::AllChangesIter;
 use crate::text::{DiffableStr, TextDiff};
@@ -177,6 +182,7 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> UnifiedDiff<'diff, 'old,
             .map(move |ops| UnifiedDiffHunk::new(ops, diff, missing_newline_hint))
     }
 
+    #[cfg(feature = "std")]
     /// Write the unified diff as bytes to the output stream.
     pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error>
     where
@@ -251,6 +257,7 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized>
         AllChangesIter::new(self.diff.old_slices(), self.diff.new_slices(), self.ops())
     }
 
+    #[cfg(feature = "std")]
     /// Write the hunk as bytes to the output stream.
     pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error>
     where
@@ -333,27 +340,34 @@ pub fn unified_diff(
         .to_string()
 }
 
-#[test]
-fn test_unified_diff() {
-    let diff = TextDiff::from_lines(
-        "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no\np\nq\nr\ns\nt\nu\nv\nw\nx\ny\nz\nA\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP\nQ\nR\nS\nT\nU\nV\nW\nX\nY\nZ",
-        "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no\np\nq\nr\nS\nt\nu\nv\nw\nx\ny\nz\nA\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\no\nP\nQ\nR\nS\nT\nU\nV\nW\nX\nY\nZ",
-    );
-    insta::assert_snapshot!(&diff.unified_diff().header("a.txt", "b.txt").to_string());
-}
-#[test]
-fn test_empty_unified_diff() {
-    let diff = TextDiff::from_lines("abc", "abc");
-    assert_eq!(diff.unified_diff().header("a.txt", "b.txt").to_string(), "");
-}
+#[cfg(test)]
+mod test {
+    extern crate std;
 
-#[test]
-fn test_unified_diff_newline_hint() {
-    let diff = TextDiff::from_lines("a\n", "b");
-    insta::assert_snapshot!(&diff.unified_diff().header("a.txt", "b.txt").to_string());
-    insta::assert_snapshot!(&diff
-        .unified_diff()
-        .missing_newline_hint(false)
-        .header("a.txt", "b.txt")
-        .to_string());
+    use super::*;
+
+    #[test]
+    fn test_unified_diff() {
+        let diff = TextDiff::from_lines(
+            "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no\np\nq\nr\ns\nt\nu\nv\nw\nx\ny\nz\nA\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\nO\nP\nQ\nR\nS\nT\nU\nV\nW\nX\nY\nZ",
+            "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no\np\nq\nr\nS\nt\nu\nv\nw\nx\ny\nz\nA\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM\nN\no\nP\nQ\nR\nS\nT\nU\nV\nW\nX\nY\nZ",
+        );
+        insta::assert_snapshot!(&diff.unified_diff().header("a.txt", "b.txt").to_string());
+    }
+    #[test]
+    fn test_empty_unified_diff() {
+        let diff = TextDiff::from_lines("abc", "abc");
+        assert_eq!(diff.unified_diff().header("a.txt", "b.txt").to_string(), "");
+    }
+
+    #[test]
+    fn test_unified_diff_newline_hint() {
+        let diff = TextDiff::from_lines("a\n", "b");
+        insta::assert_snapshot!(&diff.unified_diff().header("a.txt", "b.txt").to_string());
+        insta::assert_snapshot!(&diff
+            .unified_diff()
+            .missing_newline_hint(false)
+            .header("a.txt", "b.txt")
+            .to_string());
+    }
 }

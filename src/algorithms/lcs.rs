@@ -2,8 +2,8 @@
 //!
 //! * time: `O((NM)D log (M)D)`
 //! * space `O(MN)`
-use std::collections::BTreeMap;
-use std::ops::{Index, Range};
+use alloc::collections::BTreeMap;
+use core::ops::{Index, Range};
 
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::DiffHook;
@@ -188,107 +188,115 @@ where
     Some(table)
 }
 
-#[test]
-fn test_table() {
-    let table = make_table(&vec![2, 3], 0..2, &vec![0, 1, 2], 0..3, None).unwrap();
-    let expected = {
-        let mut m = BTreeMap::new();
-        m.insert((1, 0), 1);
-        m.insert((0, 0), 1);
-        m.insert((2, 0), 1);
-        m
-    };
-    assert_eq!(table, expected);
-}
+#[cfg(test)]
+mod test {
+    extern crate std;
 
-#[test]
-fn test_diff() {
-    let a: &[usize] = &[0, 1, 2, 3, 4];
-    let b: &[usize] = &[0, 1, 2, 9, 4];
+    use super::*;
+    use alloc::vec;
 
-    let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
-    insta::assert_debug_snapshot!(d.into_inner().ops());
-}
-
-#[test]
-fn test_contiguous() {
-    let a: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
-    let b: &[usize] = &[0, 1, 2, 8, 9, 4, 4, 7];
-
-    let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
-    insta::assert_debug_snapshot!(d.into_inner().ops());
-}
-
-#[test]
-fn test_pat() {
-    let a: &[usize] = &[0, 1, 3, 4, 5];
-    let b: &[usize] = &[0, 1, 4, 5, 8, 9];
-
-    let mut d = crate::algorithms::Capture::new();
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
-    insta::assert_debug_snapshot!(d.ops());
-}
-
-#[test]
-fn test_same() {
-    let a: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
-    let b: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
-
-    let mut d = crate::algorithms::Capture::new();
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
-    insta::assert_debug_snapshot!(d.ops());
-}
-
-#[test]
-fn test_finish_called() {
-    struct HasRunFinish(bool);
-
-    impl DiffHook for HasRunFinish {
-        type Error = ();
-        fn finish(&mut self) -> Result<(), Self::Error> {
-            self.0 = true;
-            Ok(())
-        }
+    #[test]
+    fn test_table() {
+        let table = make_table(&vec![2, 3], 0..2, &vec![0, 1, 2], 0..3, None).unwrap();
+        let expected = {
+            let mut m = BTreeMap::new();
+            m.insert((1, 0), 1);
+            m.insert((0, 0), 1);
+            m.insert((2, 0), 1);
+            m
+        };
+        assert_eq!(table, expected);
     }
 
-    let mut d = HasRunFinish(false);
-    let slice = &[1, 2];
-    let slice2 = &[1, 2, 3];
-    diff(&mut d, slice, 0..slice.len(), slice2, 0..slice2.len()).unwrap();
-    assert!(d.0);
+    #[test]
+    fn test_diff() {
+        let a: &[usize] = &[0, 1, 2, 3, 4];
+        let b: &[usize] = &[0, 1, 2, 9, 4];
 
-    let mut d = HasRunFinish(false);
-    let slice = &[1, 2];
-    diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
-    assert!(d.0);
+        let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
+        diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+        insta::assert_debug_snapshot!(d.into_inner().ops());
+    }
 
-    let mut d = HasRunFinish(false);
-    let slice: &[u8] = &[];
-    diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
-    assert!(d.0);
-}
+    #[test]
+    fn test_contiguous() {
+        let a: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
+        let b: &[usize] = &[0, 1, 2, 8, 9, 4, 4, 7];
 
-#[test]
-fn test_bad_range_regression() {
-    use crate::algorithms::Capture;
-    use crate::DiffOp;
-    let mut d = Capture::new();
-    diff(&mut d, &[0], 0..1, &[0, 0], 0..2).unwrap();
-    assert_eq!(
-        d.into_ops(),
-        vec![
-            DiffOp::Equal {
-                old_index: 0,
-                new_index: 0,
-                len: 1
-            },
-            DiffOp::Insert {
-                old_index: 1,
-                new_index: 1,
-                new_len: 1
+        let mut d = crate::algorithms::Replace::new(crate::algorithms::Capture::new());
+        diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+        insta::assert_debug_snapshot!(d.into_inner().ops());
+    }
+
+    #[test]
+    fn test_pat() {
+        let a: &[usize] = &[0, 1, 3, 4, 5];
+        let b: &[usize] = &[0, 1, 4, 5, 8, 9];
+
+        let mut d = crate::algorithms::Capture::new();
+        diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+        insta::assert_debug_snapshot!(d.ops());
+    }
+
+    #[test]
+    fn test_same() {
+        let a: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
+        let b: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
+
+        let mut d = crate::algorithms::Capture::new();
+        diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+        insta::assert_debug_snapshot!(d.ops());
+    }
+
+    #[test]
+    fn test_finish_called() {
+        struct HasRunFinish(bool);
+
+        impl DiffHook for HasRunFinish {
+            type Error = ();
+            fn finish(&mut self) -> Result<(), Self::Error> {
+                self.0 = true;
+                Ok(())
             }
-        ]
-    );
+        }
+
+        let mut d = HasRunFinish(false);
+        let slice = &[1, 2];
+        let slice2 = &[1, 2, 3];
+        diff(&mut d, slice, 0..slice.len(), slice2, 0..slice2.len()).unwrap();
+        assert!(d.0);
+
+        let mut d = HasRunFinish(false);
+        let slice = &[1, 2];
+        diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
+        assert!(d.0);
+
+        let mut d = HasRunFinish(false);
+        let slice: &[u8] = &[];
+        diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
+        assert!(d.0);
+    }
+
+    #[test]
+    fn test_bad_range_regression() {
+        use crate::algorithms::Capture;
+        use crate::DiffOp;
+        let mut d = Capture::new();
+        diff(&mut d, &[0], 0..1, &[0, 0], 0..2).unwrap();
+        assert_eq!(
+            d.into_ops(),
+            vec![
+                DiffOp::Equal {
+                    old_index: 0,
+                    new_index: 0,
+                    len: 1
+                },
+                DiffOp::Insert {
+                    old_index: 1,
+                    new_index: 1,
+                    new_len: 1
+                }
+            ]
+        );
+    }
 }

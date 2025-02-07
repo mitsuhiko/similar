@@ -8,8 +8,8 @@
 //!
 //! This is based on the patience implementation of [pijul](https://pijul.org/)
 //! by Pierre-Étienne Meunier.
-use std::hash::Hash;
-use std::ops::{Index, Range};
+use core::hash::Hash;
+use core::ops::{Index, Range};
 
 use crate::algorithms::{myers, DiffHook, NoFinishHook, Replace};
 use crate::deadline_support::Instant;
@@ -145,54 +145,61 @@ where
     }
 }
 
-#[test]
-fn test_patience() {
-    let a: &[usize] = &[11, 1, 2, 2, 3, 4, 4, 4, 5, 47, 19];
-    let b: &[usize] = &[10, 1, 2, 2, 8, 9, 4, 4, 7, 47, 18];
+#[cfg(test)]
+mod test {
+    extern crate std;
 
-    let mut d = Replace::new(crate::algorithms::Capture::new());
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+    use super::*;
 
-    insta::assert_debug_snapshot!(d.into_inner().ops());
-}
+    #[test]
+    fn test_patience() {
+        let a: &[usize] = &[11, 1, 2, 2, 3, 4, 4, 4, 5, 47, 19];
+        let b: &[usize] = &[10, 1, 2, 2, 8, 9, 4, 4, 7, 47, 18];
 
-#[test]
-fn test_patience_out_of_bounds_bug() {
-    // this used to be a bug
-    let a: &[usize] = &[1, 2, 3, 4];
-    let b: &[usize] = &[1, 2, 3];
+        let mut d = Replace::new(crate::algorithms::Capture::new());
+        diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
 
-    let mut d = Replace::new(crate::algorithms::Capture::new());
-    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
-
-    insta::assert_debug_snapshot!(d.into_inner().ops());
-}
-
-#[test]
-fn test_finish_called() {
-    struct HasRunFinish(bool);
-
-    impl DiffHook for HasRunFinish {
-        type Error = ();
-        fn finish(&mut self) -> Result<(), Self::Error> {
-            self.0 = true;
-            Ok(())
-        }
+        insta::assert_debug_snapshot!(d.into_inner().ops());
     }
 
-    let mut d = HasRunFinish(false);
-    let slice = &[1, 2];
-    let slice2 = &[1, 2, 3];
-    diff(&mut d, slice, 0..slice.len(), slice2, 0..slice2.len()).unwrap();
-    assert!(d.0);
+    #[test]
+    fn test_patience_out_of_bounds_bug() {
+        // this used to be a bug
+        let a: &[usize] = &[1, 2, 3, 4];
+        let b: &[usize] = &[1, 2, 3];
 
-    let mut d = HasRunFinish(false);
-    let slice = &[1, 2];
-    diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
-    assert!(d.0);
+        let mut d = Replace::new(crate::algorithms::Capture::new());
+        diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
 
-    let mut d = HasRunFinish(false);
-    let slice: &[u8] = &[];
-    diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
-    assert!(d.0);
+        insta::assert_debug_snapshot!(d.into_inner().ops());
+    }
+
+    #[test]
+    fn test_finish_called() {
+        struct HasRunFinish(bool);
+
+        impl DiffHook for HasRunFinish {
+            type Error = ();
+            fn finish(&mut self) -> Result<(), Self::Error> {
+                self.0 = true;
+                Ok(())
+            }
+        }
+
+        let mut d = HasRunFinish(false);
+        let slice = &[1, 2];
+        let slice2 = &[1, 2, 3];
+        diff(&mut d, slice, 0..slice.len(), slice2, 0..slice2.len()).unwrap();
+        assert!(d.0);
+
+        let mut d = HasRunFinish(false);
+        let slice = &[1, 2];
+        diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
+        assert!(d.0);
+
+        let mut d = HasRunFinish(false);
+        let slice: &[u8] = &[];
+        diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
+        assert!(d.0);
+    }
 }
