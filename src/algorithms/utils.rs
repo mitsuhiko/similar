@@ -68,7 +68,7 @@ where
 pub fn unique<Idx>(lookup: &Idx, range: Range<usize>) -> Vec<UniqueItem<Idx>>
 where
     Idx: Index<usize> + ?Sized,
-    Idx::Output: Hash + Eq + PartialOrd,
+    Idx::Output: Hash + Eq + Ord,
 {
     let mut by_item = MapType::new();
     for index in range {
@@ -200,9 +200,9 @@ where
     ) -> Self
     where
         Old: Index<usize> + ?Sized,
-        Old::Output: Eq + Hash,
+        Old::Output: Eq + Hash + Ord,
         New: Index<usize> + ?Sized,
-        New::Output: Eq + Hash + PartialEq<Old::Output>,
+        New::Output: Eq + Hash + Ord + PartialEq<Old::Output> + PartialOrd<Old::Output>,
     {
         enum Key<'old, 'new, Old: ?Sized, New: ?Sized> {
             Old(&'old Old),
@@ -242,6 +242,38 @@ where
             Old: Eq + ?Sized,
             New: Eq + PartialEq<Old> + ?Sized,
         {
+        }
+
+        impl<Old, New> PartialOrd for Key<'_, '_, Old, New>
+        where
+            Old: Eq + PartialOrd + ?Sized,
+            New: Eq + PartialOrd + PartialOrd<Old> + ?Sized,
+        {
+            #[inline(always)]
+            fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+                match (self, other) {
+                    (Key::Old(a), Key::Old(b)) => a.partial_cmp(b),
+                    (Key::New(a), Key::New(b)) => a.partial_cmp(b),
+                    (Key::Old(a), Key::New(b)) | (Key::New(b), Key::Old(a)) => b.partial_cmp(a),
+                }
+            }
+        }
+
+        impl<Old, New> Ord for Key<'_, '_, Old, New>
+        where
+            Old: Ord + ?Sized,
+            New: Eq + Ord + PartialOrd<Old> + ?Sized,
+        {
+            #[inline(always)]
+            fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+                match (self, other) {
+                    (Key::Old(a), Key::Old(b)) => a.cmp(b),
+                    (Key::New(a), Key::New(b)) => a.cmp(b),
+                    (Key::Old(a), Key::New(b)) | (Key::New(b), Key::Old(a)) => {
+                        b.partial_cmp(a).unwrap()
+                    }
+                }
+            }
         }
 
         let mut map = MapType::new();

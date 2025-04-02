@@ -29,8 +29,8 @@ pub fn diff<Old, New, D>(
 where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
-    Old::Output: Hash + Eq + PartialOrd,
-    New::Output: PartialEq<Old::Output> + Hash + Eq + PartialOrd,
+    Old::Output: Hash + Eq + Ord,
+    New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
     D: DiffHook,
 {
     diff_deadline(d, old, old_range, new, new_range, None)
@@ -53,8 +53,8 @@ pub fn diff_deadline<Old, New, D>(
 where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
-    Old::Output: Hash + Eq + PartialOrd,
-    New::Output: PartialEq<Old::Output> + Hash + Eq + PartialOrd,
+    Old::Output: Hash + Eq + Ord,
+    New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
     D: DiffHook,
 {
     let old_indexes = unique(old, old_range.clone());

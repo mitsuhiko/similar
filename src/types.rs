@@ -12,7 +12,6 @@ pub(crate) use alloc::collections::btree_map as map;
 
 #[cfg(all(not(feature = "std"), feature = "hashbrown"))]
 pub(crate) type MapType<K, V> = hashbrown::HashMap<K, V>;
-
 #[cfg(all(not(feature = "std"), feature = "hashbrown"))]
 pub(crate) use hashbrown::hash_map as map;
 

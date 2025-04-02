@@ -20,7 +20,7 @@ pub fn upper_seq_ratio<T: PartialEq>(seq1: &[T], seq2: &[T]) -> f32 {
 /// obvious upper bound.
 pub struct QuickSeqRatio<'a, T: DiffableStrRef + ?Sized>(MapType<&'a T, i32>);
 
-impl<'a, T: DiffableStrRef + Hash + Eq + PartialOrd + ?Sized> QuickSeqRatio<'a, T> {
+impl<'a, T: DiffableStrRef + Hash + Eq + Ord + ?Sized> QuickSeqRatio<'a, T> {
     pub fn new(seq: &[&'a T]) -> QuickSeqRatio<'a, T> {
         let mut counts = MapType::new();
         for &word in seq {
