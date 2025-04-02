@@ -1,11 +1,6 @@
-use core::hash::Hash;
-
-#[cfg(not(feature = "std"))]
-use hashbrown::HashMap;
-#[cfg(feature = "std")]
-use std::collections::HashMap;
-
 use super::DiffableStrRef;
+use crate::types::MapType;
+use core::hash::Hash;
 
 // quick and dirty way to get an upper sequence ratio.
 pub fn upper_seq_ratio<T: PartialEq>(seq1: &[T], seq2: &[T]) -> f32 {
@@ -23,11 +18,11 @@ pub fn upper_seq_ratio<T: PartialEq>(seq1: &[T], seq2: &[T]) -> f32 {
 ///
 /// It counts the number of matches without regard to order, which is an
 /// obvious upper bound.
-pub struct QuickSeqRatio<'a, T: DiffableStrRef + ?Sized>(HashMap<&'a T, i32>);
+pub struct QuickSeqRatio<'a, T: DiffableStrRef + ?Sized>(MapType<&'a T, i32>);
 
-impl<'a, T: DiffableStrRef + Hash + Eq + ?Sized> QuickSeqRatio<'a, T> {
+impl<'a, T: DiffableStrRef + Hash + Eq + PartialOrd + ?Sized> QuickSeqRatio<'a, T> {
     pub fn new(seq: &[&'a T]) -> QuickSeqRatio<'a, T> {
-        let mut counts = HashMap::new();
+        let mut counts = MapType::new();
         for &word in seq {
             *counts.entry(word).or_insert(0) += 1;
         }
@@ -40,7 +35,7 @@ impl<'a, T: DiffableStrRef + Hash + Eq + ?Sized> QuickSeqRatio<'a, T> {
             return 1.0;
         }
 
-        let mut available = HashMap::new();
+        let mut available = MapType::new();
         let mut matches = 0;
         for &word in seq {
             let x = if let Some(count) = available.get(&word) {

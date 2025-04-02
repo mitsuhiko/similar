@@ -1,12 +1,8 @@
+use crate::types::{map, MapType};
 use alloc::vec::Vec;
 use core::fmt::{self, Debug};
 use core::hash::{Hash, Hasher};
 use core::ops::{Add, Index, Range};
-
-#[cfg(not(feature = "std"))]
-use hashbrown::{hash_map::Entry, HashMap};
-#[cfg(feature = "std")]
-use std::collections::{hash_map::Entry, HashMap};
 
 /// Utility function to check if a range is empty that works on older rust versions
 #[inline(always)]
@@ -72,15 +68,15 @@ where
 pub fn unique<Idx>(lookup: &Idx, range: Range<usize>) -> Vec<UniqueItem<Idx>>
 where
     Idx: Index<usize> + ?Sized,
-    Idx::Output: Hash + Eq,
+    Idx::Output: Hash + Eq + PartialOrd,
 {
-    let mut by_item = HashMap::new();
+    let mut by_item = MapType::new();
     for index in range {
         match by_item.entry(&lookup[index]) {
-            Entry::Vacant(entry) => {
+            map::Entry::Vacant(entry) => {
                 entry.insert(Some(index));
             }
-            Entry::Occupied(mut entry) => {
+            map::Entry::Occupied(mut entry) => {
                 let entry = entry.get_mut();
                 if entry.is_some() {
                     *entry = None
@@ -248,7 +244,7 @@ where
         {
         }
 
-        let mut map = HashMap::new();
+        let mut map = MapType::new();
         let mut old_seq = Vec::new();
         let mut new_seq = Vec::new();
         let mut next_id = Int::default();
@@ -259,8 +255,8 @@ where
         for idx in old_range {
             let item = Key::Old(&old[idx]);
             let id = match map.entry(item) {
-                Entry::Occupied(o) => *o.get(),
-                Entry::Vacant(v) => {
+                map::Entry::Occupied(o) => *o.get(),
+                map::Entry::Vacant(v) => {
                     let id = next_id;
                     next_id = next_id + step;
                     *v.insert(id)
@@ -272,8 +268,8 @@ where
         for idx in new_range {
             let item = Key::New(&new[idx]);
             let id = match map.entry(item) {
-                Entry::Occupied(o) => *o.get(),
-                Entry::Vacant(v) => {
+                map::Entry::Occupied(o) => *o.get(),
+                map::Entry::Vacant(v) => {
                     let id = next_id;
                     next_id = next_id + step;
                     *v.insert(id)

@@ -5,6 +5,22 @@ use crate::algorithms::utils::is_empty_range;
 use crate::algorithms::DiffHook;
 use crate::iter::ChangesIter;
 
+#[cfg(all(not(feature = "std"), not(feature = "hashbrown")))]
+pub(crate) type MapType<K, V> = alloc::collections::BTreeMap<K, V>;
+#[cfg(all(not(feature = "std"), not(feature = "hashbrown")))]
+pub(crate) use alloc::collections::btree_map as map;
+
+#[cfg(all(not(feature = "std"), feature = "hashbrown"))]
+pub(crate) type MapType<K, V> = hashbrown::HashMap<K, V>;
+
+#[cfg(all(not(feature = "std"), feature = "hashbrown"))]
+pub(crate) use hashbrown::hash_map as map;
+
+#[cfg(feature = "std")]
+pub(crate) type MapType<K, V> = std::collections::HashMap<K, V>;
+#[cfg(feature = "std")]
+pub(crate) use std::collections::hash_map as map;
+
 /// An enum representing a diffing algorithm.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[cfg_attr(
