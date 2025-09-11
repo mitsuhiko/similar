@@ -1,6 +1,6 @@
 [package]
 name = "likewise"
-version = "2.7.0"
+version = "3.0.0"
 authors = [
     "Barrett Ruth <br.barrettruth@gmail.com>",
     "Armin Ronacher <armin.ronacher@active-4.com>",
