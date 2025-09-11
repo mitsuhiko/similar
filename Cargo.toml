@@ -8,7 +8,7 @@ authors = [
     "Brandon Williams <bwilliams.eng@gmail.com>",
 ]
 edition = "2018"
-rust-version = "1.65"
+rust-version = "1.66"
 license = "Apache-2.0"
 description = "A diff library for Rust (fork of similar)"
 repository = "https://github.com/barrett-ruth/likewise"
@@ -71,7 +71,4 @@ name = "serde"
 required-features = ["text", "serde"]
 
 [profile.release]
-debug = true
-
-[profile.test]
 debug = true

@@ -3,42 +3,6 @@
 version = 3
 
 [[package]]
-name = "addr2line"
-version = "0.24.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfbe277e56a376000877090da837660b4427aad530e3028d44e0bffe4f89a1c1"
-dependencies = [
- "gimli",
-]
-
-[[package]]
-name = "adler2"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
-
-[[package]]
-name = "autocfg"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
-
-[[package]]
-name = "backtrace"
-version = "0.3.75"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6806a6321ec58106fea15becdad98371e28d92ccbc7c8f1b3b6dd724fe8f1002"
-dependencies = [
- "addr2line",
- "cfg-if",
- "libc",
- "miniz_oxide",
- "object",
- "rustc-demangle",
- "windows-targets",
-]
-
-[[package]]
 name = "bstr"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -81,41 +45,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
-name = "gimli"
-version = "0.31.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
-
-[[package]]
-name = "hashbrown"
-version = "0.12.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
-
-[[package]]
-name = "indexmap"
-version = "1.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
-dependencies = [
- "autocfg",
- "hashbrown",
-]
-
-[[package]]
 name = "insta"
-version = "1.10.0"
+version = "1.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3cb858fc306825b542b1311d5fd536e4483680528f303a17a1d6803b0f6ce17"
+checksum = "581d4e3314cae4536e5d22ffd23189d4a374696c5ef733eadafae0ed273fd303"
 dependencies = [
- "backtrace",
  "console",
  "lazy_static",
- "serde",
- "serde_json",
- "serde_yaml",
+ "linked-hash-map",
  "similar",
- "uuid",
+ "yaml-rust",
 ]
 
 [[package]]
@@ -178,24 +117,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 
 [[package]]
-name = "miniz_oxide"
-version = "0.8.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
-dependencies = [
- "adler2",
-]
-
-[[package]]
-name = "object"
-version = "0.36.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62948e14d923ea95ea2c7c86c71013138b66525b86bdc08d2dcc262bdb497b87"
-dependencies = [
- "memchr",
-]
-
-[[package]]
 name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -224,12 +145,6 @@ name = "regex-automata"
 version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b9458fa0bfeeac22b5ca447c63aaf45f28439a709ccd244698632f9aa6394d6"
-
-[[package]]
-name = "rustc-demangle"
-version = "0.1.26"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56f7d92ca342cea22a06f2121d944b4fd82af56988c270852495420f961d4ace"
 
 [[package]]
 name = "ryu"
@@ -270,18 +185,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_yaml"
-version = "0.8.26"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "578a7433b776b56a35785ed5ce9a7e777ac0598aac5a6dd1b4b18a307c7fc71b"
-dependencies = [
- "indexmap",
- "ryu",
- "serde",
- "yaml-rust",
-]
-
-[[package]]
 name = "similar"
 version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -315,12 +218,6 @@ name = "unicode-width"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a1a07cc7db3810833284e8d372ccdc6da29741639ecc70c9ec107df0fa6154c"
-
-[[package]]
-name = "uuid"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
 
 [[package]]
 name = "wasm-bindgen"
