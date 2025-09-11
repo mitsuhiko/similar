@@ -1,4 +1,4 @@
-use similar::{capture_diff_slices, Algorithm};
+use likewise::{capture_diff_slices, Algorithm};
 
 fn main() {
     let old = vec![1, 2, 3];

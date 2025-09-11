@@ -9,4 +9,3 @@ expression: "&diff.unified_diff().context_radius(3).header(\"old\", \"new\").to_
 -some stuff here
 +some amazing stuff here
  some more stuff here
-

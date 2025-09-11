@@ -284,8 +284,8 @@ impl DiffOp {
     /// the diffing algorithm functions.
     ///
     /// ```rust
-    /// use similar::{ChangeTag, Algorithm};
-    /// use similar::capture_diff_slices;
+    /// use likewise::{ChangeTag, Algorithm};
+    /// use likewise::capture_diff_slices;
     /// let old = vec!["foo", "bar", "baz"];
     /// let new = vec!["foo", "bar", "blah"];
     /// let ops = capture_diff_slices(Algorithm::Myers, &old, &new);
@@ -322,8 +322,8 @@ impl DiffOp {
     /// [`DiffOp::Replace`] operation is passed.
     ///
     /// ```rust
-    /// use similar::{ChangeTag, Algorithm};
-    /// use similar::capture_diff_slices;
+    /// use likewise::{ChangeTag, Algorithm};
+    /// use likewise::capture_diff_slices;
     /// let old = vec!["foo", "bar", "baz"];
     /// let new = vec!["foo", "bar", "blah"];
     /// let ops = capture_diff_slices(Algorithm::Myers, &old, &new);

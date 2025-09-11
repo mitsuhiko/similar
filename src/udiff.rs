@@ -4,7 +4,7 @@
 //! is enabled by default:
 //!
 //! ```rust
-//! use similar::TextDiff;
+//! use likewise::TextDiff;
 //! # let old_text = "";
 //! # let new_text = "";
 //! let text_diff = TextDiff::from_lines(old_text, new_text);
@@ -101,7 +101,7 @@ impl fmt::Display for UnifiedHunkHeader {
 /// Unified diff formatter.
 ///
 /// ```rust
-/// use similar::TextDiff;
+/// use likewise::TextDiff;
 /// # let old_text = "";
 /// # let new_text = "";
 /// let text_diff = TextDiff::from_lines(old_text, new_text);

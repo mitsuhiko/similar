@@ -166,8 +166,8 @@ impl<Int> Index<usize> for OffsetLookup<Int> {
 /// you first pass it via [`IdentifyDistinct`]:
 ///
 /// ```rust
-/// use similar::capture_diff;
-/// use similar::algorithms::{Algorithm, IdentifyDistinct};
+/// use likewise::capture_diff;
+/// use likewise::algorithms::{Algorithm, IdentifyDistinct};
 ///
 /// let old = &["foo", "bar", "baz"][..];
 /// let new = &["foo", "blah", "baz"][..];

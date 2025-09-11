@@ -1,6 +1,5 @@
 ---
 source: src/algorithms/lcs.rs
-assertion_line: 235
 expression: d.ops()
 ---
 [

@@ -21,7 +21,7 @@
 //! between two sequences and capture the ops into a vector.
 //!
 //! ```rust
-//! use similar::algorithms::{Algorithm, Replace, Capture, diff_slices};
+//! use likewise::algorithms::{Algorithm, Replace, Capture, diff_slices};
 //!
 //! let a = vec![1, 2, 3, 4, 5];
 //! let b = vec![1, 2, 3, 4, 7];

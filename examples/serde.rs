@@ -1,4 +1,4 @@
-use similar::TextDiff;
+use likewise::TextDiff;
 
 fn main() {
     let diff = TextDiff::from_lines(
