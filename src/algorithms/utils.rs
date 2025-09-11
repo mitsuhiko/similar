@@ -117,6 +117,46 @@ where
         .count()
 }
 
+/// Given two f32 lookups and ranges calculates the length of the common prefix with epsilon comparison.
+pub fn common_prefix_len_fp(
+    old: &[f32],
+    old_range: Range<usize>,
+    new: &[f32],
+    new_range: Range<usize>,
+    epsilon: f32,
+) -> usize {
+    if is_empty_range(&old_range) || is_empty_range(&new_range) {
+        return 0;
+    }
+    new_range
+        .zip(old_range)
+        .take_while(
+            #[inline(always)]
+            |x| fp_equal_f32(new[x.0], old[x.1], epsilon),
+        )
+        .count()
+}
+
+/// Given two f64 lookups and ranges calculates the length of the common prefix with epsilon comparison.
+pub fn common_prefix_len_fp_f64(
+    old: &[f64],
+    old_range: Range<usize>,
+    new: &[f64],
+    new_range: Range<usize>,
+    epsilon: f64,
+) -> usize {
+    if is_empty_range(&old_range) || is_empty_range(&new_range) {
+        return 0;
+    }
+    new_range
+        .zip(old_range)
+        .take_while(
+            #[inline(always)]
+            |x| fp_equal_f64(new[x.0], old[x.1], epsilon),
+        )
+        .count()
+}
+
 /// Given two lookups and ranges calculates the length of common suffix.
 pub fn common_suffix_len<Old, New>(
     old: &Old,
@@ -140,6 +180,72 @@ where
             |x| new[x.0] == old[x.1],
         )
         .count()
+}
+
+/// Given two f32 lookups and ranges calculates the length of common suffix with epsilon comparison.
+pub fn common_suffix_len_fp(
+    old: &[f32],
+    old_range: Range<usize>,
+    new: &[f32],
+    new_range: Range<usize>,
+    epsilon: f32,
+) -> usize {
+    if is_empty_range(&old_range) || is_empty_range(&new_range) {
+        return 0;
+    }
+    new_range
+        .rev()
+        .zip(old_range.rev())
+        .take_while(
+            #[inline(always)]
+            |x| fp_equal_f32(new[x.0], old[x.1], epsilon),
+        )
+        .count()
+}
+
+/// Given two f64 lookups and ranges calculates the length of common suffix with epsilon comparison.
+pub fn common_suffix_len_fp_f64(
+    old: &[f64],
+    old_range: Range<usize>,
+    new: &[f64],
+    new_range: Range<usize>,
+    epsilon: f64,
+) -> usize {
+    if is_empty_range(&old_range) || is_empty_range(&new_range) {
+        return 0;
+    }
+    new_range
+        .rev()
+        .zip(old_range.rev())
+        .take_while(
+            #[inline(always)]
+            |x| fp_equal_f64(new[x.0], old[x.1], epsilon),
+        )
+        .count()
+}
+
+/// Compare two f32 values with epsilon tolerance.
+#[inline(always)]
+pub fn fp_equal_f32(left: f32, right: f32, epsilon: f32) -> bool {
+    if left.is_nan() && right.is_nan() {
+        return true;
+    }
+    if left.is_nan() || right.is_nan() {
+        return false;
+    }
+    (left - right).abs() <= epsilon
+}
+
+/// Compare two f64 values with epsilon tolerance.
+#[inline(always)]
+pub fn fp_equal_f64(left: f64, right: f64, epsilon: f64) -> bool {
+    if left.is_nan() && right.is_nan() {
+        return true;
+    }
+    if left.is_nan() || right.is_nan() {
+        return false;
+    }
+    (left - right).abs() <= epsilon
 }
 
 struct OffsetLookup<Int> {

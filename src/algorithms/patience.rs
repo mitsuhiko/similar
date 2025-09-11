@@ -196,3 +196,43 @@ fn test_finish_called() {
     diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
     assert!(d.0);
 }
+
+/// Patience diff algorithm with f32 epsilon comparison.
+///
+/// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
+/// Values are considered equal if their absolute difference is within `epsilon`.
+pub fn diff_fp_deadline<D>(
+    d: &mut D,
+    old: &[f32],
+    old_range: Range<usize>,
+    new: &[f32],
+    new_range: Range<usize>,
+    epsilon: f32,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    D: DiffHook,
+{
+    crate::algorithms::myers::diff_fp_deadline(d, old, old_range, new, new_range, epsilon, deadline)
+}
+
+/// Patience diff algorithm with f64 epsilon comparison.
+///
+/// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
+/// Values are considered equal if their absolute difference is within `epsilon`.
+pub fn diff_fp_f64_deadline<D>(
+    d: &mut D,
+    old: &[f64],
+    old_range: Range<usize>,
+    new: &[f64],
+    new_range: Range<usize>,
+    epsilon: f64,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    D: DiffHook,
+{
+    crate::algorithms::myers::diff_fp_f64_deadline(
+        d, old, old_range, new, new_range, epsilon, deadline,
+    )
+}

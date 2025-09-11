@@ -71,6 +71,98 @@ where
     capture_diff_deadline(alg, old, 0..old.len(), new, 0..new.len(), deadline)
 }
 
+/// Creates a diff between old and new f32 slices with epsilon comparison.
+pub fn capture_diff_slices_fp(
+    alg: Algorithm,
+    old: &[f32],
+    new: &[f32],
+    epsilon: f32,
+) -> Vec<DiffOp> {
+    capture_diff_slices_fp_deadline(alg, old, new, epsilon, None)
+}
+
+/// Creates a diff between old and new f64 slices with epsilon comparison.
+pub fn capture_diff_slices_fp_f64(
+    alg: Algorithm,
+    old: &[f64],
+    new: &[f64],
+    epsilon: f64,
+) -> Vec<DiffOp> {
+    capture_diff_slices_fp_f64_deadline(alg, old, new, epsilon, None)
+}
+
+/// Creates a diff between old and new f32 slices with epsilon comparison and deadline.
+pub fn capture_diff_slices_fp_deadline(
+    alg: Algorithm,
+    old: &[f32],
+    new: &[f32],
+    epsilon: f32,
+    deadline: Option<Instant>,
+) -> Vec<DiffOp> {
+    capture_diff_fp_deadline(alg, old, 0..old.len(), new, 0..new.len(), epsilon, deadline)
+}
+
+/// Creates a diff between old and new f64 slices with epsilon comparison and deadline.
+pub fn capture_diff_slices_fp_f64_deadline(
+    alg: Algorithm,
+    old: &[f64],
+    new: &[f64],
+    epsilon: f64,
+    deadline: Option<Instant>,
+) -> Vec<DiffOp> {
+    capture_diff_fp_f64_deadline(alg, old, 0..old.len(), new, 0..new.len(), epsilon, deadline)
+}
+
+fn capture_diff_fp_deadline(
+    alg: Algorithm,
+    old: &[f32],
+    old_range: Range<usize>,
+    new: &[f32],
+    new_range: Range<usize>,
+    epsilon: f32,
+    deadline: Option<Instant>,
+) -> Vec<DiffOp> {
+    let mut d = Compact::new(Replace::new(Capture::new()), old, new);
+    let result = match alg {
+        Algorithm::Myers => crate::algorithms::myers::diff_fp_deadline(
+            &mut d, old, old_range, new, new_range, epsilon, deadline,
+        ),
+        Algorithm::Patience => crate::algorithms::patience::diff_fp_deadline(
+            &mut d, old, old_range, new, new_range, epsilon, deadline,
+        ),
+        Algorithm::Lcs => crate::algorithms::lcs::diff_fp_deadline(
+            &mut d, old, old_range, new, new_range, epsilon, deadline,
+        ),
+    };
+    result.unwrap();
+    d.into_inner().into_inner().into_ops()
+}
+
+fn capture_diff_fp_f64_deadline(
+    alg: Algorithm,
+    old: &[f64],
+    old_range: Range<usize>,
+    new: &[f64],
+    new_range: Range<usize>,
+    epsilon: f64,
+    deadline: Option<Instant>,
+) -> Vec<DiffOp> {
+    let mut d = Compact::new(Replace::new(Capture::new()), old, new);
+    let result = match alg {
+        Algorithm::Myers => crate::algorithms::myers::diff_fp_f64_deadline(
+            &mut d, old, old_range, new, new_range, epsilon, deadline,
+        ),
+        Algorithm::Patience => crate::algorithms::patience::diff_fp_f64_deadline(
+            &mut d, old, old_range, new, new_range, epsilon, deadline,
+        ),
+        Algorithm::Lcs => crate::algorithms::lcs::diff_fp_f64_deadline(
+            &mut d, old, old_range, new, new_range, epsilon, deadline,
+        ),
+    };
+    result.unwrap();
+    d.into_inner().into_inner().into_ops()
+}
+
 /// Return a measure of similarity in the range `0..=1`.
 ///
 /// A ratio of `1.0` means the two sequences are a complete match, a
@@ -182,4 +274,25 @@ fn test_non_string_iter_change() {
             (ChangeTag::Insert, 4),
         ]
     );
+}
+
+#[test]
+fn test_fp_epsilon() {
+    let old = vec![1.0, 2.0, 3.0];
+    let new = vec![1.001, 2.0, 2.999];
+
+    let ops_tight = capture_diff_slices_fp(Algorithm::Myers, &old, &new, 0.0001);
+    assert!(ops_tight.len() > 1);
+
+    let ops_loose = capture_diff_slices_fp(Algorithm::Myers, &old, &new, 0.01);
+    assert_eq!(ops_loose.len(), 1);
+}
+
+#[test]
+fn test_fp_nan() {
+    let old = vec![f32::NAN];
+    let new = vec![f32::NAN];
+
+    let ops = capture_diff_slices_fp(Algorithm::Myers, &old, &new, 0.001);
+    assert_eq!(ops.len(), 1);
 }
