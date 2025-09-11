@@ -8,7 +8,7 @@ authors = [
     "Brandon Williams <bwilliams.eng@gmail.com>",
 ]
 edition = "2018"
-rust-version = "1.63"
+rust-version = "1.65"
 license = "Apache-2.0"
 description = "A diff library for Rust (fork of similar)"
 repository = "https://github.com/barrett-ruth/likewise"
