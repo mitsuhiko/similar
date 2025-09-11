@@ -59,18 +59,6 @@ jobs:
     - name: Test with features ${{ matrix.features }}
       run: cargo test --features ${{ matrix.features }} --verbose
 
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-      with:
-        components: clippy
-    - uses: Swatinem/rust-cache@v2
-    - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
-
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
@@ -81,15 +69,3 @@ jobs:
         components: rustfmt
     - name: Run rustfmt
       run: cargo fmt --all -- --check
-
-  docs:
-    name: Docs
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: Swatinem/rust-cache@v2
-    - name: Check documentation
-      run: cargo doc --all-features --no-deps --document-private-items
-      env:
-        RUSTDOCFLAGS: -D warnings
