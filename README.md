@@ -44,13 +44,14 @@ fn main() {
 * Patience diff
 * Hunt–McIlroy / Hunt–Szymanski LCS diff
 * Diffing on arbitrary comparable sequences
+* **Floating point comparison with epsilon tolerance**
 * Line, word, character and grapheme level diffing
 * Text and Byte diffing
 * Unified diff generation
 
 ## Related Projects
 
-* [similar](https://github.com/mitsuhiko/similar)
+* [similar](https://github.com/mitsuhiko/similar) the original library
 * [insta](https://insta.rs) snapshot testing library
 * [similar-asserts](https://github.com/mitsuhiko/similar-asserts) assertion library
 
