@@ -4,7 +4,7 @@
 
 [![Crates.io](https://img.shields.io/crates/d/likewise.svg)](https://crates.io/crates/likewise)
 [![License](https://img.shields.io/github/license/frozen/likewise)](https://github.com/frozen/likewise/blob/main/LICENSE)
-[![rustc 1.65.0](https://img.shields.io/badge/rust-1.60%2B-orange.svg)](https://img.shields.io/badge/rust-1.65%2B-orange.svg)
+[![rustc 1.66.0](https://img.shields.io/badge/rust-1.66%2B-orange.svg)](https://img.shields.io/badge/rust-1.65%2B-orange.svg)
 [![Documentation](https://docs.rs/likewise/badge.svg)](https://docs.rs/likewise)
 
 Likewise is a dependency free crate for Rust that implements different diffing
