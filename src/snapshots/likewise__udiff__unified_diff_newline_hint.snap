@@ -4,22 +4,7 @@ expression: "&diff.unified_diff().header(\"a.txt\", \"b.txt\").to_string()"
 ---
 --- a.txt
 +++ b.txt
-@@ -16,7 +16,7 @@
- p
- q
- r
--s
-+S
- t
- u
- v
-@@ -38,7 +38,7 @@
- L
- M
- N
--O
-+o
- P
- Q
- R
-
+@@ -1 +1 @@
+-a
++b
+\ No newline at end of file

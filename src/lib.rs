@@ -21,7 +21,7 @@
 //! diff an indexable object or slice and return a vector of [`DiffOp`] objects.
 //!
 //! ```rust
-//! use similar::{Algorithm, capture_diff_slices};
+//! use likewise::{Algorithm, capture_diff_slices};
 //!
 //! let a = vec![1, 2, 3, 4, 5];
 //! let b = vec![1, 2, 3, 4, 7];
@@ -30,14 +30,14 @@
 //!
 //! # Text Diffing
 //!
-//! Similar provides helpful utilities for text (and more specifically line) diff
+//! Likewise provides helpful utilities for text (and more specifically line) diff
 //! operations.  The main type you want to work with is [`TextDiff`] which
 //! uses the underlying diff algorithms to expose a convenient API to work with
 //! texts:
 //!
 //! ```rust
 //! # #[cfg(feature = "text")] {
-//! use similar::{ChangeTag, TextDiff};
+//! use likewise::{ChangeTag, TextDiff};
 //!
 //! let diff = TextDiff::from_lines(
 //!     "Hello World\nThis is the second line.\nThis is the third.",
@@ -64,7 +64,7 @@
 //! As a result there is a difference between `foo\n` and `foo` as far as diffs
 //! are concerned.
 //!
-//! In similar this is handled on the [`Change`] or [`InlineChange`] level.  If
+//! In likewise this is handled on the [`Change`] or [`InlineChange`] level.  If
 //! a diff was created via [`TextDiff::from_lines`] the text diffing system is
 //! instructed to check if there are missing newlines encountered
 //! ([`TextDiff::newline_terminated`] returns true).
@@ -122,7 +122,7 @@
 //! when performing a text diff.
 //!
 //! Note that on wasm targets calling [`Instant::now`] will result in a panic
-//! unless you enable the `wasm32_web_time` feataure.  By default similar will
+//! unless you enable the `wasm32_web_time` feataure.  By default likewise will
 //! silently disable the deadline checks internally unless that feature is
 //! enabled.
 //!

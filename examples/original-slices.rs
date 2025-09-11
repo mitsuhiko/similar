@@ -1,5 +1,5 @@
-use similar::utils::diff_chars;
-use similar::Algorithm;
+use likewise::utils::diff_chars;
+use likewise::Algorithm;
 
 fn main() {
     let old = "1234567890abcdef".to_string();

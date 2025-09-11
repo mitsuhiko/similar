@@ -76,8 +76,8 @@ impl<T: DiffableStr + ?Sized> Index<Range<usize>> for SliceRemapper<'_, T> {
 /// but large consequitive ones from the source.
 ///
 /// ```rust
-/// use similar::{ChangeTag, TextDiff};
-/// use similar::utils::TextDiffRemapper;
+/// use likewise::{ChangeTag, TextDiff};
+/// use likewise::utils::TextDiffRemapper;
 ///
 /// let old = "yo! foo bar baz";
 /// let new = "yo! foo bor baz";
@@ -198,8 +198,8 @@ impl<'x, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
 /// with the changes.
 ///
 /// ```rust
-/// use similar::{Algorithm, ChangeTag};
-/// use similar::utils::diff_slices;
+/// use likewise::{Algorithm, ChangeTag};
+/// use likewise::utils::diff_slices;
 ///
 /// let old = "foo\nbar\nbaz".lines().collect::<Vec<_>>();
 /// let new = "foo\nbar\nBAZ".lines().collect::<Vec<_>>();
@@ -227,8 +227,8 @@ pub fn diff_slices<'x, T: PartialEq + Hash + Ord>(
 /// rather than character level slices.
 ///
 /// ```rust
-/// use similar::{Algorithm, ChangeTag};
-/// use similar::utils::diff_chars;
+/// use likewise::{Algorithm, ChangeTag};
+/// use likewise::utils::diff_chars;
 ///
 /// assert_eq!(diff_chars(Algorithm::Myers, "foobarbaz", "fooBARbaz"), vec![
 ///     (ChangeTag::Equal, "foo"),
@@ -259,8 +259,8 @@ pub fn diff_chars<'x, T: DiffableStrRef + ?Sized>(
 /// rather than word level slices.
 ///
 /// ```rust
-/// use similar::{Algorithm, ChangeTag};
-/// use similar::utils::diff_words;
+/// use likewise::{Algorithm, ChangeTag};
+/// use likewise::utils::diff_words;
 ///
 /// assert_eq!(diff_words(Algorithm::Myers, "foo bar baz", "foo bor baz"), vec![
 ///     (ChangeTag::Equal, "foo "),
@@ -291,8 +291,8 @@ pub fn diff_words<'x, T: DiffableStrRef + ?Sized>(
 /// rather than word level slices.
 ///
 /// ```rust
-/// use similar::{Algorithm, ChangeTag};
-/// use similar::utils::diff_unicode_words;
+/// use likewise::{Algorithm, ChangeTag};
+/// use likewise::utils::diff_unicode_words;
 ///
 /// let old = "The quick (\"brown\") fox can't jump 32.3 feet, right?";
 /// let new = "The quick (\"brown\") fox can't jump 9.84 meters, right?";
@@ -333,8 +333,8 @@ pub fn diff_unicode_words<'x, T: DiffableStrRef + ?Sized>(
 /// rather than grapheme level slices.
 ///
 /// ```rust
-/// use similar::{Algorithm, ChangeTag};
-/// use similar::utils::diff_graphemes;
+/// use likewise::{Algorithm, ChangeTag};
+/// use likewise::utils::diff_graphemes;
 ///
 /// let old = "The flag of Austria is 🇦🇹";
 /// let new = "The flag of Albania is 🇦🇱";
@@ -374,8 +374,8 @@ pub fn diff_graphemes<'x, T: DiffableStrRef + ?Sized>(
 /// change tag for each line.
 ///
 /// ```rust
-/// use similar::{Algorithm, ChangeTag};
-/// use similar::utils::diff_lines;
+/// use likewise::{Algorithm, ChangeTag};
+/// use likewise::utils::diff_lines;
 ///
 /// assert_eq!(diff_lines(Algorithm::Myers, "foo\nbar\nbaz\nblah", "foo\nbar\nbaz\nblurgh"), vec![
 ///     (ChangeTag::Equal, "foo\n"),

@@ -93,7 +93,7 @@ impl TextDiffConfig {
     /// influence the behavior of unified diff generation.
     ///
     /// ```rust
-    /// use similar::{TextDiff, ChangeTag};
+    /// use likewise::{TextDiff, ChangeTag};
     ///
     /// let diff = TextDiff::configure().diff_lines("a\nb\nc", "a\nb\nC");
     /// let changes: Vec<_> = diff
@@ -131,7 +131,7 @@ impl TextDiffConfig {
     /// which lets you remap the diffs back to the original input strings.
     ///
     /// ```rust
-    /// use similar::{TextDiff, ChangeTag};
+    /// use likewise::{TextDiff, ChangeTag};
     ///
     /// let diff = TextDiff::configure().diff_words("foo bar baz", "foo BAR baz");
     /// let changes: Vec<_> = diff
@@ -169,7 +169,7 @@ impl TextDiffConfig {
     /// which lets you remap the diffs back to the original input strings.
     ///
     /// ```rust
-    /// use similar::{TextDiff, ChangeTag};
+    /// use likewise::{TextDiff, ChangeTag};
     ///
     /// let diff = TextDiff::configure().diff_chars("abcdef", "abcDDf");
     /// let changes: Vec<_> = diff
@@ -215,7 +215,7 @@ impl TextDiffConfig {
     /// which lets you remap the diffs back to the original input strings.
     ///
     /// ```rust
-    /// use similar::{TextDiff, ChangeTag};
+    /// use likewise::{TextDiff, ChangeTag};
     ///
     /// let diff = TextDiff::configure().diff_unicode_words("ah(be)ce", "ah(ah)ce");
     /// let changes: Vec<_> = diff
@@ -256,7 +256,7 @@ impl TextDiffConfig {
     /// which lets you remap the diffs back to the original input strings.
     ///
     /// ```rust
-    /// use similar::{TextDiff, ChangeTag};
+    /// use likewise::{TextDiff, ChangeTag};
     ///
     /// let diff = TextDiff::configure().diff_graphemes("💩🇦🇹🦠", "💩🇦🇱❄️");
     /// let changes: Vec<_> = diff
@@ -288,7 +288,7 @@ impl TextDiffConfig {
     /// Creates a diff of arbitrary slices.
     ///
     /// ```rust
-    /// use similar::{TextDiff, ChangeTag};
+    /// use likewise::{TextDiff, ChangeTag};
     ///
     /// let old = &["foo", "bar", "baz"];
     /// let new = &["foo", "BAR", "baz"];
@@ -469,7 +469,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     /// ratio of `0.0` would indicate completely distinct sequences.
     ///
     /// ```rust
-    /// # use similar::TextDiff;
+    /// # use likewise::TextDiff;
     /// let diff = TextDiff::from_chars("abcd", "bcde");
     /// assert_eq!(diff.ratio(), 0.75);
     /// ```
@@ -575,7 +575,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
 /// to be considered similar.  See [`TextDiff::ratio`] for more information.
 ///
 /// ```
-/// # use similar::get_close_matches;
+/// # use likewise::get_close_matches;
 /// let matches = get_close_matches(
 ///     "appel",
 ///     &["ape", "apple", "peach", "puppy"][..],

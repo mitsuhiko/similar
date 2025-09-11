@@ -1,7 +1,6 @@
 ---
 source: src/text/mod.rs
 expression: "&json"
-
 ---
 [
   {

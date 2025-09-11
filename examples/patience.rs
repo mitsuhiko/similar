@@ -1,4 +1,4 @@
-use similar::{Algorithm, TextDiff};
+use likewise::{Algorithm, TextDiff};
 
 const OLD: &str = r#"
 [

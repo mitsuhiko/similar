@@ -1,7 +1,6 @@
 ---
 source: src/text/inline.rs
 expression: "&json"
-
 ---
 [
   {
