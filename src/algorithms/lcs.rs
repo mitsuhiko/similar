@@ -293,6 +293,10 @@ fn test_bad_range_regression() {
     );
 }
 
+/// LCS diff algorithm with f32 epsilon comparison.
+///
+/// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
+/// Values are considered equal if their absolute difference is within `epsilon`.
 pub fn diff_fp_deadline<D>(
     d: &mut D,
     old: &[f32],
@@ -308,6 +312,10 @@ where
     crate::algorithms::myers::diff_fp_deadline(d, old, old_range, new, new_range, epsilon, deadline)
 }
 
+/// LCS diff algorithm with f64 epsilon comparison.
+///
+/// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
+/// Values are considered equal if their absolute difference is within `epsilon`.
 pub fn diff_fp_f64_deadline<D>(
     d: &mut D,
     old: &[f64],
