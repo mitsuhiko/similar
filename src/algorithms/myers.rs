@@ -21,7 +21,7 @@
 
 use std::ops::{Index, IndexMut, Range};
 
-use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
+use crate::algorithms::utils::{common_prefix_len, common_suffix_len, common_prefix_len_fp, common_suffix_len_fp, common_prefix_len_fp_f64, common_suffix_len_fp_f64, is_empty_range};
 use crate::algorithms::DiffHook;
 use crate::deadline_support::{deadline_exceeded, Instant};
 
@@ -439,4 +439,372 @@ fn test_finish_called() {
     let slice: &[u8] = &[];
     diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
     assert!(d.0);
+}
+
+/// Myers' diff algorithm with f32 epsilon comparison.
+pub fn diff_fp_deadline<D>(
+    d: &mut D,
+    old: &[f32],
+    old_range: Range<usize>,
+    new: &[f32],
+    new_range: Range<usize>,
+    epsilon: f32,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    D: DiffHook,
+{
+    let max_d = max_d(old_range.len(), new_range.len());
+    let mut vb = V::new(max_d);
+    let mut vf = V::new(max_d);
+    conquer_fp(d, old, old_range, new, new_range, epsilon, &mut vf, &mut vb, deadline)?;
+    d.finish()
+}
+
+/// Myers' diff algorithm with f64 epsilon comparison.
+pub fn diff_fp_f64_deadline<D>(
+    d: &mut D,
+    old: &[f64],
+    old_range: Range<usize>,
+    new: &[f64],
+    new_range: Range<usize>,
+    epsilon: f64,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    D: DiffHook,
+{
+    let max_d = max_d(old_range.len(), new_range.len());
+    let mut vb = V::new(max_d);
+    let mut vf = V::new(max_d);
+    conquer_fp_f64(d, old, old_range, new, new_range, epsilon, &mut vf, &mut vb, deadline)?;
+    d.finish()
+}
+
+fn find_middle_snake_fp(
+    old: &[f32],
+    old_range: Range<usize>,
+    new: &[f32],
+    new_range: Range<usize>,
+    epsilon: f32,
+    vf: &mut V,
+    vb: &mut V,
+    deadline: Option<Instant>,
+) -> Option<(usize, usize)> {
+    let n = old_range.len();
+    let m = new_range.len();
+
+    let delta = n as isize - m as isize;
+    let odd = delta & 1 == 1;
+
+    vf[1] = 0;
+    vb[1] = 0;
+
+    let d_max = max_d(n, m);
+    assert!(vf.len() >= d_max);
+    assert!(vb.len() >= d_max);
+
+    for d in 0..d_max as isize {
+        if deadline_exceeded(deadline) {
+            break;
+        }
+
+        // Forward path
+        for k in (-d..=d).rev().step_by(2) {
+            let mut x = if k == -d || (k != d && vf[k - 1] < vf[k + 1]) {
+                vf[k + 1]
+            } else {
+                vf[k - 1] + 1
+            };
+            let y = (x as isize - k) as usize;
+
+            let (x0, y0) = (x, y);
+            if x < old_range.len() && y < new_range.len() {
+                let advance = common_prefix_len_fp(
+                    old,
+                    old_range.start + x..old_range.end,
+                    new,
+                    new_range.start + y..new_range.end,
+                    epsilon,
+                );
+                x += advance;
+            }
+
+            vf[k] = x;
+
+            if odd && (k - delta).abs() <= (d - 1) {
+                if vf[k] + vb[-(k - delta)] >= n {
+                    return Some((x0 + old_range.start, y0 + new_range.start));
+                }
+            }
+        }
+
+        // Backward path
+        for k in (-d..=d).rev().step_by(2) {
+            let mut x = if k == -d || (k != d && vb[k - 1] < vb[k + 1]) {
+                vb[k + 1]
+            } else {
+                vb[k - 1] + 1
+            };
+            let mut y = (x as isize - k) as usize;
+
+            if x < n && y < m {
+                let advance = common_suffix_len_fp(
+                    old,
+                    old_range.start..old_range.start + n - x,
+                    new,
+                    new_range.start..new_range.start + m - y,
+                    epsilon,
+                );
+                x += advance;
+                y += advance;
+            }
+
+            vb[k] = x;
+
+            if !odd && (k - delta).abs() <= d {
+                if vb[k] + vf[-(k - delta)] >= n {
+                    return Some((n - x + old_range.start, m - y + new_range.start));
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn find_middle_snake_fp_f64(
+    old: &[f64],
+    old_range: Range<usize>,
+    new: &[f64],
+    new_range: Range<usize>,
+    epsilon: f64,
+    vf: &mut V,
+    vb: &mut V,
+    deadline: Option<Instant>,
+) -> Option<(usize, usize)> {
+    let n = old_range.len();
+    let m = new_range.len();
+
+    let delta = n as isize - m as isize;
+    let odd = delta & 1 == 1;
+
+    vf[1] = 0;
+    vb[1] = 0;
+
+    let d_max = max_d(n, m);
+    assert!(vf.len() >= d_max);
+    assert!(vb.len() >= d_max);
+
+    for d in 0..d_max as isize {
+        if deadline_exceeded(deadline) {
+            break;
+        }
+
+        // Forward path
+        for k in (-d..=d).rev().step_by(2) {
+            let mut x = if k == -d || (k != d && vf[k - 1] < vf[k + 1]) {
+                vf[k + 1]
+            } else {
+                vf[k - 1] + 1
+            };
+            let y = (x as isize - k) as usize;
+
+            let (x0, y0) = (x, y);
+            if x < old_range.len() && y < new_range.len() {
+                let advance = common_prefix_len_fp_f64(
+                    old,
+                    old_range.start + x..old_range.end,
+                    new,
+                    new_range.start + y..new_range.end,
+                    epsilon,
+                );
+                x += advance;
+            }
+
+            vf[k] = x;
+
+            if odd && (k - delta).abs() <= (d - 1) {
+                if vf[k] + vb[-(k - delta)] >= n {
+                    return Some((x0 + old_range.start, y0 + new_range.start));
+                }
+            }
+        }
+
+        // Backward path
+        for k in (-d..=d).rev().step_by(2) {
+            let mut x = if k == -d || (k != d && vb[k - 1] < vb[k + 1]) {
+                vb[k + 1]
+            } else {
+                vb[k - 1] + 1
+            };
+            let mut y = (x as isize - k) as usize;
+
+            if x < n && y < m {
+                let advance = common_suffix_len_fp_f64(
+                    old,
+                    old_range.start..old_range.start + n - x,
+                    new,
+                    new_range.start..new_range.start + m - y,
+                    epsilon,
+                );
+                x += advance;
+                y += advance;
+            }
+
+            vb[k] = x;
+
+            if !odd && (k - delta).abs() <= d {
+                if vb[k] + vf[-(k - delta)] >= n {
+                    return Some((n - x + old_range.start, m - y + new_range.start));
+                }
+            }
+        }
+    }
+
+    None
+}
+
+#[allow(clippy::too_many_arguments)]
+fn conquer_fp<D>(
+    d: &mut D,
+    old: &[f32],
+    mut old_range: Range<usize>,
+    new: &[f32],
+    mut new_range: Range<usize>,
+    epsilon: f32,
+    vf: &mut V,
+    vb: &mut V,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    D: DiffHook,
+{
+    // Check for common prefix
+    let common_prefix_len = common_prefix_len_fp(old, old_range.clone(), new, new_range.clone(), epsilon);
+    if common_prefix_len > 0 {
+        d.equal(old_range.start, new_range.start, common_prefix_len)?;
+    }
+    old_range.start += common_prefix_len;
+    new_range.start += common_prefix_len;
+
+    // Check for common suffix
+    let common_suffix_len = common_suffix_len_fp(old, old_range.clone(), new, new_range.clone(), epsilon);
+    let common_suffix = (
+        old_range.end - common_suffix_len,
+        new_range.end - common_suffix_len,
+    );
+    old_range.end -= common_suffix_len;
+    new_range.end -= common_suffix_len;
+
+    if is_empty_range(&old_range) && is_empty_range(&new_range) {
+        // Do nothing
+    } else if is_empty_range(&new_range) {
+        d.delete(old_range.start, old_range.len(), new_range.start)?;
+    } else if is_empty_range(&old_range) {
+        d.insert(old_range.start, new_range.start, new_range.len())?;
+    } else if let Some((x_start, y_start)) = find_middle_snake_fp(
+        old,
+        old_range.clone(),
+        new,
+        new_range.clone(),
+        epsilon,
+        vf,
+        vb,
+        deadline,
+    ) {
+        let (old_a, old_b) = split_at(old_range, x_start);
+        let (new_a, new_b) = split_at(new_range, y_start);
+        conquer_fp(d, old, old_a, new, new_a, epsilon, vf, vb, deadline)?;
+        conquer_fp(d, old, old_b, new, new_b, epsilon, vf, vb, deadline)?;
+    } else {
+        d.delete(
+            old_range.start,
+            old_range.end - old_range.start,
+            new_range.start,
+        )?;
+        d.insert(
+            old_range.start,
+            new_range.start,
+            new_range.end - new_range.start,
+        )?;
+    }
+
+    if common_suffix_len > 0 {
+        d.equal(common_suffix.0, common_suffix.1, common_suffix_len)?;
+    }
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn conquer_fp_f64<D>(
+    d: &mut D,
+    old: &[f64],
+    mut old_range: Range<usize>,
+    new: &[f64],
+    mut new_range: Range<usize>,
+    epsilon: f64,
+    vf: &mut V,
+    vb: &mut V,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    D: DiffHook,
+{
+    // Check for common prefix
+    let common_prefix_len = common_prefix_len_fp_f64(old, old_range.clone(), new, new_range.clone(), epsilon);
+    if common_prefix_len > 0 {
+        d.equal(old_range.start, new_range.start, common_prefix_len)?;
+    }
+    old_range.start += common_prefix_len;
+    new_range.start += common_prefix_len;
+
+    // Check for common suffix
+    let common_suffix_len = common_suffix_len_fp_f64(old, old_range.clone(), new, new_range.clone(), epsilon);
+    let common_suffix = (
+        old_range.end - common_suffix_len,
+        new_range.end - common_suffix_len,
+    );
+    old_range.end -= common_suffix_len;
+    new_range.end -= common_suffix_len;
+
+    if is_empty_range(&old_range) && is_empty_range(&new_range) {
+        // Do nothing
+    } else if is_empty_range(&new_range) {
+        d.delete(old_range.start, old_range.len(), new_range.start)?;
+    } else if is_empty_range(&old_range) {
+        d.insert(old_range.start, new_range.start, new_range.len())?;
+    } else if let Some((x_start, y_start)) = find_middle_snake_fp_f64(
+        old,
+        old_range.clone(),
+        new,
+        new_range.clone(),
+        epsilon,
+        vf,
+        vb,
+        deadline,
+    ) {
+        let (old_a, old_b) = split_at(old_range, x_start);
+        let (new_a, new_b) = split_at(new_range, y_start);
+        conquer_fp_f64(d, old, old_a, new, new_a, epsilon, vf, vb, deadline)?;
+        conquer_fp_f64(d, old, old_b, new, new_b, epsilon, vf, vb, deadline)?;
+    } else {
+        d.delete(
+            old_range.start,
+            old_range.end - old_range.start,
+            new_range.start,
+        )?;
+        d.insert(
+            old_range.start,
+            new_range.start,
+            new_range.end - new_range.start,
+        )?;
+    }
+
+    if common_suffix_len > 0 {
+        d.equal(common_suffix.0, common_suffix.1, common_suffix_len)?;
+    }
+
+    Ok(())
 }

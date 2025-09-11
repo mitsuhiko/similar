@@ -196,3 +196,33 @@ fn test_finish_called() {
     diff(&mut d, slice, 0..slice.len(), slice, 0..slice.len()).unwrap();
     assert!(d.0);
 }
+
+pub fn diff_fp_deadline<D>(
+    d: &mut D,
+    old: &[f32],
+    old_range: Range<usize>,
+    new: &[f32],
+    new_range: Range<usize>,
+    epsilon: f32,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    D: DiffHook,
+{
+    crate::algorithms::myers::diff_fp_deadline(d, old, old_range, new, new_range, epsilon, deadline)
+}
+
+pub fn diff_fp_f64_deadline<D>(
+    d: &mut D,
+    old: &[f64],
+    old_range: Range<usize>,
+    new: &[f64],
+    new_range: Range<usize>,
+    epsilon: f64,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    D: DiffHook,
+{
+    crate::algorithms::myers::diff_fp_f64_deadline(d, old, old_range, new, new_range, epsilon, deadline)
+}
