@@ -25,6 +25,9 @@ jobs:
       with:
         toolchain: ${{ matrix.rust }}
     - uses: Swatinem/rust-cache@v2
+    - name: Use MSRV lockfile for minimum version testing
+      if: matrix.rust == '1.65.0'
+      run: cp Cargo.lock.msrv Cargo.lock
     - name: Run tests
       run: cargo test --verbose
     - name: Run tests with all features
