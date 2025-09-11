@@ -224,5 +224,7 @@ pub fn diff_fp_f64_deadline<D>(
 where
     D: DiffHook,
 {
-    crate::algorithms::myers::diff_fp_f64_deadline(d, old, old_range, new, new_range, epsilon, deadline)
+    crate::algorithms::myers::diff_fp_f64_deadline(
+        d, old, old_range, new, new_range, epsilon, deadline,
+    )
 }

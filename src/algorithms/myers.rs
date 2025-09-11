@@ -21,7 +21,10 @@
 
 use std::ops::{Index, IndexMut, Range};
 
-use crate::algorithms::utils::{common_prefix_len, common_suffix_len, common_prefix_len_fp, common_suffix_len_fp, common_prefix_len_fp_f64, common_suffix_len_fp_f64, is_empty_range};
+use crate::algorithms::utils::{
+    common_prefix_len, common_prefix_len_fp, common_prefix_len_fp_f64, common_suffix_len,
+    common_suffix_len_fp, common_suffix_len_fp_f64, is_empty_range,
+};
 use crate::algorithms::DiffHook;
 use crate::deadline_support::{deadline_exceeded, Instant};
 
@@ -457,7 +460,9 @@ where
     let max_d = max_d(old_range.len(), new_range.len());
     let mut vb = V::new(max_d);
     let mut vf = V::new(max_d);
-    conquer_fp(d, old, old_range, new, new_range, epsilon, &mut vf, &mut vb, deadline)?;
+    conquer_fp(
+        d, old, old_range, new, new_range, epsilon, &mut vf, &mut vb, deadline,
+    )?;
     d.finish()
 }
 
@@ -477,7 +482,9 @@ where
     let max_d = max_d(old_range.len(), new_range.len());
     let mut vb = V::new(max_d);
     let mut vf = V::new(max_d);
-    conquer_fp_f64(d, old, old_range, new, new_range, epsilon, &mut vf, &mut vb, deadline)?;
+    conquer_fp_f64(
+        d, old, old_range, new, new_range, epsilon, &mut vf, &mut vb, deadline,
+    )?;
     d.finish()
 }
 
@@ -681,7 +688,8 @@ where
     D: DiffHook,
 {
     // Check for common prefix
-    let common_prefix_len = common_prefix_len_fp(old, old_range.clone(), new, new_range.clone(), epsilon);
+    let common_prefix_len =
+        common_prefix_len_fp(old, old_range.clone(), new, new_range.clone(), epsilon);
     if common_prefix_len > 0 {
         d.equal(old_range.start, new_range.start, common_prefix_len)?;
     }
@@ -689,7 +697,8 @@ where
     new_range.start += common_prefix_len;
 
     // Check for common suffix
-    let common_suffix_len = common_suffix_len_fp(old, old_range.clone(), new, new_range.clone(), epsilon);
+    let common_suffix_len =
+        common_suffix_len_fp(old, old_range.clone(), new, new_range.clone(), epsilon);
     let common_suffix = (
         old_range.end - common_suffix_len,
         new_range.end - common_suffix_len,
@@ -753,7 +762,8 @@ where
     D: DiffHook,
 {
     // Check for common prefix
-    let common_prefix_len = common_prefix_len_fp_f64(old, old_range.clone(), new, new_range.clone(), epsilon);
+    let common_prefix_len =
+        common_prefix_len_fp_f64(old, old_range.clone(), new, new_range.clone(), epsilon);
     if common_prefix_len > 0 {
         d.equal(old_range.start, new_range.start, common_prefix_len)?;
     }
@@ -761,7 +771,8 @@ where
     new_range.start += common_prefix_len;
 
     // Check for common suffix
-    let common_suffix_len = common_suffix_len_fp_f64(old, old_range.clone(), new, new_range.clone(), epsilon);
+    let common_suffix_len =
+        common_suffix_len_fp_f64(old, old_range.clone(), new, new_range.clone(), epsilon);
     let common_suffix = (
         old_range.end - common_suffix_len,
         new_range.end - common_suffix_len,

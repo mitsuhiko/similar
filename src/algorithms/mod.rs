@@ -132,4 +132,3 @@ where
 {
     diff_deadline(alg, d, old, 0..old.len(), new, 0..new.len(), deadline)
 }
-

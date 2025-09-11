@@ -124,9 +124,15 @@ fn capture_diff_fp_deadline(
 ) -> Vec<DiffOp> {
     let mut d = Compact::new(Replace::new(Capture::new()), old, new);
     let result = match alg {
-        Algorithm::Myers => crate::algorithms::myers::diff_fp_deadline(&mut d, old, old_range, new, new_range, epsilon, deadline),
-        Algorithm::Patience => crate::algorithms::patience::diff_fp_deadline(&mut d, old, old_range, new, new_range, epsilon, deadline),
-        Algorithm::Lcs => crate::algorithms::lcs::diff_fp_deadline(&mut d, old, old_range, new, new_range, epsilon, deadline),
+        Algorithm::Myers => crate::algorithms::myers::diff_fp_deadline(
+            &mut d, old, old_range, new, new_range, epsilon, deadline,
+        ),
+        Algorithm::Patience => crate::algorithms::patience::diff_fp_deadline(
+            &mut d, old, old_range, new, new_range, epsilon, deadline,
+        ),
+        Algorithm::Lcs => crate::algorithms::lcs::diff_fp_deadline(
+            &mut d, old, old_range, new, new_range, epsilon, deadline,
+        ),
     };
     result.unwrap();
     d.into_inner().into_inner().into_ops()
@@ -143,9 +149,15 @@ fn capture_diff_fp_f64_deadline(
 ) -> Vec<DiffOp> {
     let mut d = Compact::new(Replace::new(Capture::new()), old, new);
     let result = match alg {
-        Algorithm::Myers => crate::algorithms::myers::diff_fp_f64_deadline(&mut d, old, old_range, new, new_range, epsilon, deadline),
-        Algorithm::Patience => crate::algorithms::patience::diff_fp_f64_deadline(&mut d, old, old_range, new, new_range, epsilon, deadline),
-        Algorithm::Lcs => crate::algorithms::lcs::diff_fp_f64_deadline(&mut d, old, old_range, new, new_range, epsilon, deadline),
+        Algorithm::Myers => crate::algorithms::myers::diff_fp_f64_deadline(
+            &mut d, old, old_range, new, new_range, epsilon, deadline,
+        ),
+        Algorithm::Patience => crate::algorithms::patience::diff_fp_f64_deadline(
+            &mut d, old, old_range, new, new_range, epsilon, deadline,
+        ),
+        Algorithm::Lcs => crate::algorithms::lcs::diff_fp_f64_deadline(
+            &mut d, old, old_range, new, new_range, epsilon, deadline,
+        ),
     };
     result.unwrap();
     d.into_inner().into_inner().into_ops()
@@ -268,10 +280,10 @@ fn test_non_string_iter_change() {
 fn test_fp_epsilon() {
     let old = vec![1.0, 2.0, 3.0];
     let new = vec![1.001, 2.0, 2.999];
-    
+
     let ops_tight = capture_diff_slices_fp(Algorithm::Myers, &old, &new, 0.0001);
     assert!(ops_tight.len() > 1);
-    
+
     let ops_loose = capture_diff_slices_fp(Algorithm::Myers, &old, &new, 0.01);
     assert_eq!(ops_loose.len(), 1);
 }
@@ -280,9 +292,7 @@ fn test_fp_epsilon() {
 fn test_fp_nan() {
     let old = vec![f32::NAN];
     let new = vec![f32::NAN];
-    
+
     let ops = capture_diff_slices_fp(Algorithm::Myers, &old, &new, 0.001);
     assert_eq!(ops.len(), 1);
 }
-
-

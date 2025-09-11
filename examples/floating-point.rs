@@ -9,10 +9,10 @@ fn main() {
     // Strict comparison would show many differences due to measurement noise
     // FP comparison with 0.05 tolerance treats small variations as equal
     let ops = capture_diff_slices_fp(
-        Algorithm::Myers, 
-        &baseline_readings, 
-        &current_readings, 
-        0.05
+        Algorithm::Myers,
+        &baseline_readings,
+        &current_readings,
+        0.05,
     );
 
     println!("Baseline: {:?}", baseline_readings);
@@ -20,7 +20,9 @@ fn main() {
     println!("With epsilon=0.05: {} diff operations", ops.len());
 
     for op in &ops {
-        let changes: Vec<_> = op.iter_changes(&baseline_readings, &current_readings).collect();
+        let changes: Vec<_> = op
+            .iter_changes(&baseline_readings, &current_readings)
+            .collect();
         for change in changes {
             match change.tag() {
                 ChangeTag::Equal => println!("  ✓ Equal: {}", change.value()),
@@ -41,8 +43,16 @@ fn main() {
     for &epsilon in &[0.0001, 0.001, 0.01] {
         let ops = capture_diff_slices_fp(Algorithm::Myers, &old, &new, epsilon);
         let all_equal = ops.len() == 1 && matches!(ops[0], likewise::DiffOp::Equal { len: 3, .. });
-        println!("  epsilon={}: {} ({})", epsilon, ops.len(), 
-                if all_equal { "all equal" } else { "differences found" });
+        println!(
+            "  epsilon={}: {} ({})",
+            epsilon,
+            ops.len(),
+            if all_equal {
+                "all equal"
+            } else {
+                "differences found"
+            }
+        );
     }
 
     // Example 3: Edge cases with NaN and infinity
@@ -61,5 +71,8 @@ fn main() {
     let new_f64 = vec![1.0000000000002, 2.0, 3.141592653589794];
 
     let ops_f64 = capture_diff_slices_fp_f64(Algorithm::Myers, &old_f64, &new_f64, 1e-12);
-    println!("f64 comparison with epsilon=1e-12: {} operations", ops_f64.len());
+    println!(
+        "f64 comparison with epsilon=1e-12: {} operations",
+        ops_f64.len()
+    );
 }
