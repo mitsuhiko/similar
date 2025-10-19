@@ -49,7 +49,7 @@ impl TextDiffConfig {
     /// Changes the algorithm.
     ///
     /// The default algorithm is [`Algorithm::Myers`].
-    pub fn algorithm(&mut self, alg: Algorithm) -> &mut Self {
+    pub const fn algorithm(&mut self, alg: Algorithm) -> &mut Self {
         self.algorithm = alg;
         self
     }
@@ -59,7 +59,7 @@ impl TextDiffConfig {
     /// By default a diff will take as long as it takes.  For certain diff
     /// algorithms like Myers' and Patience a maximum running time can be
     /// defined after which the algorithm gives up and approximates.
-    pub fn deadline(&mut self, deadline: Instant) -> &mut Self {
+    pub const fn deadline(&mut self, deadline: Instant) -> &mut Self {
         self.deadline = Some(Deadline::Absolute(deadline));
         self
     }
@@ -67,7 +67,7 @@ impl TextDiffConfig {
     /// Sets a timeout for thediff operation.
     ///
     /// This is like [`deadline`](Self::deadline) but accepts a duration.
-    pub fn timeout(&mut self, timeout: Duration) -> &mut Self {
+    pub const fn timeout(&mut self, timeout: Duration) -> &mut Self {
         self.deadline = Some(Deadline::Relative(timeout));
         self
     }
@@ -79,7 +79,7 @@ impl TextDiffConfig {
     /// with regards to newlines.  When the flag is set to `false` (which
     /// is the default) then newlines are added.  Otherwise the newlines
     /// from the source sequences are reused.
-    pub fn newline_terminated(&mut self, yes: bool) -> &mut Self {
+    pub const fn newline_terminated(&mut self, yes: bool) -> &mut Self {
         self.newline_terminated = Some(yes);
         self
     }
@@ -368,8 +368,12 @@ pub struct TextDiff<'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
 
 impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
     /// Configures a text differ before diffing.
-    pub fn configure() -> TextDiffConfig {
-        TextDiffConfig::default()
+    pub const fn configure() -> TextDiffConfig {
+        TextDiffConfig {
+            algorithm: Algorithm::Myers,
+            new_line_terminated: None,
+            deadine: None
+        }   
     }
 
     /// Creates a diff of lines.
