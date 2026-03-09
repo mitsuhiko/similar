@@ -59,5 +59,6 @@ fn main() {
 
 * [Documentation](https://docs.rs/likewise/)
 * [Issue Tracker](https://github.com/barrettruth/likewise/issues)
+* [Upstream Tracker](https://github.com/barrettruth/likewise/blob/main/UPSTREAM.md)
 * [Examples](https://github.com/barrettruth/likewise/tree/main/examples)
 * License: [Apache-2.0](https://github.com/barrettruth/likewise/blob/main/LICENSE)
