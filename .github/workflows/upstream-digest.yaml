@@ -1,0 +1,46 @@
+name: upstream digest
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update upstream tracker
+        id: digest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/upstream_digest.py
+
+      - name: Push and open PR if needed
+        if: steps.digest.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="ci/upstream-digest"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${BRANCH}"
+          git add UPSTREAM.md
+          git commit -m "docs(upstream): upstream digest $(date +%Y-%m-%d)"
+          git config --unset http.https://github.com/.extraheader
+          git remote set-url origin "https://x-access-token:${{ secrets.DIGEST_PAT }}@github.com/barrettruth/likewise.git"
+          git push --force origin "${BRANCH}"
+          if ! GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number' | grep -q .; then
+            PR_URL=$(GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" gh pr create \
+              --title "docs(upstream): upstream digest" \
+              --body "Automated weekly digest of new upstream activity. Triage by updating statuses and notes." \
+              --base main \
+              --head "${BRANCH}")
+            GH_TOKEN="${{ secrets.DIGEST_PAT }}" gh pr review "${PR_URL}" --approve
+            gh pr merge "${PR_URL}" --auto --squash
+          fi
