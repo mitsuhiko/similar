@@ -4,8 +4,8 @@ use std::ops::Index;
 
 use crate::{DiffOp, DiffTag};
 
-use super::utils::{common_prefix_len, common_suffix_len};
 use super::DiffHook;
+use super::utils::{common_prefix_len, common_suffix_len};
 
 /// Performs semantic cleanup operations on a diff.
 ///

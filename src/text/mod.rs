@@ -13,12 +13,12 @@ pub use self::abstraction::{DiffableStr, DiffableStrRef};
 #[cfg(feature = "inline")]
 pub use self::inline::{InlineChange, InlineChangeMode, InlineChangeOptions};
 
-use self::utils::{upper_seq_ratio, QuickSeqRatio};
+use self::utils::{QuickSeqRatio, upper_seq_ratio};
 use crate::algorithms::IdentifyDistinct;
-use crate::deadline_support::{duration_to_deadline, Instant};
+use crate::deadline_support::{Instant, duration_to_deadline};
 use crate::iter::{AllChangesIter, ChangesIter};
 use crate::udiff::UnifiedDiff;
-use crate::{capture_diff_deadline, get_diff_ratio, group_diff_ops, Algorithm, DiffOp};
+use crate::{Algorithm, DiffOp, capture_diff_deadline, get_diff_ratio, group_diff_ops};
 
 #[derive(Debug, Clone, Copy)]
 enum Deadline {
@@ -706,11 +706,13 @@ fn test_unified_diff() {
         "Hello World\nsome amazing stuff here\nsome more stuff here\n",
     );
     assert!(diff.newline_terminated());
-    insta::assert_snapshot!(&diff
-        .unified_diff()
-        .context_radius(3)
-        .header("old", "new")
-        .to_string());
+    insta::assert_snapshot!(
+        &diff
+            .unified_diff()
+            .context_radius(3)
+            .header("old", "new")
+            .to_string()
+    );
 }
 
 #[test]

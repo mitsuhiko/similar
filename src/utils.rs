@@ -29,7 +29,7 @@ use std::hash::Hash;
 use std::ops::{Index, Range};
 
 use crate::{
-    capture_diff_slices, Algorithm, ChangeTag, DiffOp, DiffableStr, DiffableStrRef, TextDiff,
+    Algorithm, ChangeTag, DiffOp, DiffableStr, DiffableStrRef, TextDiff, capture_diff_slices,
 };
 #[cfg(feature = "inline")]
 use crate::{InlineChange, InlineChangeOptions};
@@ -85,10 +85,10 @@ impl<T: DiffableStr + ?Sized> Index<Range<usize>> for SliceRemapper<'_, T> {
 /// let new = "yo! foo bor baz";
 /// let diff = TextDiff::from_words(old, new);
 /// let remapper = TextDiffRemapper::from_text_diff(&diff, old, new);
-/// let changes: Vec<_> = diff.ops()
-///     .iter()
-///     .flat_map(move |x| remapper.iter_slices(x))
-///     .collect();
+/// let mut changes = Vec::new();
+/// for op in diff.ops() {
+///     changes.extend(remapper.iter_slices(op));
+/// }
 ///
 /// assert_eq!(changes, vec![
 ///     (ChangeTag::Equal, "yo! foo "),
@@ -248,10 +248,11 @@ pub fn diff_chars<'x, T: DiffableStrRef + ?Sized>(
     let new = new.as_diffable_str();
     let diff = TextDiff::configure().algorithm(alg).diff_chars(old, new);
     let remapper = TextDiffRemapper::from_text_diff(&diff, old, new);
-    diff.ops()
-        .iter()
-        .flat_map(move |x| remapper.iter_slices(x))
-        .collect()
+    let mut rv = Vec::new();
+    for op in diff.ops() {
+        rv.extend(remapper.iter_slices(op));
+    }
+    rv
 }
 
 /// Shortcut for making a word level diff.
@@ -280,10 +281,11 @@ pub fn diff_words<'x, T: DiffableStrRef + ?Sized>(
     let new = new.as_diffable_str();
     let diff = TextDiff::configure().algorithm(alg).diff_words(old, new);
     let remapper = TextDiffRemapper::from_text_diff(&diff, old, new);
-    diff.ops()
-        .iter()
-        .flat_map(move |x| remapper.iter_slices(x))
-        .collect()
+    let mut rv = Vec::new();
+    for op in diff.ops() {
+        rv.extend(remapper.iter_slices(op));
+    }
+    rv
 }
 
 /// Shortcut for making a unicode word level diff.
@@ -322,10 +324,11 @@ pub fn diff_unicode_words<'x, T: DiffableStrRef + ?Sized>(
         .algorithm(alg)
         .diff_unicode_words(old, new);
     let remapper = TextDiffRemapper::from_text_diff(&diff, old, new);
-    diff.ops()
-        .iter()
-        .flat_map(move |x| remapper.iter_slices(x))
-        .collect()
+    let mut rv = Vec::new();
+    for op in diff.ops() {
+        rv.extend(remapper.iter_slices(op));
+    }
+    rv
 }
 
 /// Shortcut for making a grapheme level diff.
@@ -363,10 +366,11 @@ pub fn diff_graphemes<'x, T: DiffableStrRef + ?Sized>(
         .algorithm(alg)
         .diff_graphemes(old, new);
     let remapper = TextDiffRemapper::from_text_diff(&diff, old, new);
-    diff.ops()
-        .iter()
-        .flat_map(move |x| remapper.iter_slices(x))
-        .collect()
+    let mut rv = Vec::new();
+    for op in diff.ops() {
+        rv.extend(remapper.iter_slices(op));
+    }
+    rv
 }
 
 /// Shortcut for making a line diff.

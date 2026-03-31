@@ -105,7 +105,7 @@ impl DiffableStr for str {
 
         while let Some((idx, c)) = iter.next() {
             if c == '\r' {
-                if iter.peek().map_or(false, |x| x.1 == '\n') {
+                if iter.peek().is_some_and(|x| x.1 == '\n') {
                     lines.push(&self[last_pos..=idx + 1]);
                     iter.next();
                     last_pos = idx + 2;
@@ -234,7 +234,7 @@ mod bytes_support {
 
             while let Some((_, end, c)) = iter.next() {
                 if c == '\r' {
-                    if iter.peek().map_or(false, |x| x.2 == '\n') {
+                    if iter.peek().is_some_and(|x| x.2 == '\n') {
                         lines.push(&self[last_pos..end + 1]);
                         iter.next();
                         last_pos = end + 1;

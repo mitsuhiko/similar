@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
@@ -16,16 +16,14 @@ jobs:
         run: make test
 
   build-stable:
-    name: Build on 1.60.0
+    name: Build on 1.85.0
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.60.0
-      - name: Use Cargo.lock.msrv
-        run: cp Cargo.lock.msrv Cargo.lock
+          toolchain: 1.85.0
       - name: Test
         run: cargo check --all-features
 

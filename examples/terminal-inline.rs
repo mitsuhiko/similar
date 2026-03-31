@@ -2,7 +2,7 @@ use std::fmt;
 use std::fs::read;
 use std::process::exit;
 
-use console::{style, Style};
+use console::{Style, style};
 use similar::{ChangeTag, TextDiff};
 
 struct Line(Option<usize>);

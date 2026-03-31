@@ -281,7 +281,7 @@ impl<'s, T: DiffableStr + ?Sized> InlineChange<'s, T> {
     /// Returns `true` if this change does not end in a newline and must be
     /// followed up by one if line based diffs are used.
     pub fn missing_newline(&self) -> bool {
-        !self.values.last().map_or(true, |x| x.1.ends_with_newline())
+        !self.values.last().is_none_or(|x| x.1.ends_with_newline())
     }
 }
 
