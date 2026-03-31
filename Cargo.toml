@@ -13,7 +13,7 @@ description = "A diff library for Rust"
 repository = "https://github.com/mitsuhiko/similar"
 keywords = ["diff", "difference", "patience", "compare", "changes"]
 readme = "README.md"
-exclude = ["assets/*"]
+include = ["CHANGELOG.md", "Cargo.toml", "LICENSE", "README.md", "src/**/*.rs"]
 
 [package.metadata.docs.rs]
 all-features = true
