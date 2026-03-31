@@ -122,7 +122,7 @@
 //! when performing a text diff.
 //!
 //! Note that on wasm targets calling [`Instant::now`] will result in a panic
-//! unless you enable the `wasm32_web_time` feataure.  By default similar will
+//! unless you enable the `wasm32_web_time` feature.  By default similar will
 //! silently disable the deadline checks internally unless that feature is
 //! enabled.
 //!
