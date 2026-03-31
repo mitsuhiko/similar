@@ -1,0 +1,13 @@
+Deployment Timeline
+===================
+
+step: backup database
+step: drain queue
+step: restart worker-a
+step: restart worker-b
+step: restart worker-c
+step: warm cache
+step: run health checks
+step: run synthetic checks
+step: warm cache
+step: re-enable traffic

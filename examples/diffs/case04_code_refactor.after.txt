@@ -1,0 +1,19 @@
+fn normalize_label(name: &str) -> String {
+    let mut label = name.trim().to_lowercase();
+    if label.starts_with("tmp-") {
+        label = label.replacen("tmp-", "", 1);
+    }
+    label
+}
+
+fn process(items: &[Item]) -> Vec<String> {
+    let mut out = Vec::new();
+    for item in items {
+        if item.enabled {
+            out.push(format!("{}:{}", item.id, normalize_label(&item.name)));
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}

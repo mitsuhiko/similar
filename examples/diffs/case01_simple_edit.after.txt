@@ -1,0 +1,10 @@
+Project Notes
+=============
+
+- Status: active
+- Owner: team-alpha
+- Priority: high
+
+This module handles parsing and normalization for incoming records.
+It validates required fields and emits detailed warnings for unknown attributes.
+The exporter currently writes JSON and CSV.

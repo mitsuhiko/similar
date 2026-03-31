@@ -1,0 +1,14 @@
+fn process(items: &[Item]) -> Vec<String> {
+    let mut out = Vec::new();
+    for item in items {
+        if item.enabled {
+            let mut label = item.name.trim().to_lowercase();
+            if label.starts_with("tmp-") {
+                label = label.replacen("tmp-", "", 1);
+            }
+            out.push(format!("{}:{}", item.id, label));
+        }
+    }
+    out.sort();
+    out
+}

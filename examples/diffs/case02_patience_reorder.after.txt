@@ -1,0 +1,18 @@
+Release Checklist
+=================
+
+[prepare]
+- freeze dependencies
+- update changelog and release notes
+- tag release candidate
+
+[publish]
+- build release artifacts
+- upload binaries
+- publish announcement
+
+[verify]
+- run integration tests
+- run performance smoke test
+- confirm migration scripts
+- verify package signatures

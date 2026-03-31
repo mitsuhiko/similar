@@ -1,0 +1,8 @@
+prologue: generated sample
+alpha
+beta
+gamma
+delta
+epsilon
+zeta
+epilogue: end marker

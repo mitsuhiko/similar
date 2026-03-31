@@ -1,0 +1,13 @@
+API Usage Guide
+===============
+
+Use these endpoint rules:
+1. send api-key header
+2. call /v1/search
+3. retry on 429 after 1 second
+4. cache responses for 30 seconds
+
+Notes:
+- responses are utf8
+- decimal separator is dot.
+- dates are in utc
