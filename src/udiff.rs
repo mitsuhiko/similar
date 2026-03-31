@@ -26,7 +26,6 @@
 #[cfg(feature = "text")]
 use std::{fmt, io};
 
-use crate::iter::AllChangesIter;
 use crate::text::{DiffableStr, TextDiff};
 use crate::types::{Algorithm, DiffOp};
 
@@ -118,16 +117,16 @@ impl fmt::Display for UnifiedHunkHeader {
 /// versions by using [`std::string::ToString::to_string`] or [`UnifiedDiff::to_writer`].
 /// The former uses [`DiffableStr::to_string_lossy`], the latter uses
 /// [`DiffableStr::as_bytes`] for each line.
-pub struct UnifiedDiff<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
-    diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
+pub struct UnifiedDiff<'diff, 'old, 'new, T: DiffableStr + ?Sized> {
+    diff: &'diff TextDiff<'old, 'new, T>,
     context_radius: usize,
     missing_newline_hint: bool,
     header: Option<(String, String)>,
 }
 
-impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> UnifiedDiff<'diff, 'old, 'new, 'bufs, T> {
+impl<'diff, 'old, 'new, T: DiffableStr + ?Sized> UnifiedDiff<'diff, 'old, 'new, T> {
     /// Creates a formatter from a text diff object.
-    pub fn from_text_diff(diff: &'diff TextDiff<'old, 'new, 'bufs, T>) -> Self {
+    pub fn from_text_diff(diff: &'diff TextDiff<'old, 'new, T>) -> Self {
         UnifiedDiff {
             diff,
             context_radius: 3,
@@ -167,7 +166,7 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> UnifiedDiff<'diff, 'old,
     }
 
     /// Iterates over all hunks as configured.
-    pub fn iter_hunks(&self) -> impl Iterator<Item = UnifiedDiffHunk<'diff, 'old, 'new, 'bufs, T>> {
+    pub fn iter_hunks(&self) -> impl Iterator<Item = UnifiedDiffHunk<'diff, 'old, 'new, T>> {
         let diff = self.diff;
         let missing_newline_hint = self.missing_newline_hint;
         self.diff
@@ -180,7 +179,7 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> UnifiedDiff<'diff, 'old,
     /// Write the unified diff as bytes to the output stream.
     pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error>
     where
-        'diff: 'old + 'new + 'bufs,
+        'diff: 'old + 'new,
     {
         let mut header = self.header.as_ref();
         for hunk in self.iter_hunks() {
@@ -204,21 +203,19 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> UnifiedDiff<'diff, 'old,
 /// Unified diff hunk formatter.
 ///
 /// The `Display` this renders out a single unified diff's hunk.
-pub struct UnifiedDiffHunk<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
-    diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
+pub struct UnifiedDiffHunk<'diff, 'old, 'new, T: DiffableStr + ?Sized> {
+    diff: &'diff TextDiff<'old, 'new, T>,
     ops: Vec<DiffOp>,
     missing_newline_hint: bool,
 }
 
-impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized>
-    UnifiedDiffHunk<'diff, 'old, 'new, 'bufs, T>
-{
+impl<'diff, 'old, 'new, T: DiffableStr + ?Sized> UnifiedDiffHunk<'diff, 'old, 'new, T> {
     /// Creates a new hunk for some operations.
     pub fn new(
         ops: Vec<DiffOp>,
-        diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
+        diff: &'diff TextDiff<'old, 'new, T>,
         missing_newline_hint: bool,
-    ) -> UnifiedDiffHunk<'diff, 'old, 'new, 'bufs, T> {
+    ) -> UnifiedDiffHunk<'diff, 'old, 'new, T> {
         UnifiedDiffHunk {
             diff,
             ops,
@@ -242,19 +239,14 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized>
     }
 
     /// Iterates over all changes in a hunk.
-    pub fn iter_changes<'x, 'slf>(&'slf self) -> AllChangesIter<'slf, 'x, T>
-    where
-        'x: 'slf + 'old + 'new,
-        'old: 'x,
-        'new: 'x,
-    {
-        AllChangesIter::new(self.diff.old_slices(), self.diff.new_slices(), self.ops())
+    pub fn iter_changes(&self) -> impl Iterator<Item = crate::Change<&T>> + '_ {
+        self.ops.iter().flat_map(|op| self.diff.iter_changes(op))
     }
 
     /// Write the hunk as bytes to the output stream.
     pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error>
     where
-        'diff: 'old + 'new + 'bufs,
+        'diff: 'old + 'new,
     {
         for (idx, change) in self.iter_changes().enumerate() {
             if idx == 0 {
@@ -273,10 +265,10 @@ impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized>
     }
 }
 
-impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> fmt::Display
-    for UnifiedDiffHunk<'diff, 'old, 'new, 'bufs, T>
+impl<'diff, 'old, 'new, T: DiffableStr + ?Sized> fmt::Display
+    for UnifiedDiffHunk<'diff, 'old, 'new, T>
 where
-    'diff: 'old + 'new + 'bufs,
+    'diff: 'old + 'new,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (idx, change) in self.iter_changes().enumerate() {
@@ -295,10 +287,9 @@ where
     }
 }
 
-impl<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> fmt::Display
-    for UnifiedDiff<'diff, 'old, 'new, 'bufs, T>
+impl<'diff, 'old, 'new, T: DiffableStr + ?Sized> fmt::Display for UnifiedDiff<'diff, 'old, 'new, T>
 where
-    'diff: 'old + 'new + 'bufs,
+    'diff: 'old + 'new,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut header = self.header.as_ref();

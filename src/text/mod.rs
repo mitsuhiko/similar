@@ -1,7 +1,8 @@
 //! Text diffing utilities.
-use std::borrow::Cow;
+use std::borrow::Borrow;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::ops::{Index, Range};
 use std::time::Duration;
 
 mod abstraction;
@@ -9,16 +10,18 @@ mod abstraction;
 mod inline;
 mod utils;
 
-pub use self::abstraction::{DiffableStr, DiffableStrRef};
+pub use self::abstraction::{DiffInput, DiffableStr, DiffableStrRef, IntoDiffInput};
 #[cfg(feature = "inline")]
 pub use self::inline::{InlineChange, InlineChangeMode, InlineChangeOptions};
 
 use self::utils::{QuickSeqRatio, upper_seq_ratio};
 use crate::algorithms::IdentifyDistinct;
 use crate::deadline_support::{Instant, duration_to_deadline};
-use crate::iter::{AllChangesIter, ChangesIter};
 use crate::udiff::UnifiedDiff;
-use crate::{Algorithm, DiffOp, capture_diff_deadline, get_diff_ratio, group_diff_ops};
+use crate::{
+    Algorithm, Change, ChangeTag, DiffOp, DiffTag, capture_diff_deadline, get_diff_ratio,
+    group_diff_ops,
+};
 
 #[derive(Debug, Clone, Copy)]
 enum Deadline {
@@ -31,6 +34,190 @@ impl Deadline {
         match self {
             Deadline::Absolute(instant) => Some(instant),
             Deadline::Relative(duration) => duration_to_deadline(duration),
+        }
+    }
+}
+
+pub(crate) enum TextDiffSide<'a, T: DiffableStr + ?Sized> {
+    BorrowedTokens(Vec<&'a T>),
+    OwnedTokens(Vec<<T as ToOwned>::Owned>),
+}
+
+impl<'a, T: DiffableStr + ?Sized> TextDiffSide<'a, T> {
+    fn from_tokenized(input: DiffInput<'a, T>, tokenize: impl FnOnce(&T) -> Vec<&T>) -> Self {
+        match input {
+            DiffInput::Borrowed(value) => TextDiffSide::BorrowedTokens(tokenize(value)),
+            DiffInput::Owned(value) => {
+                let tokens = tokenize(value.borrow())
+                    .into_iter()
+                    .map(ToOwned::to_owned)
+                    .collect();
+                TextDiffSide::OwnedTokens(tokens)
+            }
+        }
+    }
+
+    fn from_slices(slices: &[&'a T]) -> Self {
+        TextDiffSide::BorrowedTokens(slices.to_vec())
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            TextDiffSide::BorrowedTokens(slices) => slices.len(),
+            TextDiffSide::OwnedTokens(slices) => slices.len(),
+        }
+    }
+
+    fn get(&self, index: usize) -> Option<&T> {
+        match self {
+            TextDiffSide::BorrowedTokens(slices) => slices.get(index).copied(),
+            TextDiffSide::OwnedTokens(slices) => slices.get(index).map(Borrow::borrow),
+        }
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &T> {
+        (0..self.len()).map(|idx| self.get(idx).expect("slice out of bounds"))
+    }
+}
+
+impl<T: DiffableStr + ?Sized> Index<usize> for TextDiffSide<'_, T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index).expect("slice out of bounds")
+    }
+}
+
+/// Iterator for [`TextDiff::iter_changes`].
+pub struct TextChangesIter<'diff, 'old, 'new, T: DiffableStr + ?Sized> {
+    diff: &'diff TextDiff<'old, 'new, T>,
+    old_range: Range<usize>,
+    new_range: Range<usize>,
+    old_index: usize,
+    new_index: usize,
+    old_i: usize,
+    new_i: usize,
+    tag: DiffTag,
+}
+
+impl<'diff, 'old, 'new, T: DiffableStr + ?Sized> TextChangesIter<'diff, 'old, 'new, T> {
+    fn new(diff: &'diff TextDiff<'old, 'new, T>, op: &DiffOp) -> Self {
+        let (tag, old_range, new_range) = op.as_tag_tuple();
+        let old_index = old_range.start;
+        let new_index = new_range.start;
+        let old_i = old_range.start;
+        let new_i = new_range.start;
+        TextChangesIter {
+            diff,
+            old_range,
+            new_range,
+            old_index,
+            new_index,
+            old_i,
+            new_i,
+            tag,
+        }
+    }
+}
+
+impl<'diff, 'old, 'new, T: DiffableStr + ?Sized> Iterator
+    for TextChangesIter<'diff, 'old, 'new, T>
+{
+    type Item = Change<&'diff T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.tag {
+            DiffTag::Equal => {
+                if self.old_i < self.old_range.end {
+                    let value = self
+                        .diff
+                        .old_side()
+                        .get(self.old_i)
+                        .expect("diff operation old range out of bounds");
+                    self.old_i += 1;
+                    self.old_index += 1;
+                    self.new_index += 1;
+                    Some(Change {
+                        tag: ChangeTag::Equal,
+                        old_index: Some(self.old_index - 1),
+                        new_index: Some(self.new_index - 1),
+                        value,
+                    })
+                } else {
+                    None
+                }
+            }
+            DiffTag::Delete => {
+                if self.old_i < self.old_range.end {
+                    let value = self
+                        .diff
+                        .old_side()
+                        .get(self.old_i)
+                        .expect("diff operation old range out of bounds");
+                    self.old_i += 1;
+                    self.old_index += 1;
+                    Some(Change {
+                        tag: ChangeTag::Delete,
+                        old_index: Some(self.old_index - 1),
+                        new_index: None,
+                        value,
+                    })
+                } else {
+                    None
+                }
+            }
+            DiffTag::Insert => {
+                if self.new_i < self.new_range.end {
+                    let value = self
+                        .diff
+                        .new_side()
+                        .get(self.new_i)
+                        .expect("diff operation new range out of bounds");
+                    self.new_i += 1;
+                    self.new_index += 1;
+                    Some(Change {
+                        tag: ChangeTag::Insert,
+                        old_index: None,
+                        new_index: Some(self.new_index - 1),
+                        value,
+                    })
+                } else {
+                    None
+                }
+            }
+            DiffTag::Replace => {
+                if self.old_i < self.old_range.end {
+                    let value = self
+                        .diff
+                        .old_side()
+                        .get(self.old_i)
+                        .expect("diff operation old range out of bounds");
+                    self.old_i += 1;
+                    self.old_index += 1;
+                    Some(Change {
+                        tag: ChangeTag::Delete,
+                        old_index: Some(self.old_index - 1),
+                        new_index: None,
+                        value,
+                    })
+                } else if self.new_i < self.new_range.end {
+                    let value = self
+                        .diff
+                        .new_side()
+                        .get(self.new_i)
+                        .expect("diff operation new range out of bounds");
+                    self.new_i += 1;
+                    self.new_index += 1;
+                    Some(Change {
+                        tag: ChangeTag::Insert,
+                        old_index: None,
+                        new_index: Some(self.new_index - 1),
+                        value,
+                    })
+                } else {
+                    None
+                }
+            }
         }
     }
 }
@@ -108,14 +295,15 @@ impl TextDiffConfig {
     ///    (ChangeTag::Insert, "C"),
     /// ]);
     /// ```
-    pub fn diff_lines<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
-        &self,
-        old: &'old T,
-        new: &'new T,
-    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+    pub fn diff_lines<'old, 'new, Old, New, T>(&self, old: Old, new: New) -> TextDiff<'old, 'new, T>
+    where
+        Old: IntoDiffInput<'old, Output = T>,
+        New: IntoDiffInput<'new, Output = T>,
+        T: DiffableStr + ?Sized,
+    {
         self.diff(
-            Cow::Owned(old.as_diffable_str().tokenize_lines()),
-            Cow::Owned(new.as_diffable_str().tokenize_lines()),
+            TextDiffSide::from_tokenized(old.into_diff_input(), DiffableStr::tokenize_lines),
+            TextDiffSide::from_tokenized(new.into_diff_input(), DiffableStr::tokenize_lines),
             true,
         )
     }
@@ -148,14 +336,15 @@ impl TextDiffConfig {
     ///    (ChangeTag::Equal, "baz"),
     /// ]);
     /// ```
-    pub fn diff_words<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
-        &self,
-        old: &'old T,
-        new: &'new T,
-    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+    pub fn diff_words<'old, 'new, Old, New, T>(&self, old: Old, new: New) -> TextDiff<'old, 'new, T>
+    where
+        Old: IntoDiffInput<'old, Output = T>,
+        New: IntoDiffInput<'new, Output = T>,
+        T: DiffableStr + ?Sized,
+    {
         self.diff(
-            Cow::Owned(old.as_diffable_str().tokenize_words()),
-            Cow::Owned(new.as_diffable_str().tokenize_words()),
+            TextDiffSide::from_tokenized(old.into_diff_input(), DiffableStr::tokenize_words),
+            TextDiffSide::from_tokenized(new.into_diff_input(), DiffableStr::tokenize_words),
             false,
         )
     }
@@ -188,14 +377,15 @@ impl TextDiffConfig {
     ///    (ChangeTag::Equal, "f"),
     /// ]);
     /// ```
-    pub fn diff_chars<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
-        &self,
-        old: &'old T,
-        new: &'new T,
-    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+    pub fn diff_chars<'old, 'new, Old, New, T>(&self, old: Old, new: New) -> TextDiff<'old, 'new, T>
+    where
+        Old: IntoDiffInput<'old, Output = T>,
+        New: IntoDiffInput<'new, Output = T>,
+        T: DiffableStr + ?Sized,
+    {
         self.diff(
-            Cow::Owned(old.as_diffable_str().tokenize_chars()),
-            Cow::Owned(new.as_diffable_str().tokenize_chars()),
+            TextDiffSide::from_tokenized(old.into_diff_input(), DiffableStr::tokenize_chars),
+            TextDiffSide::from_tokenized(new.into_diff_input(), DiffableStr::tokenize_chars),
             false,
         )
     }
@@ -233,14 +423,25 @@ impl TextDiffConfig {
     /// ]);
     /// ```
     #[cfg(feature = "unicode")]
-    pub fn diff_unicode_words<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
+    pub fn diff_unicode_words<'old, 'new, Old, New, T>(
         &self,
-        old: &'old T,
-        new: &'new T,
-    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+        old: Old,
+        new: New,
+    ) -> TextDiff<'old, 'new, T>
+    where
+        Old: IntoDiffInput<'old, Output = T>,
+        New: IntoDiffInput<'new, Output = T>,
+        T: DiffableStr + ?Sized,
+    {
         self.diff(
-            Cow::Owned(old.as_diffable_str().tokenize_unicode_words()),
-            Cow::Owned(new.as_diffable_str().tokenize_unicode_words()),
+            TextDiffSide::from_tokenized(
+                old.into_diff_input(),
+                DiffableStr::tokenize_unicode_words,
+            ),
+            TextDiffSide::from_tokenized(
+                new.into_diff_input(),
+                DiffableStr::tokenize_unicode_words,
+            ),
             false,
         )
     }
@@ -273,14 +474,19 @@ impl TextDiffConfig {
     /// ]);
     /// ```
     #[cfg(feature = "unicode")]
-    pub fn diff_graphemes<'old, 'new, 'bufs, T: DiffableStrRef + ?Sized>(
+    pub fn diff_graphemes<'old, 'new, Old, New, T>(
         &self,
-        old: &'old T,
-        new: &'new T,
-    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+        old: Old,
+        new: New,
+    ) -> TextDiff<'old, 'new, T>
+    where
+        Old: IntoDiffInput<'old, Output = T>,
+        New: IntoDiffInput<'new, Output = T>,
+        T: DiffableStr + ?Sized,
+    {
         self.diff(
-            Cow::Owned(old.as_diffable_str().tokenize_graphemes()),
-            Cow::Owned(new.as_diffable_str().tokenize_graphemes()),
+            TextDiffSide::from_tokenized(old.into_diff_input(), DiffableStr::tokenize_graphemes),
+            TextDiffSide::from_tokenized(new.into_diff_input(), DiffableStr::tokenize_graphemes),
             false,
         )
     }
@@ -305,23 +511,27 @@ impl TextDiffConfig {
     ///    (ChangeTag::Equal, "baz"),
     /// ]);
     /// ```
-    pub fn diff_slices<'old, 'new, 'bufs, T: DiffableStr + ?Sized>(
+    pub fn diff_slices<'old, 'new, T: DiffableStr + ?Sized>(
         &self,
-        old: &'bufs [&'old T],
-        new: &'bufs [&'new T],
-    ) -> TextDiff<'old, 'new, 'bufs, T> {
-        self.diff(Cow::Borrowed(old), Cow::Borrowed(new), false)
+        old: &[&'old T],
+        new: &[&'new T],
+    ) -> TextDiff<'old, 'new, T> {
+        self.diff(
+            TextDiffSide::from_slices(old),
+            TextDiffSide::from_slices(new),
+            false,
+        )
     }
 
-    fn diff<'old, 'new, 'bufs, T: DiffableStr + ?Sized>(
+    fn diff<'old, 'new, T: DiffableStr + ?Sized>(
         &self,
-        old: Cow<'bufs, [&'old T]>,
-        new: Cow<'bufs, [&'new T]>,
+        old: TextDiffSide<'old, T>,
+        new: TextDiffSide<'new, T>,
         newline_terminated: bool,
-    ) -> TextDiff<'old, 'new, 'bufs, T> {
+    ) -> TextDiff<'old, 'new, T> {
         let deadline = self.deadline.and_then(|x| x.into_instant());
         let ops = if old.len() > 100 || new.len() > 100 {
-            let ih = IdentifyDistinct::<u32>::new(&old[..], 0..old.len(), &new[..], 0..new.len());
+            let ih = IdentifyDistinct::<u32>::new(&old, 0..old.len(), &new, 0..new.len());
             capture_diff_deadline(
                 self.algorithm,
                 ih.old_lookup(),
@@ -333,9 +543,9 @@ impl TextDiffConfig {
         } else {
             capture_diff_deadline(
                 self.algorithm,
-                &old[..],
+                &old,
                 0..old.len(),
-                &new[..],
+                &new,
                 0..new.len(),
                 deadline,
             )
@@ -358,15 +568,15 @@ impl TextDiffConfig {
 /// the [`TextDiffConfig`] created by [`TextDiff::configure`].
 ///
 /// Requires the `text` feature.
-pub struct TextDiff<'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
-    old: Cow<'bufs, [&'old T]>,
-    new: Cow<'bufs, [&'new T]>,
+pub struct TextDiff<'old, 'new, T: DiffableStr + ?Sized> {
+    old: TextDiffSide<'old, T>,
+    new: TextDiffSide<'new, T>,
     ops: Vec<DiffOp>,
     newline_terminated: bool,
     algorithm: Algorithm,
 }
 
-impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
+impl<'old, 'new> TextDiff<'old, 'new, str> {
     /// Configures a text differ before diffing.
     pub fn configure() -> TextDiffConfig {
         TextDiffConfig::default()
@@ -375,30 +585,36 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
     /// Creates a diff of lines.
     ///
     /// For more information see [`TextDiffConfig::diff_lines`].
-    pub fn from_lines<T: DiffableStrRef + ?Sized>(
-        old: &'old T,
-        new: &'new T,
-    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+    pub fn from_lines<Old, New, T>(old: Old, new: New) -> TextDiff<'old, 'new, T>
+    where
+        Old: IntoDiffInput<'old, Output = T>,
+        New: IntoDiffInput<'new, Output = T>,
+        T: DiffableStr + ?Sized,
+    {
         TextDiff::configure().diff_lines(old, new)
     }
 
     /// Creates a diff of words.
     ///
     /// For more information see [`TextDiffConfig::diff_words`].
-    pub fn from_words<T: DiffableStrRef + ?Sized>(
-        old: &'old T,
-        new: &'new T,
-    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+    pub fn from_words<Old, New, T>(old: Old, new: New) -> TextDiff<'old, 'new, T>
+    where
+        Old: IntoDiffInput<'old, Output = T>,
+        New: IntoDiffInput<'new, Output = T>,
+        T: DiffableStr + ?Sized,
+    {
         TextDiff::configure().diff_words(old, new)
     }
 
     /// Creates a diff of chars.
     ///
     /// For more information see [`TextDiffConfig::diff_chars`].
-    pub fn from_chars<T: DiffableStrRef + ?Sized>(
-        old: &'old T,
-        new: &'new T,
-    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+    pub fn from_chars<Old, New, T>(old: Old, new: New) -> TextDiff<'old, 'new, T>
+    where
+        Old: IntoDiffInput<'old, Output = T>,
+        New: IntoDiffInput<'new, Output = T>,
+        T: DiffableStr + ?Sized,
+    {
         TextDiff::configure().diff_chars(old, new)
     }
 
@@ -408,10 +624,12 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
     ///
     /// This requires the `unicode` feature.
     #[cfg(feature = "unicode")]
-    pub fn from_unicode_words<T: DiffableStrRef + ?Sized>(
-        old: &'old T,
-        new: &'new T,
-    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+    pub fn from_unicode_words<Old, New, T>(old: Old, new: New) -> TextDiff<'old, 'new, T>
+    where
+        Old: IntoDiffInput<'old, Output = T>,
+        New: IntoDiffInput<'new, Output = T>,
+        T: DiffableStr + ?Sized,
+    {
         TextDiff::configure().diff_unicode_words(old, new)
     }
 
@@ -421,22 +639,21 @@ impl<'old, 'new, 'bufs> TextDiff<'old, 'new, 'bufs, str> {
     ///
     /// This requires the `unicode` feature.
     #[cfg(feature = "unicode")]
-    pub fn from_graphemes<T: DiffableStrRef + ?Sized>(
-        old: &'old T,
-        new: &'new T,
-    ) -> TextDiff<'old, 'new, 'bufs, T::Output> {
+    pub fn from_graphemes<Old, New, T>(old: Old, new: New) -> TextDiff<'old, 'new, T>
+    where
+        Old: IntoDiffInput<'old, Output = T>,
+        New: IntoDiffInput<'new, Output = T>,
+        T: DiffableStr + ?Sized,
+    {
         TextDiff::configure().diff_graphemes(old, new)
     }
 }
 
-impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'new, 'bufs, T> {
+impl<'old, 'new, T: DiffableStr + ?Sized> TextDiff<'old, 'new, T> {
     /// Creates a diff of arbitrary slices.
     ///
     /// For more information see [`TextDiffConfig::diff_slices`].
-    pub fn from_slices(
-        old: &'bufs [&'old T],
-        new: &'bufs [&'new T],
-    ) -> TextDiff<'old, 'new, 'bufs, T> {
+    pub fn from_slices(old: &[&'old T], new: &[&'new T]) -> TextDiff<'old, 'new, T> {
         TextDiff::configure().diff_slices(old, new)
     }
 
@@ -453,13 +670,51 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
         self.newline_terminated
     }
 
-    /// Returns all old slices.
-    pub fn old_slices(&self) -> &[&'old T] {
+    /// Returns the number of old side slices.
+    pub fn old_len(&self) -> usize {
+        self.old.len()
+    }
+
+    /// Returns the number of new side slices.
+    pub fn new_len(&self) -> usize {
+        self.new.len()
+    }
+
+    /// Returns a specific old side slice.
+    pub fn old_slice(&self, index: usize) -> Option<&T> {
+        self.old.get(index)
+    }
+
+    /// Returns a specific new side slice.
+    pub fn new_slice(&self, index: usize) -> Option<&T> {
+        self.new.get(index)
+    }
+
+    /// Iterates all old side slices.
+    pub fn iter_old_slices(&self) -> impl Iterator<Item = &T> {
+        self.old.iter()
+    }
+
+    /// Iterates all new side slices.
+    pub fn iter_new_slices(&self) -> impl Iterator<Item = &T> {
+        self.new.iter()
+    }
+
+    /// Returns an indexable lookup for the old side slices.
+    pub fn old_lookup(&self) -> &impl Index<usize, Output = T> {
         &self.old
     }
 
-    /// Returns all new slices.
-    pub fn new_slices(&self) -> &[&'new T] {
+    /// Returns an indexable lookup for the new side slices.
+    pub fn new_lookup(&self) -> &impl Index<usize, Output = T> {
+        &self.new
+    }
+
+    pub(crate) fn old_side(&self) -> &TextDiffSide<'old, T> {
+        &self.old
+    }
+
+    pub(crate) fn new_side(&self) -> &TextDiffSide<'new, T> {
         &self.new
     }
 
@@ -474,7 +729,7 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     /// assert_eq!(diff.ratio(), 0.75);
     /// ```
     pub fn ratio(&self) -> f32 {
-        get_diff_ratio(self.ops(), self.old.len(), self.new.len())
+        get_diff_ratio(self.ops(), self.old_len(), self.new_len())
     }
 
     /// Iterates over the changes the op expands to.
@@ -483,16 +738,13 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     /// ways in which a change could be encoded (insert/delete vs replace), look
     /// up the value from the appropriate slice and also handle correct index
     /// handling.
-    pub fn iter_changes<'x, 'slf>(
-        &'slf self,
-        op: &DiffOp,
-    ) -> ChangesIter<'slf, [&'x T], [&'x T], &'x T>
-    where
-        'x: 'slf,
-        'old: 'x,
-        'new: 'x,
-    {
-        op.iter_changes(self.old_slices(), self.new_slices())
+    ///
+    /// # Panics
+    ///
+    /// Panics if the passed [`DiffOp`] contains indexes that are out of bounds
+    /// for this diff's old/new side.
+    pub fn iter_changes(&self, op: &DiffOp) -> TextChangesIter<'_, 'old, 'new, T> {
+        TextChangesIter::new(self, op)
     }
 
     /// Returns the captured diff ops.
@@ -511,17 +763,12 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     ///
     /// This is a shortcut for combining [`TextDiff::ops`] with
     /// [`TextDiff::iter_changes`].
-    pub fn iter_all_changes<'x, 'slf>(&'slf self) -> AllChangesIter<'slf, 'x, T>
-    where
-        'x: 'slf + 'old + 'new,
-        'old: 'x,
-        'new: 'x,
-    {
-        AllChangesIter::new(&self.old[..], &self.new[..], self.ops())
+    pub fn iter_all_changes(&self) -> impl Iterator<Item = Change<&T>> + '_ {
+        self.ops().iter().flat_map(|op| self.iter_changes(op))
     }
 
     /// Utility to return a unified diff formatter.
-    pub fn unified_diff<'diff>(&'diff self) -> UnifiedDiff<'diff, 'old, 'new, 'bufs, T> {
+    pub fn unified_diff<'diff>(&'diff self) -> UnifiedDiff<'diff, 'old, 'new, T> {
         UnifiedDiff::from_text_diff(self)
     }
 
@@ -541,15 +788,10 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     ///
     /// Requires the `inline` feature.
     #[cfg(feature = "inline")]
-    pub fn iter_inline_changes<'x, 'slf>(
-        &'slf self,
+    pub fn iter_inline_changes(
+        &self,
         op: &DiffOp,
-    ) -> impl Iterator<Item = InlineChange<'x, T>> + 'slf
-    where
-        'x: 'slf + 'old + 'new,
-        'old: 'x,
-        'new: 'x,
-    {
+    ) -> impl Iterator<Item = InlineChange<'_, T>> + '_ {
         use crate::deadline_support::duration_to_deadline;
 
         inline::iter_inline_changes(
@@ -564,16 +806,11 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     ///
     /// Like [`iter_inline_changes`](Self::iter_inline_changes) but with an explicit deadline.
     #[cfg(feature = "inline")]
-    pub fn iter_inline_changes_deadline<'x, 'slf>(
-        &'slf self,
+    pub fn iter_inline_changes_deadline(
+        &self,
         op: &DiffOp,
         deadline: Option<Instant>,
-    ) -> impl Iterator<Item = InlineChange<'x, T>> + 'slf
-    where
-        'x: 'slf + 'old + 'new,
-        'old: 'x,
-        'new: 'x,
-    {
+    ) -> impl Iterator<Item = InlineChange<'_, T>> + '_ {
         inline::iter_inline_changes(self, op, deadline, InlineChangeOptions::default())
     }
 
@@ -584,16 +821,11 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     /// edits you can enable semantic cleanup via
     /// [`InlineChangeOptions::semantic_cleanup`].
     #[cfg(feature = "inline")]
-    pub fn iter_inline_changes_with_options<'x, 'slf>(
-        &'slf self,
+    pub fn iter_inline_changes_with_options(
+        &self,
         op: &DiffOp,
         options: InlineChangeOptions,
-    ) -> impl Iterator<Item = InlineChange<'x, T>> + 'slf
-    where
-        'x: 'slf + 'old + 'new,
-        'old: 'x,
-        'new: 'x,
-    {
+    ) -> impl Iterator<Item = InlineChange<'_, T>> + '_ {
         use crate::deadline_support::duration_to_deadline;
 
         inline::iter_inline_changes(
@@ -606,17 +838,12 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
 
     /// Iterates over the changes the op expands to with inline emphasis, options and deadline.
     #[cfg(feature = "inline")]
-    pub fn iter_inline_changes_with_options_deadline<'x, 'slf>(
-        &'slf self,
+    pub fn iter_inline_changes_with_options_deadline(
+        &self,
         op: &DiffOp,
         options: InlineChangeOptions,
         deadline: Option<Instant>,
-    ) -> impl Iterator<Item = InlineChange<'x, T>> + 'slf
-    where
-        'x: 'slf + 'old + 'new,
-        'old: 'x,
-        'new: 'x,
-    {
+    ) -> impl Iterator<Item = InlineChange<'_, T>> + '_ {
         inline::iter_inline_changes(self, op, deadline, options)
     }
 }
@@ -742,6 +969,40 @@ fn test_line_ops() {
     }
 }
 
+#[cfg(test)]
+fn build_owned_diff() -> TextDiff<'static, 'static, str> {
+    TextDiff::from_lines("a\nb\n".to_string(), "a\nc\n".to_string())
+}
+
+#[test]
+fn test_owned_inputs() {
+    let diff = build_owned_diff();
+    let changes = diff
+        .iter_all_changes()
+        .map(|x| (x.tag(), x.value().to_string_lossy().into_owned()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        changes,
+        vec![
+            (ChangeTag::Equal, "a\n".into()),
+            (ChangeTag::Delete, "b\n".into()),
+            (ChangeTag::Insert, "c\n".into()),
+        ]
+    );
+}
+
+#[test]
+#[should_panic(expected = "old range out of bounds")]
+fn test_iter_changes_panics_on_invalid_ops() {
+    let diff = TextDiff::from_lines("a\n", "a\n");
+    let invalid = DiffOp::Delete {
+        old_index: 99,
+        old_len: 1,
+        new_index: 0,
+    };
+    let _ = diff.iter_changes(&invalid).next();
+}
+
 #[test]
 fn test_virtual_newlines() {
     let diff = TextDiff::from_lines("a\nb", "a\nc\n");
@@ -791,18 +1052,10 @@ fn test_get_close_matches() {
 
 #[test]
 fn test_lifetimes_on_iter() {
-    use crate::Change;
-
-    fn diff_lines<'x, T>(old: &'x T, new: &'x T) -> Vec<Change<&'x T::Output>>
-    where
-        T: DiffableStrRef + ?Sized,
-    {
-        TextDiff::from_lines(old, new).iter_all_changes().collect()
-    }
-
     let a = "1\n2\n3\n".to_string();
     let b = "1\n99\n3\n".to_string();
-    let changes = diff_lines(&a, &b);
+    let diff = TextDiff::from_lines(&a, &b);
+    let changes = diff.iter_all_changes().collect::<Vec<_>>();
     insta::assert_debug_snapshot!(&changes);
 }
 

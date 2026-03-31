@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::borrow::{Borrow, Cow};
 use std::hash::Hash;
 use std::ops::Range;
 
@@ -41,6 +41,66 @@ impl<T: DiffableStr + ?Sized> DiffableStrRef for Cow<'_, T> {
 
     fn as_diffable_str(&self) -> &T {
         self
+    }
+}
+
+/// Input type for text diffing.
+///
+/// This enum allows the text diffing APIs to accept both borrowed and owned
+/// input values.
+pub enum DiffInput<'a, T: DiffableStr + ?Sized> {
+    /// A borrowed input value.
+    Borrowed(&'a T),
+    /// An owned input value.
+    Owned(<T as ToOwned>::Owned),
+}
+
+impl<T: DiffableStr + ?Sized> DiffInput<'_, T> {
+    /// Returns the input as [`DiffableStr`] reference.
+    pub fn as_diffable_str(&self) -> &T {
+        match self {
+            DiffInput::Borrowed(value) => value,
+            DiffInput::Owned(value) => value.borrow(),
+        }
+    }
+}
+
+/// Converts supported text values into [`DiffInput`].
+///
+/// This trait is implemented for both borrowed and owned input types used by
+/// text diff APIs.
+pub trait IntoDiffInput<'a> {
+    /// The resolved [`DiffableStr`] output type.
+    type Output: DiffableStr + ?Sized;
+
+    /// Converts the input value into a [`DiffInput`].
+    fn into_diff_input(self) -> DiffInput<'a, Self::Output>;
+}
+
+impl<'a, T: DiffableStrRef + ?Sized> IntoDiffInput<'a> for &'a T {
+    type Output = T::Output;
+
+    fn into_diff_input(self) -> DiffInput<'a, Self::Output> {
+        DiffInput::Borrowed(self.as_diffable_str())
+    }
+}
+
+impl<'a> IntoDiffInput<'a> for String {
+    type Output = str;
+
+    fn into_diff_input(self) -> DiffInput<'a, Self::Output> {
+        DiffInput::Owned(self)
+    }
+}
+
+impl<'a> IntoDiffInput<'a> for Cow<'a, str> {
+    type Output = str;
+
+    fn into_diff_input(self) -> DiffInput<'a, Self::Output> {
+        match self {
+            Cow::Borrowed(value) => DiffInput::Borrowed(value),
+            Cow::Owned(value) => DiffInput::Owned(value),
+        }
     }
 }
 
@@ -220,6 +280,25 @@ mod bytes_support {
 
         fn as_diffable_str(&self) -> &[u8] {
             self.as_slice()
+        }
+    }
+
+    impl<'a> IntoDiffInput<'a> for Vec<u8> {
+        type Output = [u8];
+
+        fn into_diff_input(self) -> DiffInput<'a, Self::Output> {
+            DiffInput::Owned(self)
+        }
+    }
+
+    impl<'a> IntoDiffInput<'a> for Cow<'a, [u8]> {
+        type Output = [u8];
+
+        fn into_diff_input(self) -> DiffInput<'a, Self::Output> {
+            match self {
+                Cow::Borrowed(value) => DiffInput::Borrowed(value),
+                Cow::Owned(value) => DiffInput::Owned(value),
+            }
         }
     }
 

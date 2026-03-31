@@ -793,36 +793,41 @@ where
     *ops = expanded;
 }
 
-pub(crate) fn iter_inline_changes<'x, 'diff, 'old, 'new, 'bufs, T>(
-    diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
+pub(crate) fn iter_inline_changes<'diff, 'old, 'new, T>(
+    diff: &'diff TextDiff<'old, 'new, T>,
     op: &DiffOp,
     deadline: Option<Instant>,
     options: InlineChangeOptions,
-) -> impl Iterator<Item = InlineChange<'x, T>> + 'diff
+) -> impl Iterator<Item = InlineChange<'diff, T>> + 'diff
 where
     T: DiffableStr + ?Sized,
-    'x: 'diff,
-    'old: 'x,
-    'new: 'x,
 {
     let (tag, old_range, new_range) = op.as_tag_tuple();
 
     if let DiffTag::Equal | DiffTag::Insert | DiffTag::Delete = tag {
-        return Box::new(diff.iter_changes(op).map(|x| x.into())) as Box<dyn Iterator<Item = _>>;
+        return Box::new(diff.iter_changes(op).map(InlineChange::from))
+            as Box<dyn Iterator<Item = _>>;
     }
 
     let mut old_index = old_range.start;
     let mut new_index = new_range.start;
-    let old_slices = &diff.old_slices()[old_range];
-    let new_slices = &diff.new_slices()[new_range];
+    let old_slices = old_range
+        .clone()
+        .map(|idx| diff.old_slice(idx).expect("slice out of bounds"))
+        .collect::<Vec<_>>();
+    let new_slices = new_range
+        .clone()
+        .map(|idx| diff.new_slice(idx).expect("slice out of bounds"))
+        .collect::<Vec<_>>();
     let min_ratio = options.get_min_ratio();
 
-    if upper_seq_ratio(old_slices, new_slices) < min_ratio {
-        return Box::new(diff.iter_changes(op).map(|x| x.into())) as Box<dyn Iterator<Item = _>>;
+    if upper_seq_ratio(&old_slices, &new_slices) < min_ratio {
+        return Box::new(diff.iter_changes(op).map(InlineChange::from))
+            as Box<dyn Iterator<Item = _>>;
     }
 
-    let old_lookup = MultiLookup::new(old_slices, options.get_mode());
-    let new_lookup = MultiLookup::new(new_slices, options.get_mode());
+    let old_lookup = MultiLookup::new(&old_slices, options.get_mode());
+    let new_lookup = MultiLookup::new(&new_slices, options.get_mode());
 
     let mut ops = capture_diff_deadline(
         options.get_algorithm(),
@@ -834,7 +839,8 @@ where
     );
 
     if get_diff_ratio(&ops, old_lookup.len(), new_lookup.len()) < min_ratio {
-        return Box::new(diff.iter_changes(op).map(|x| x.into())) as Box<dyn Iterator<Item = _>>;
+        return Box::new(diff.iter_changes(op).map(InlineChange::from))
+            as Box<dyn Iterator<Item = _>>;
     }
 
     if options.get_semantic_cleanup() {

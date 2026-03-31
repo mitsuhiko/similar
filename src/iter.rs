@@ -151,6 +151,7 @@ mod text {
     where
         T: 'data + ?Sized + PartialEq,
     {
+        #[allow(dead_code)]
         pub(crate) fn new(
             old: &'slf [&'data T],
             new: &'slf [&'data T],
