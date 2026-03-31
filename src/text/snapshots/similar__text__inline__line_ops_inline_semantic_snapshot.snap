@@ -1,0 +1,45 @@
+---
+source: src/text/inline.rs
+assertion_line: 1039
+expression: "&changes"
+---
+[
+    InlineChange {
+        tag: Delete,
+        old_index: Some(
+            0,
+        ),
+        new_index: None,
+        values: [
+            (
+                false,
+                "The ",
+            ),
+            (
+                false,
+                "came.\n",
+            ),
+        ],
+    },
+    InlineChange {
+        tag: Insert,
+        old_index: None,
+        new_index: Some(
+            0,
+        ),
+        values: [
+            (
+                false,
+                "The ",
+            ),
+            (
+                true,
+                "cat ",
+            ),
+            (
+                false,
+                "came.\n",
+            ),
+        ],
+    },
+]
