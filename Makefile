@@ -28,4 +28,7 @@ lint:
 	@rustup component add clippy 2> /dev/null
 	@cargo clippy
 
-.PHONY: all doc test format format-check lint
+bench:
+	@cargo bench --bench diffs
+
+.PHONY: all doc test format format-check lint bench
