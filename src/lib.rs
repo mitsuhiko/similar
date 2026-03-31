@@ -145,7 +145,7 @@
 //!   [`bstr`] dependency.
 //! * `inline`: this feature gives access to additional functionality of the
 //!   text diffing to provide inline information about which values changed
-//!   in a line diff.  This currently also enables the `unicode` feature.
+//!   in a line diff.
 //! * `serde`: this feature enables serialization to some types in this
 //!   crate.  For enums without payload deserialization is then also supported.
 //! * `wasm32_web_time`: this feature swaps out the use of [`std::time`] for

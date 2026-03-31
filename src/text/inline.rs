@@ -10,29 +10,127 @@ use std::ops::Index;
 
 use super::utils::upper_seq_ratio;
 
+/// Controls how replacement regions are tokenized for inline refinement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum InlineChangeMode {
+    /// Use the crate default tokenization mode.
+    ///
+    /// This resolves to unicode words when the `unicode` feature is enabled,
+    /// and to whitespace based words otherwise.
+    Auto,
+    /// Tokenize by whitespace runs and non-whitespace runs.
+    Words,
+    /// Tokenize by characters.
+    Chars,
+    /// Tokenize by unicode words.
+    #[cfg(feature = "unicode")]
+    UnicodeWords,
+    /// Tokenize by unicode grapheme clusters.
+    #[cfg(feature = "unicode")]
+    Graphemes,
+}
+
+/// Configuration for inline refinement in [`TextDiff::iter_inline_changes`](crate::TextDiff::iter_inline_changes).
+#[derive(Debug, Clone, Copy)]
+pub struct InlineChangeOptions {
+    algorithm: Algorithm,
+    mode: InlineChangeMode,
+    min_ratio: f32,
+}
+
+impl Default for InlineChangeOptions {
+    fn default() -> Self {
+        InlineChangeOptions {
+            algorithm: Algorithm::Patience,
+            mode: InlineChangeMode::Auto,
+            min_ratio: 0.5,
+        }
+    }
+}
+
+impl InlineChangeOptions {
+    /// Creates default inline change options.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the algorithm used for second-level refinement inside replaced ranges.
+    pub fn algorithm(&mut self, alg: Algorithm) -> &mut Self {
+        self.algorithm = alg;
+        self
+    }
+
+    /// Sets the tokenization mode used for second-level refinement.
+    pub fn mode(&mut self, mode: InlineChangeMode) -> &mut Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Sets the minimum ratio required to apply inline refinement.
+    ///
+    /// If the initial rough ratio or refined ratio drops below this threshold,
+    /// the operation falls back to non-emphasized line changes.
+    pub fn min_ratio(&mut self, min_ratio: f32) -> &mut Self {
+        self.min_ratio = min_ratio;
+        self
+    }
+
+    /// Returns the configured algorithm.
+    pub fn get_algorithm(&self) -> Algorithm {
+        self.algorithm
+    }
+
+    /// Returns the configured tokenization mode.
+    pub fn get_mode(&self) -> InlineChangeMode {
+        self.mode
+    }
+
+    /// Returns the configured minimum ratio threshold.
+    pub fn get_min_ratio(&self) -> f32 {
+        self.min_ratio
+    }
+}
+
+fn tokenize_inline<'s, T: DiffableStr + ?Sized>(
+    string: &'s T,
+    mode: InlineChangeMode,
+) -> Vec<&'s T> {
+    match mode {
+        InlineChangeMode::Auto => {
+            #[cfg(feature = "unicode")]
+            {
+                string.tokenize_unicode_words()
+            }
+            #[cfg(not(feature = "unicode"))]
+            {
+                string.tokenize_words()
+            }
+        }
+        InlineChangeMode::Words => string.tokenize_words(),
+        InlineChangeMode::Chars => string.tokenize_chars(),
+        #[cfg(feature = "unicode")]
+        InlineChangeMode::UnicodeWords => string.tokenize_unicode_words(),
+        #[cfg(feature = "unicode")]
+        InlineChangeMode::Graphemes => string.tokenize_graphemes(),
+        #[allow(unreachable_patterns)]
+        _ => string.tokenize_words(),
+    }
+}
+
 struct MultiLookup<'bufs, 's, T: DiffableStr + ?Sized> {
     strings: &'bufs [&'s T],
     seqs: Vec<(&'s T, usize, usize)>,
 }
 
 impl<'bufs, 's, T: DiffableStr + ?Sized> MultiLookup<'bufs, 's, T> {
-    fn new(strings: &'bufs [&'s T]) -> MultiLookup<'bufs, 's, T> {
+    fn new(strings: &'bufs [&'s T], mode: InlineChangeMode) -> MultiLookup<'bufs, 's, T> {
         let mut seqs = Vec::new();
         for (string_idx, string) in strings.iter().enumerate() {
             let mut offset = 0;
-            let iter = {
-                #[cfg(feature = "unicode")]
-                {
-                    string.tokenize_unicode_words()
-                }
-                #[cfg(not(feature = "unicode"))]
-                {
-                    string.tokenize_words()
-                }
-            };
-            for word in iter {
-                seqs.push((word, string_idx, offset));
-                offset += word.len();
+            for token in tokenize_inline(*string, mode) {
+                seqs.push((token, string_idx, offset));
+                offset += token.len();
             }
         }
         MultiLookup { strings, seqs }
@@ -147,11 +245,8 @@ impl<'s, T: DiffableStr + ?Sized> InlineChange<'s, T> {
     /// Each item is a tuple in the form `(emphasized, value)` where `emphasized`
     /// is true if it should be highlighted as an inline diff.
     ///
-    /// By default, words are split by whitespace, which results in coarser diff.
-    /// For example: `"f(x) y"` is tokenized as `["f(x)", "y"]`.
-    ///
-    /// If you want it to be tokenized instead as `["f(", "x", ")"]`,
-    /// you should enable the `"unicode"` flag.
+    /// Tokenization depends on the [`InlineChangeOptions`] used when this
+    /// value was produced.
     pub fn iter_strings_lossy(&self) -> impl Iterator<Item = (bool, Cow<'_, str>)> {
         self.values()
             .iter()
@@ -193,12 +288,11 @@ impl<T: DiffableStr + ?Sized> fmt::Display for InlineChange<'_, T> {
     }
 }
 
-const MIN_RATIO: f32 = 0.5;
-
 pub(crate) fn iter_inline_changes<'x, 'diff, 'old, 'new, 'bufs, T>(
     diff: &'diff TextDiff<'old, 'new, 'bufs, T>,
     op: &DiffOp,
     deadline: Option<Instant>,
+    options: InlineChangeOptions,
 ) -> impl Iterator<Item = InlineChange<'x, T>> + 'diff
 where
     T: DiffableStr + ?Sized,
@@ -216,16 +310,17 @@ where
     let mut new_index = new_range.start;
     let old_slices = &diff.old_slices()[old_range];
     let new_slices = &diff.new_slices()[new_range];
+    let min_ratio = options.get_min_ratio();
 
-    if upper_seq_ratio(old_slices, new_slices) < MIN_RATIO {
+    if upper_seq_ratio(old_slices, new_slices) < min_ratio {
         return Box::new(diff.iter_changes(op).map(|x| x.into())) as Box<dyn Iterator<Item = _>>;
     }
 
-    let old_lookup = MultiLookup::new(old_slices);
-    let new_lookup = MultiLookup::new(new_slices);
+    let old_lookup = MultiLookup::new(old_slices, options.get_mode());
+    let new_lookup = MultiLookup::new(new_slices, options.get_mode());
 
     let ops = capture_diff_deadline(
-        Algorithm::Patience,
+        options.get_algorithm(),
         &old_lookup,
         0..old_lookup.len(),
         &new_lookup,
@@ -233,7 +328,7 @@ where
         deadline,
     );
 
-    if get_diff_ratio(&ops, old_lookup.len(), new_lookup.len()) < MIN_RATIO {
+    if get_diff_ratio(&ops, old_lookup.len(), new_lookup.len()) < min_ratio {
         return Box::new(diff.iter_changes(op).map(|x| x.into())) as Box<dyn Iterator<Item = _>>;
     }
 
@@ -322,6 +417,30 @@ fn test_line_ops_inline() {
         .flat_map(|op| diff.iter_inline_changes(op))
         .collect::<Vec<_>>();
     insta::assert_debug_snapshot!(&changes);
+}
+
+#[test]
+fn test_line_ops_inline_chars() {
+    let diff = TextDiff::from_lines("abcde\n", "abXYZ\n");
+    let mut options = InlineChangeOptions::new();
+    options.mode(InlineChangeMode::Chars);
+    let changes = diff
+        .ops()
+        .iter()
+        .flat_map(|op| diff.iter_inline_changes_with_options(op, options))
+        .collect::<Vec<_>>();
+
+    assert_eq!(changes.len(), 2);
+    assert_eq!(changes[0].tag(), ChangeTag::Delete);
+    assert_eq!(changes[1].tag(), ChangeTag::Insert);
+    assert_eq!(
+        changes[0].iter_strings_lossy().collect::<Vec<_>>(),
+        vec![
+            (false, Cow::Borrowed("ab")),
+            (true, Cow::Borrowed("cde")),
+            (false, Cow::Borrowed("\n")),
+        ]
+    );
 }
 
 #[test]

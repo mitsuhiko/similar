@@ -31,6 +31,8 @@ use std::ops::{Index, Range};
 use crate::{
     capture_diff_slices, Algorithm, ChangeTag, DiffOp, DiffableStr, DiffableStrRef, TextDiff,
 };
+#[cfg(feature = "inline")]
+use crate::{InlineChange, InlineChangeOptions};
 
 struct SliceRemapper<'x, T: ?Sized> {
     source: &'x T,
@@ -396,6 +398,27 @@ pub fn diff_lines<'x, T: DiffableStrRef + ?Sized>(
         .iter_all_changes()
         .map(|change| (change.tag(), change.value()))
         .collect()
+}
+
+/// Shortcut for making a line diff with inline refinement.
+///
+/// This expands the line diff into [`InlineChange`] values by applying
+/// [`TextDiff::iter_inline_changes_with_options`] with the provided options.
+///
+/// Requires the `inline` feature.
+#[cfg(feature = "inline")]
+pub fn diff_lines_inline<'x, T: DiffableStrRef + ?Sized>(
+    alg: Algorithm,
+    old: &'x T,
+    new: &'x T,
+    options: InlineChangeOptions,
+) -> Vec<InlineChange<'x, T::Output>> {
+    let diff = TextDiff::configure().algorithm(alg).diff_lines(old, new);
+    let mut rv = Vec::new();
+    for op in diff.ops() {
+        rv.extend(diff.iter_inline_changes_with_options(op, options));
+    }
+    rv
 }
 
 #[test]
