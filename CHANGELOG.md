@@ -9,6 +9,8 @@ All notable changes to similar are documented here.
 * Added configurable inline refinement via `InlineChangeOptions` and
   `InlineChangeMode`, including semantic cleanup and new
   `TextDiff::iter_inline_changes_with_options*` methods.  #92
+* Added a global disjoint-input fast path in `algorithms::diff_deadline`
+  to avoid pathological runtimes on large, fully distinct inputs.
 * Added test files in `examples/diffs` that can be used with the some of the
   examples as input pairs.
 * Fixed ranged indexing in the classic LCS table algorithm.
