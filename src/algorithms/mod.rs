@@ -52,6 +52,7 @@ pub use utils::IdentifyDistinct;
 #[doc(no_inline)]
 pub use crate::Algorithm;
 
+pub mod hunt;
 pub mod lcs;
 pub mod myers;
 pub mod patience;
@@ -106,6 +107,7 @@ where
         Algorithm::Myers => myers::diff_deadline(d, old, old_range, new, new_range, deadline),
         Algorithm::Patience => patience::diff_deadline(d, old, old_range, new, new_range, deadline),
         Algorithm::Lcs => lcs::diff_deadline(d, old, old_range, new, new_range, deadline),
+        Algorithm::Hunt => hunt::diff_deadline(d, old, old_range, new, new_range, deadline),
     }
 }
 

@@ -12,13 +12,16 @@ use crate::iter::ChangesIter;
     derive(serde::Serialize, serde::Deserialize),
     serde(rename_all = "snake_case")
 )]
+#[non_exhaustive]
 pub enum Algorithm {
     /// Picks the myers algorithm from [`crate::algorithms::myers`]
     Myers,
     /// Picks the patience algorithm from [`crate::algorithms::patience`]
     Patience,
-    /// Picks the LCS algorithm from [`crate::algorithms::lcs`]
+    /// Picks the classic LCS table algorithm from [`crate::algorithms::lcs`]
     Lcs,
+    /// Picks the Hunt-style algorithm from [`crate::algorithms::hunt`]
+    Hunt,
 }
 
 impl Default for Algorithm {
