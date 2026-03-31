@@ -1040,11 +1040,7 @@ fn test_line_ops_inline_semantic_snapshot() {
 }
 
 #[cfg(test)]
-fn assert_semantic_cleanup_no_panic(
-    old_lines: &[&str],
-    new_lines: &[&str],
-    mut ops: Vec<DiffOp>,
-) {
+fn assert_semantic_cleanup_no_panic(old_lines: &[&str], new_lines: &[&str], mut ops: Vec<DiffOp>) {
     let old_lookup = MultiLookup::new(old_lines, InlineChangeMode::Chars);
     let new_lookup = MultiLookup::new(new_lines, InlineChangeMode::Chars);
     cleanup_semantic_lossless::<_, _, str>(&old_lookup, &new_lookup, &mut ops);
@@ -1057,21 +1053,21 @@ fn test_semantic_cleanup_handles_trailing_single_token_equal() {
         &["Xa"],
         &["Xaba"],
         vec![
-        DiffOp::Equal {
-            old_index: 0,
-            new_index: 0,
-            len: 1,
-        },
-        DiffOp::Insert {
-            old_index: 1,
-            new_index: 1,
-            new_len: 2,
-        },
-        DiffOp::Equal {
-            old_index: 1,
-            new_index: 3,
-            len: 1,
-        },
+            DiffOp::Equal {
+                old_index: 0,
+                new_index: 0,
+                len: 1,
+            },
+            DiffOp::Insert {
+                old_index: 1,
+                new_index: 1,
+                new_len: 2,
+            },
+            DiffOp::Equal {
+                old_index: 1,
+                new_index: 3,
+                len: 1,
+            },
         ],
     );
 }
