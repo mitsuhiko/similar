@@ -201,3 +201,63 @@ fn test_myers_compacts_adjacent_deletes_issue_80() {
 
     assert_eq!(delete_lengths, vec![1, 2, 1]);
 }
+
+#[test]
+fn test_myers_unbalanced_regressions() {
+    {
+        let mut old = (0..3_000u32).collect::<Vec<_>>();
+        let mut new = (0..2_999u32).collect::<Vec<_>>();
+
+        old[2_999] = 1_000_000;
+        new.push(2_000_000);
+        new.extend((0..100_000u32).map(|i| 3_000_000 + i));
+
+        let ops = capture_diff_slices(Algorithm::Myers, &old, &new);
+
+        assert_eq!(
+            ops,
+            vec![
+                DiffOp::Equal {
+                    old_index: 0,
+                    new_index: 0,
+                    len: 2_999,
+                },
+                DiffOp::Replace {
+                    old_index: 2_999,
+                    old_len: 1,
+                    new_index: 2_999,
+                    new_len: 100_001,
+                },
+            ]
+        );
+    }
+
+    {
+        let mut old = (0..3_008u32).collect::<Vec<_>>();
+        let mut new = (0..3_000u32).collect::<Vec<_>>();
+
+        // Make the old tail distinct from the new tail except for a single
+        // sparse overlap far into the new side.
+        for i in 0..8 {
+            old[3_000 + i] = 1_000_000 + i as u32;
+        }
+
+        new.extend((0..100_000u32).map(|i| 2_000_000 + i));
+        new[3_000 + 50_000] = 1_000_000;
+
+        let ops = capture_diff_slices(Algorithm::Myers, &old, &new);
+
+        // Ensure the sparse overlap is preserved (do not collapse into one
+        // large replace due to pathological fallback behavior).
+        assert!(ops.iter().any(|op| {
+            matches!(
+                op,
+                DiffOp::Equal {
+                    old_index: 3_000,
+                    new_index: 53_000,
+                    len: 1,
+                }
+            )
+        }));
+    }
+}

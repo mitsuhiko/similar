@@ -146,6 +146,49 @@ fn pathological_repeated_files() -> &'static (String, String) {
     })
 }
 
+fn unbalanced_append_without_trailing_newline() -> &'static (String, String) {
+    static DATA: OnceLock<(String, String)> = OnceLock::new();
+    DATA.get_or_init(|| {
+        let old = (0..3_000)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let appended = (0..100_000)
+            .map(|i| format!("extra {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let new = format!("{}\n{}", old, appended);
+        (old, new)
+    })
+}
+
+fn unbalanced_sparse_overlap() -> &'static (String, String) {
+    static DATA: OnceLock<(String, String)> = OnceLock::new();
+    DATA.get_or_init(|| {
+        let prefix = (0..3_000)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let old_tail = (0..8)
+            .map(|i| format!("tail {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let old = format!("{}\n{}", prefix, old_tail);
+
+        let mut new_tail = (0..100_000)
+            .map(|i| format!("extra {i}"))
+            .collect::<Vec<_>>();
+        new_tail[50_000] = "tail 0".to_string();
+
+        let new = format!("{}\n{}", prefix, new_tail.join("\n"));
+        (old, new)
+    })
+}
+
 fn bench_large_cases(c: &mut Criterion) {
     let mut group = c.benchmark_group("large_cases");
     group.sample_size(10);
@@ -172,6 +215,39 @@ fn bench_large_cases(c: &mut Criterion) {
             let mut config = TextDiff::configure();
             config.algorithm(Algorithm::Myers);
             let diff = config.diff_lines(black_box(old_pathological), black_box(new_pathological));
+            black_box(diff.ops().len())
+        });
+    });
+
+    let (old_unbalanced_append, new_unbalanced_append) =
+        unbalanced_append_without_trailing_newline();
+    group.throughput(Throughput::Bytes(
+        (old_unbalanced_append.len() + new_unbalanced_append.len()) as u64,
+    ));
+    group.bench_function("unbalanced_append_no_trailing_newline::Myers", |b| {
+        b.iter(|| {
+            let mut config = TextDiff::configure();
+            config.algorithm(Algorithm::Myers);
+            let diff = config.diff_lines(
+                black_box(old_unbalanced_append),
+                black_box(new_unbalanced_append),
+            );
+            black_box(diff.ops().len())
+        });
+    });
+
+    let (old_unbalanced_sparse, new_unbalanced_sparse) = unbalanced_sparse_overlap();
+    group.throughput(Throughput::Bytes(
+        (old_unbalanced_sparse.len() + new_unbalanced_sparse.len()) as u64,
+    ));
+    group.bench_function("unbalanced_sparse_overlap::Myers", |b| {
+        b.iter(|| {
+            let mut config = TextDiff::configure();
+            config.algorithm(Algorithm::Myers);
+            let diff = config.diff_lines(
+                black_box(old_unbalanced_sparse),
+                black_box(new_unbalanced_sparse),
+            );
             black_box(diff.ops().len())
         });
     });
