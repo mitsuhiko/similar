@@ -32,6 +32,13 @@ pub enum InlineChangeMode {
 }
 
 /// Configuration for inline refinement in [`TextDiff::iter_inline_changes`](crate::TextDiff::iter_inline_changes).
+///
+/// Defaults:
+///
+/// - algorithm: [`Algorithm::Patience`]
+/// - mode: [`InlineChangeMode::Auto`]
+/// - min ratio: `0.5`
+/// - semantic cleanup: disabled
 #[derive(Debug, Clone, Copy)]
 pub struct InlineChangeOptions {
     algorithm: Algorithm,
@@ -82,6 +89,8 @@ impl InlineChangeOptions {
     ///
     /// This performs extra boundary shifting and overlap extraction intended to
     /// improve human readability of intraline highlights.
+    ///
+    /// Disabled by default.
     pub fn semantic_cleanup(&mut self, yes: bool) -> &mut Self {
         self.semantic_cleanup = yes;
         self
@@ -988,13 +997,66 @@ fn test_line_ops_inline_semantic_cleanup() {
 }
 
 #[test]
-fn test_semantic_cleanup_handles_trailing_single_token_equal() {
-    let old_lines = ["Xa"];
-    let new_lines = ["Xaba"];
-    let old_lookup = MultiLookup::new(&old_lines, InlineChangeMode::Chars);
-    let new_lookup = MultiLookup::new(&new_lines, InlineChangeMode::Chars);
+fn test_line_ops_inline_issue_84_chars() {
+    let diff = TextDiff::from_lines("f(x) y\n", "f(z) y\n");
+    let mut options = InlineChangeOptions::new();
+    options.mode(InlineChangeMode::Chars);
+    let changes = diff
+        .ops()
+        .iter()
+        .flat_map(|op| diff.iter_inline_changes_with_options(op, options))
+        .collect::<Vec<_>>();
 
-    let mut ops = vec![
+    assert_eq!(changes.len(), 2);
+    assert_eq!(
+        changes[0].iter_strings_lossy().collect::<Vec<_>>(),
+        vec![
+            (false, Cow::Borrowed("f(")),
+            (true, Cow::Borrowed("x")),
+            (false, Cow::Borrowed(") y\n")),
+        ]
+    );
+    assert_eq!(
+        changes[1].iter_strings_lossy().collect::<Vec<_>>(),
+        vec![
+            (false, Cow::Borrowed("f(")),
+            (true, Cow::Borrowed("z")),
+            (false, Cow::Borrowed(") y\n")),
+        ]
+    );
+}
+
+#[test]
+fn test_line_ops_inline_semantic_snapshot() {
+    let diff = TextDiff::from_lines("The came.\n", "The cat came.\n");
+    let mut options = InlineChangeOptions::new();
+    options.mode(InlineChangeMode::Chars).semantic_cleanup(true);
+    let changes = diff
+        .ops()
+        .iter()
+        .flat_map(|op| diff.iter_inline_changes_with_options(op, options))
+        .collect::<Vec<_>>();
+    insta::assert_debug_snapshot!(&changes);
+}
+
+#[cfg(test)]
+fn assert_semantic_cleanup_no_panic(
+    old_lines: &[&str],
+    new_lines: &[&str],
+    mut ops: Vec<DiffOp>,
+) {
+    let old_lookup = MultiLookup::new(old_lines, InlineChangeMode::Chars);
+    let new_lookup = MultiLookup::new(new_lines, InlineChangeMode::Chars);
+    cleanup_semantic_lossless::<_, _, str>(&old_lookup, &new_lookup, &mut ops);
+    assert!(!ops.is_empty());
+}
+
+#[test]
+fn test_semantic_cleanup_handles_trailing_single_token_equal() {
+    assert_semantic_cleanup_no_panic(
+        &["Xa"],
+        &["Xaba"],
+        vec![
         DiffOp::Equal {
             old_index: 0,
             new_index: 0,
@@ -1010,11 +1072,33 @@ fn test_semantic_cleanup_handles_trailing_single_token_equal() {
             new_index: 3,
             len: 1,
         },
-    ];
+        ],
+    );
+}
 
-    cleanup_semantic_lossless::<_, _, str>(&old_lookup, &new_lookup, &mut ops);
-
-    assert!(!ops.is_empty());
+#[test]
+fn test_semantic_cleanup_handles_leading_single_token_equal() {
+    assert_semantic_cleanup_no_panic(
+        &["Xaba"],
+        &["Xa"],
+        vec![
+            DiffOp::Equal {
+                old_index: 0,
+                new_index: 0,
+                len: 1,
+            },
+            DiffOp::Delete {
+                old_index: 1,
+                old_len: 2,
+                new_index: 1,
+            },
+            DiffOp::Equal {
+                old_index: 3,
+                new_index: 1,
+                len: 1,
+            },
+        ],
+    );
 }
 
 #[test]

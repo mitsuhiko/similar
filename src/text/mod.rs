@@ -580,7 +580,9 @@ impl<'old, 'new, 'bufs, T: DiffableStr + ?Sized + 'old + 'new> TextDiff<'old, 'n
     /// Iterates over the changes the op expands to with inline emphasis and options.
     ///
     /// Like [`iter_inline_changes`](Self::iter_inline_changes) but with custom
-    /// inline refinement options.
+    /// inline refinement options.  For improved human readability of intraline
+    /// edits you can enable semantic cleanup via
+    /// [`InlineChangeOptions::semantic_cleanup`].
     #[cfg(feature = "inline")]
     pub fn iter_inline_changes_with_options<'x, 'slf>(
         &'slf self,
