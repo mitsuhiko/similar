@@ -138,28 +138,16 @@ where
             old_mid_range.len(),
             new_mid_range.start,
         )?;
-    } else {
-        if let Some(match_list) = build_match_list(new, new_mid_range.clone(), deadline) {
-            if let Some(anchors) = hunt_anchors(old, old_mid_range.clone(), &match_list, deadline) {
-                emit_anchored_script(
-                    d,
-                    old_mid_range.start,
-                    old_mid_range.end,
-                    new_mid_range.start,
-                    new_mid_range.end,
-                    &anchors,
-                )?;
-            } else {
-                let mut no_finish_d = NoFinishHook::new(&mut *d);
-                myers::diff_deadline(
-                    &mut no_finish_d,
-                    old,
-                    old_mid_range,
-                    new,
-                    new_mid_range,
-                    deadline,
-                )?;
-            }
+    } else if let Some(match_list) = build_match_list(new, new_mid_range.clone(), deadline) {
+        if let Some(anchors) = hunt_anchors(old, old_mid_range.clone(), &match_list, deadline) {
+            emit_anchored_script(
+                d,
+                old_mid_range.start,
+                old_mid_range.end,
+                new_mid_range.start,
+                new_mid_range.end,
+                &anchors,
+            )?;
         } else {
             let mut no_finish_d = NoFinishHook::new(&mut *d);
             myers::diff_deadline(
@@ -171,6 +159,16 @@ where
                 deadline,
             )?;
         }
+    } else {
+        let mut no_finish_d = NoFinishHook::new(&mut *d);
+        myers::diff_deadline(
+            &mut no_finish_d,
+            old,
+            old_mid_range,
+            new,
+            new_mid_range,
+            deadline,
+        )?;
     }
 
     if common_suffix_len > 0 {
