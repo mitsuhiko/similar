@@ -1,7 +1,9 @@
-//! LCS diff algorithm.
+//! Classic LCS table diff algorithm.
 //!
-//! * time: `O((NM)D log (M)D)`
-//! * space `O(MN)`
+//! This implementation builds an LCS table for the compared ranges and then
+//! walks it forward to emit operations.
+//! * time: `O(N*M)`
+//! * space `O(N*M)`
 use std::collections::BTreeMap;
 use std::ops::{Index, Range};
 
@@ -9,7 +11,7 @@ use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_ra
 use crate::algorithms::DiffHook;
 use crate::deadline_support::{deadline_exceeded, Instant};
 
-/// LCS diff algorithm.
+/// Classic LCS table diff algorithm.
 ///
 /// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
 ///
@@ -33,7 +35,7 @@ where
     diff_deadline(d, old, old_range, new, new_range, None)
 }
 
-/// LCS diff algorithm.
+/// Classic LCS table diff algorithm.
 ///
 /// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
 ///
@@ -80,9 +82,9 @@ where
 
     let maybe_table = make_table(
         old,
-        common_prefix_len..(old_range.len() - common_suffix_len),
+        (old_range.start + common_prefix_len)..(old_range.end - common_suffix_len),
         new,
-        common_prefix_len..(new_range.len() - common_suffix_len),
+        (new_range.start + common_prefix_len)..(new_range.end - common_suffix_len),
         deadline,
     );
     let mut old_idx = 0;
@@ -171,7 +173,7 @@ where
         }
 
         for j in (0..old_len).rev() {
-            let val = if new[i] == old[j] {
+            let val = if new[new_range.start + i] == old[old_range.start + j] {
                 table.get(&(i + 1, j + 1)).unwrap_or(&0) + 1
             } else {
                 *table
@@ -229,6 +231,88 @@ fn test_pat() {
     let mut d = crate::algorithms::Capture::new();
     diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
     insta::assert_debug_snapshot!(d.ops());
+}
+
+#[test]
+fn test_issue44_swapped_regression() {
+    use crate::DiffOp;
+
+    let a: &[usize] = &[0, 1, 4, 5, 8, 9];
+    let b: &[usize] = &[0, 1, 3, 4, 5];
+
+    let mut d = crate::algorithms::Capture::new();
+    diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
+    assert_eq!(
+        d.into_ops(),
+        vec![
+            DiffOp::Equal {
+                old_index: 0,
+                new_index: 0,
+                len: 2,
+            },
+            DiffOp::Insert {
+                old_index: 2,
+                new_index: 2,
+                new_len: 1,
+            },
+            DiffOp::Equal {
+                old_index: 2,
+                new_index: 3,
+                len: 1,
+            },
+            DiffOp::Equal {
+                old_index: 3,
+                new_index: 4,
+                len: 1,
+            },
+            DiffOp::Delete {
+                old_index: 4,
+                old_len: 2,
+                new_index: 5,
+            },
+        ]
+    );
+}
+
+#[test]
+fn test_subrange_regression() {
+    use crate::DiffOp;
+
+    let a: &[usize] = &[99, 0, 1, 4, 5, 8, 9, 88];
+    let b: &[usize] = &[77, 0, 1, 3, 4, 5, 66];
+
+    let mut d = crate::algorithms::Capture::new();
+    diff(&mut d, a, 1..7, b, 1..6).unwrap();
+    assert_eq!(
+        d.into_ops(),
+        vec![
+            DiffOp::Equal {
+                old_index: 1,
+                new_index: 1,
+                len: 2,
+            },
+            DiffOp::Insert {
+                old_index: 3,
+                new_index: 3,
+                new_len: 1,
+            },
+            DiffOp::Equal {
+                old_index: 3,
+                new_index: 4,
+                len: 1,
+            },
+            DiffOp::Equal {
+                old_index: 4,
+                new_index: 5,
+                len: 1,
+            },
+            DiffOp::Delete {
+                old_index: 5,
+                old_len: 2,
+                new_index: 6,
+            },
+        ]
+    );
 }
 
 #[test]
