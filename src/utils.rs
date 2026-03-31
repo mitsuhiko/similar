@@ -70,7 +70,7 @@ impl<T: DiffableStr + ?Sized> Index<Range<usize>> for SliceRemapper<'_, T> {
 
 /// A remapper that can remap diff ops to the original slices.
 ///
-/// The idea here is that when a [`TextDiff`](crate::TextDiff) is created from
+/// The idea here is that when a [`TextDiff`] is created from
 /// two strings and the internal tokenization is used, this remapper can take
 /// a range in the tokenized sequences and remap it to the original string.
 /// This is particularly useful when you want to do things like character or

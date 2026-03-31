@@ -115,7 +115,7 @@ impl fmt::Display for UnifiedHunkHeader {
 ///
 /// The [`UnifiedDiff`] type supports both unicode and byte diffs for all
 /// types compatible with [`DiffableStr`].  You can pick between the two
-/// versions by using [`UnifiedDiff.to_string`] or [`UnifiedDiff.to_writer`].
+/// versions by using [`std::string::ToString::to_string`] or [`UnifiedDiff::to_writer`].
 /// The former uses [`DiffableStr::to_string_lossy`], the latter uses
 /// [`DiffableStr::as_bytes`] for each line.
 pub struct UnifiedDiff<'diff, 'old, 'new, 'bufs, T: DiffableStr + ?Sized> {
