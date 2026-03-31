@@ -134,7 +134,7 @@ impl<D: DiffHook> DiffHook for Replace<D> {
 
 #[test]
 fn test_mayers_replace() {
-    use crate::algorithms::{diff_slices, Algorithm};
+    use crate::algorithms::{Algorithm, diff_slices};
     let a: &[&str] = &[
         ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n",
         "a\n",
@@ -196,7 +196,7 @@ fn test_mayers_replace() {
 
 #[test]
 fn test_replace() {
-    use crate::algorithms::{diff_slices, Algorithm};
+    use crate::algorithms::{Algorithm, diff_slices};
 
     let a: &[usize] = &[0, 1, 2, 3, 4];
     let b: &[usize] = &[0, 1, 2, 7, 8, 9];

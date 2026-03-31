@@ -7,9 +7,9 @@
 use std::collections::BTreeMap;
 use std::ops::{Index, Range};
 
-use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::DiffHook;
-use crate::deadline_support::{deadline_exceeded, Instant};
+use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
+use crate::deadline_support::{Instant, deadline_exceeded};
 
 /// Classic LCS table diff algorithm.
 ///
@@ -356,8 +356,8 @@ fn test_finish_called() {
 
 #[test]
 fn test_bad_range_regression() {
-    use crate::algorithms::Capture;
     use crate::DiffOp;
+    use crate::algorithms::Capture;
     let mut d = Capture::new();
     diff(&mut d, &[0], 0..1, &[0, 0], 0..2).unwrap();
     assert_eq!(

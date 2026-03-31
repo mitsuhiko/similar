@@ -21,9 +21,9 @@
 
 use std::ops::{Index, IndexMut, Range};
 
-use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::DiffHook;
-use crate::deadline_support::{deadline_exceeded, Instant};
+use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
+use crate::deadline_support::{Instant, deadline_exceeded};
 
 /// Myers' diff algorithm.
 ///

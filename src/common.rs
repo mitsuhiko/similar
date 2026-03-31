@@ -1,7 +1,7 @@
 use std::hash::Hash;
 use std::ops::{Index, Range};
 
-use crate::algorithms::{diff_deadline, Capture, Compact, Replace};
+use crate::algorithms::{Capture, Compact, Replace, diff_deadline};
 use crate::deadline_support::Instant;
 use crate::{Algorithm, DiffOp};
 

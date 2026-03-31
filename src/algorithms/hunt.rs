@@ -14,8 +14,8 @@ use std::collections::HashMap;
 use std::ops::{Index, Range};
 
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
-use crate::algorithms::{myers, DiffHook, IdentifyDistinct, NoFinishHook};
-use crate::deadline_support::{deadline_exceeded, Instant};
+use crate::algorithms::{DiffHook, IdentifyDistinct, NoFinishHook, myers};
+use crate::deadline_support::{Instant, deadline_exceeded};
 
 #[derive(Clone, Copy)]
 struct Candidate {
@@ -337,7 +337,7 @@ where
 
 #[test]
 fn test_diff() {
-    use crate::{capture_diff_slices, Algorithm, DiffOp};
+    use crate::{Algorithm, DiffOp, capture_diff_slices};
 
     let a: &[usize] = &[0, 1, 2, 3, 4];
     let b: &[usize] = &[0, 1, 2, 9, 4];
@@ -367,7 +367,7 @@ fn test_diff() {
 
 #[test]
 fn test_issue44_swapped_regression() {
-    use crate::{capture_diff_slices, Algorithm, DiffOp};
+    use crate::{Algorithm, DiffOp, capture_diff_slices};
 
     let a: &[usize] = &[0, 1, 4, 5, 8, 9];
     let b: &[usize] = &[0, 1, 3, 4, 5];
@@ -401,8 +401,8 @@ fn test_issue44_swapped_regression() {
 
 #[test]
 fn test_subrange_regression() {
-    use crate::algorithms::Capture;
     use crate::DiffOp;
+    use crate::algorithms::Capture;
 
     let a: &[usize] = &[99, 0, 1, 4, 5, 8, 9, 88];
     let b: &[usize] = &[77, 0, 1, 3, 4, 5, 66];
@@ -438,7 +438,7 @@ fn test_subrange_regression() {
 
 #[test]
 fn test_lcs_length_matches_classic_lcs() {
-    use crate::{capture_diff_slices, Algorithm, DiffOp};
+    use crate::{Algorithm, DiffOp, capture_diff_slices};
 
     fn equal_len(ops: &[DiffOp]) -> usize {
         ops.iter()

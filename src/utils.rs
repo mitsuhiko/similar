@@ -29,7 +29,7 @@ use std::hash::Hash;
 use std::ops::{Index, Range};
 
 use crate::{
-    capture_diff_slices, Algorithm, ChangeTag, DiffOp, DiffableStr, DiffableStrRef, TextDiff,
+    Algorithm, ChangeTag, DiffOp, DiffableStr, DiffableStrRef, TextDiff, capture_diff_slices,
 };
 
 struct SliceRemapper<'x, T: ?Sized> {

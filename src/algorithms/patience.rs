@@ -11,10 +11,10 @@
 use std::hash::Hash;
 use std::ops::{Index, Range};
 
-use crate::algorithms::{myers, DiffHook, NoFinishHook, Replace};
+use crate::algorithms::{DiffHook, NoFinishHook, Replace, myers};
 use crate::deadline_support::Instant;
 
-use super::utils::{unique, UniqueItem};
+use super::utils::{UniqueItem, unique};
 
 /// Patience diff algorithm.
 ///

@@ -1,8 +1,8 @@
 use std::fmt;
 use std::ops::{Index, Range};
 
-use crate::algorithms::utils::is_empty_range;
 use crate::algorithms::DiffHook;
+use crate::algorithms::utils::is_empty_range;
 use crate::iter::ChangesIter;
 
 /// An enum representing a diffing algorithm.

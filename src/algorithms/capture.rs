@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use crate::algorithms::DiffHook;
-use crate::{group_diff_ops, DiffOp};
+use crate::{DiffOp, group_diff_ops};
 
 /// A [`DiffHook`] that captures all diff operations.
 #[derive(Default, Clone)]
@@ -94,7 +94,7 @@ impl DiffHook for Capture {
 
 #[test]
 fn test_capture_hook_grouping() {
-    use crate::algorithms::{diff_slices, Algorithm, Replace};
+    use crate::algorithms::{Algorithm, Replace, diff_slices};
 
     let rng = (1..100).collect::<Vec<_>>();
     let mut rng_new = rng.clone();
