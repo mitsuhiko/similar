@@ -4,6 +4,9 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+* Added a Git-style Histogram diff implementation exposed as
+  `Algorithm::Histogram`, including deadline-aware Myers fallback and
+  comprehensive regression/behavior tests.
 * Raised MSRV to Rust 1.85 and moved the crate to Rust 2024 edition.
 * Added a Hunt-style diff implementation exposed as `Algorithm::Hunt`.
 * Added configurable inline refinement via `InlineChangeOptions` and

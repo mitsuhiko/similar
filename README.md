@@ -40,6 +40,7 @@ fn main() {
 * Myers' diff
 * Patience diff
 * Hunt-style diff
+* Histogram diff
 * Classic LCS table diff
 * Diffing on arbitrary comparable sequences
 * Line, word, character and grapheme level diffing

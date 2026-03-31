@@ -22,6 +22,8 @@ pub enum Algorithm {
     Lcs,
     /// Picks the Hunt-style algorithm from [`crate::algorithms::hunt`]
     Hunt,
+    /// Picks the Histogram algorithm from [`crate::algorithms::histogram`]
+    Histogram,
 }
 
 impl Default for Algorithm {
