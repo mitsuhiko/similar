@@ -2,6 +2,19 @@
 
 All notable changes to similar are documented here.
 
+## Unreleased
+
+* Raised MSRV to Rust 1.85 and moved the crate to Rust 2024 edition.
+* Added a Hunt-style diff implementation exposed as `Algorithm::Hunt`.
+* Added configurable inline refinement via `InlineChangeOptions` and
+  `InlineChangeMode`, including semantic cleanup and new
+  `TextDiff::iter_inline_changes_with_options*` methods.  #92
+* Added test files in `examples/diffs` that can be used with the some of the
+  examples as input pairs.
+* Fixed ranged indexing in the classic LCS table algorithm.
+* Improved diff compaction to merge adjacent delete hunks across equal runs.
+* Excluded development scripts from published crate contents.  #87
+
 ## 2.7.0
 
 * Add optional support for `web-time` to support web WASM targets.  #73
