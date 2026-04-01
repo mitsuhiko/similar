@@ -55,6 +55,7 @@ fn main() {
 ## License and Links
 
 * [Documentation](https://docs.rs/similar/)
+* [Upgrading Guide (2.7 to 3.0)](UPGRADING.md)
 * [Issue Tracker](https://github.com/mitsuhiko/similar/issues)
 * [Examples](https://github.com/mitsuhiko/similar/tree/main/examples)
 * License: [Apache-2.0](https://github.com/mitsuhiko/similar/blob/main/LICENSE)

@@ -34,7 +34,7 @@ All notable changes to similar are documented here.
 * `utils::diff_lines_inline` now takes `&TextDiff` and options rather than
   `(Algorithm, old, new, options)`.
 * `utils::diff_lines` now avoids a second line-tokenization pass.
-* Renamed `get_diff_ratio` to `diff_ratio` and deprecated the old name.
+* Renamed `get_diff_ratio` to `diff_ratio`.
 
 ## 2.7.0
 
