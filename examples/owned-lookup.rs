@@ -1,5 +1,5 @@
 //! Demonstrates diffing a virtual/computed sequence by materializing it through
-//! [`similar::CachedLookup`].
+//! [`similar::algorithms::CachedLookup`].
 //!
 //! This addresses <https://github.com/mitsuhiko/similar/issues/33> without
 //! changing the core diff input model: values are computed on demand, cached on
@@ -8,7 +8,8 @@
 //! The example flattens a `Vec<Vec<u8>>` into a virtual token stream and diffs
 //! the two sides without first building a flat `Vec<Token>` eagerly.
 
-use similar::{Algorithm, CachedLookup, ChangeTag, capture_diff};
+use similar::algorithms::CachedLookup;
+use similar::{Algorithm, ChangeTag, capture_diff};
 
 /// A single element in the flattened representation of `Vec<Vec<u8>>`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]

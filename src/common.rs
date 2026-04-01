@@ -11,7 +11,8 @@ use crate::{Algorithm, DiffOp};
 ///
 /// This is like [`diff`](crate::algorithms::diff) but instead of using an
 /// arbitrary hook this will always use [`Compact`] + [`Replace`] + [`Capture`]
-/// and return the captured [`DiffOp`]s.
+/// and return the captured [`DiffOp`]s. For lazily computed values or diffing
+/// by a derived key, see [`crate::algorithms::CachedLookup`].
 pub fn capture_diff<Old, New>(
     alg: Algorithm,
     old: &Old,
@@ -51,6 +52,9 @@ where
 }
 
 /// Creates a diff between old and new with the given algorithm capturing the ops.
+///
+/// For lazily computed values or diffing by a derived key, see
+/// [`crate::algorithms::CachedLookup`].
 pub fn capture_diff_slices<T>(alg: Algorithm, old: &[T], new: &[T]) -> Vec<DiffOp>
 where
     T: Eq + Hash,

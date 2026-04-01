@@ -30,9 +30,9 @@
 //! let ops = capture_diff_slices(Algorithm::Myers, &a, &b);
 //! ```
 //!
-//! If your sequence is computed on demand and cannot return stable borrows,
-//! wrap it in [`CachedLookup`].  This materializes each item at most once and
-//! then exposes it through normal indexing.
+//! If your sequence is computed on demand, or if you want to diff by a derived
+//! key, wrap it in [`algorithms::CachedLookup`]. This materializes each item at most
+//! once and then exposes it through normal indexing.
 //!
 //! # Text Diffing
 //!
@@ -183,7 +183,6 @@ mod text;
 mod types;
 
 pub use self::common::*;
-pub use self::lookup::*;
 #[cfg(feature = "text")]
 pub use self::text::*;
 pub use self::types::*;

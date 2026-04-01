@@ -79,14 +79,23 @@
 //!
 //! Some heuristic-enabled entrypoints may require stricter trait bounds than
 //! their raw counterpart (for example, shared heuristics that build hash-based
-//! lookups require [`Hash`] + [`Eq`]).  In those cases, `diff_deadline_raw` is the
-//! compatibility path with minimal bounds.
+//! lookups require [`Hash`] + [`Eq`]). If your values need to be computed lazily
+//! or compared via a derived key, wrap them in [`CachedLookup`]
+//! first. In the remaining cases, `diff_deadline_raw` is the compatibility path
+//! with minimal bounds.
 //!
 //! If you want to skip shared heuristics, each algorithm module provides
 //! `diff_deadline_raw`, which keeps that algorithm's minimal intrinsic bounds.
 //!
 //! The top-level dispatcher [`diff_deadline`] always calls the
 //! heuristic-enabled entrypoints and never calls raw variants.
+//!
+//! # Sequence Adapters
+//!
+//! Two helpers are available when your input is not already a plain slice:
+//!
+//! - [`CachedLookup`]: lazily computes and caches sequence items on first access.
+//! - [`IdentifyDistinct`]: eagerly remaps values to dense integer IDs.
 //!
 //! # Example
 //!
@@ -105,6 +114,8 @@
 //!
 //! The above example is equivalent to using
 //! [`capture_diff_slices`](crate::capture_diff_slices).
+
+pub use crate::lookup::CachedLookup;
 
 mod capture;
 mod compact;

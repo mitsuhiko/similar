@@ -32,6 +32,7 @@ use core::ops::{Index, Range};
 use crate::{
     Algorithm, ChangeTag, DiffOp, DiffableStr, DiffableStrRef, TextDiff, capture_diff_slices,
 };
+
 #[cfg(feature = "inline")]
 use crate::{InlineChange, InlineChangeOptions};
 

@@ -2,19 +2,54 @@ use alloc::vec::Vec;
 use core::cell::OnceCell;
 use core::ops::Index;
 
-/// Adapts a computed random-access sequence to an indexable lookup by caching
-/// each value on first access.
+/// Caches computed values for indexed lookup.
 ///
 /// This is useful for virtual or lazily computed sequences that cannot return a
-/// stable reference directly.  The producer is called at most once per index;
-/// afterwards the cached value is borrowed from internal storage.
+/// stable reference directly. The producer is called at most once per index.
+/// For eager remapping to dense integer IDs, see
+/// [`IdentityDistinct`](crate::algorithms::IdentifyDistinct).
 ///
 /// ```rust
-/// use similar::CachedLookup;
+/// use similar::algorithms::CachedLookup;
 ///
 /// let lookup = CachedLookup::new(3, |idx| format!("item-{idx}"));
 /// assert_eq!(&lookup[1], "item-1");
 /// assert_eq!(&lookup[1], "item-1");
+/// ```
+///
+/// You can also diff by a derived key instead of the original value:
+///
+/// ```rust
+/// use similar::{Algorithm, capture_diff};
+/// use similar::algorithms::CachedLookup;
+///
+/// #[derive(Debug)]
+/// struct User {
+///     id: u32,
+///     name: &'static str,
+/// }
+///
+/// let old = [
+///     User { id: 1, name: "Alice" },
+///     User { id: 2, name: "Bob" },
+/// ];
+/// let new = [
+///     User { id: 1, name: "Alice Smith" },
+///     User { id: 3, name: "Carol" },
+/// ];
+///
+/// let old_ids = CachedLookup::new(old.len(), |idx: usize| old[idx].id);
+/// let new_ids = CachedLookup::new(new.len(), |idx: usize| new[idx].id);
+///
+/// let ops = capture_diff(
+///     Algorithm::Myers,
+///     &old_ids,
+///     0..old_ids.len(),
+///     &new_ids,
+///     0..new_ids.len(),
+/// );
+///
+/// assert!(ops.iter().any(|op| matches!(op, similar::DiffOp::Equal { len: 1, .. })));
 /// ```
 pub struct CachedLookup<T, F> {
     slots: Vec<OnceCell<T>>,

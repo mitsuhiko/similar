@@ -216,7 +216,8 @@ impl<Int> Index<usize> for OffsetLookup<Int> {
 ///
 /// This can be helpful on larger inputs to speed up the comparisons
 /// performed by doing a first pass where the data set gets reduced
-/// to (small) integers.
+/// to (small) integers. For lazily computed or projected values, see
+/// [`CachedLookup`](super::CachedLookup).
 ///
 /// The idea is that instead of passing two sequences to a diffling algorithm
 /// you first pass it via [`IdentifyDistinct`]:
