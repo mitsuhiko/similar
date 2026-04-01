@@ -14,6 +14,10 @@ All notable changes to similar are documented here.
   `TextDiff::iter_inline_changes_with_options*` methods.  #92
 * Added a global disjoint-input fast path in `algorithms::diff_deadline`
   to avoid pathological runtimes on large, fully distinct inputs.
+* Improved `Algorithm::Myers` performance on heavily unbalanced diffs to
+  avoid pathological slowdowns.
+* Added `diff_deadline_raw` entrypoints in the algorithm modules to bypass
+  shared heuristics and keep minimal intrinsic trait bounds where needed.
 * Added test files in `examples/diffs` that can be used with the some of the
   examples as input pairs.
 * Fixed ranged indexing in the classic LCS table algorithm.
