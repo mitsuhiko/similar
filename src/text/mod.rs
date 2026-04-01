@@ -1,9 +1,11 @@
 //! Text diffing utilities.
-use std::borrow::Borrow;
-use std::cmp::Reverse;
-use std::collections::BinaryHeap;
-use std::ops::{Index, Range};
-use std::time::Duration;
+use alloc::borrow::{Borrow, ToOwned};
+use alloc::collections::BinaryHeap;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::cmp::Reverse;
+use core::ops::{Index, Range};
+use core::time::Duration;
 
 mod abstraction;
 #[cfg(feature = "inline")]
@@ -233,6 +235,15 @@ pub struct TextDiffConfig {
 }
 
 impl TextDiffConfig {
+    /// Creates a default text diff configuration.
+    pub const fn new() -> Self {
+        TextDiffConfig {
+            algorithm: Algorithm::Myers,
+            newline_terminated: None,
+            deadline: None,
+        }
+    }
+
     /// Changes the algorithm.
     ///
     /// The default algorithm is [`Algorithm::Myers`].
@@ -578,8 +589,8 @@ pub struct TextDiff<'old, 'new, T: DiffableStr + ?Sized> {
 
 impl<'old, 'new> TextDiff<'old, 'new, str> {
     /// Configures a text differ before diffing.
-    pub fn configure() -> TextDiffConfig {
-        TextDiffConfig::default()
+    pub const fn configure() -> TextDiffConfig {
+        TextDiffConfig::new()
     }
 
     /// Creates a diff of lines.

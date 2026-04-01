@@ -47,6 +47,22 @@ fn main() {
 * Text and Byte diffing
 * Unified diff generation
 
+## no_std Support
+
+`similar` now enables `std` by default.
+
+For `no_std + alloc` usage:
+
+```toml
+[dependencies]
+similar = { version = "3", default-features = false }
+```
+
+Backend selection in `no_std` mode:
+
+- default (`default-features = false`): `alloc::collections::BTreeMap`
+- `default-features = false, features = ["hashbrown"]`: `hashbrown::HashMap`
+
 ## Related Projects
 
 * [insta](https://insta.rs) snapshot testing library

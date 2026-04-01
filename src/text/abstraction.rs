@@ -1,6 +1,9 @@
-use std::borrow::{Borrow, Cow};
-use std::hash::Hash;
-use std::ops::Range;
+use alloc::borrow::{Borrow, Cow, ToOwned};
+use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::hash::Hash;
+use core::ops::Range;
 
 /// Reference to a [`DiffableStr`].
 ///
@@ -273,6 +276,7 @@ impl DiffableStr for str {
 mod bytes_support {
     use super::*;
 
+    use alloc::vec;
     use bstr::ByteSlice;
 
     impl DiffableStrRef for Vec<u8> {
@@ -389,7 +393,7 @@ mod bytes_support {
         }
 
         fn as_str(&self) -> Option<&str> {
-            std::str::from_utf8(self).ok()
+            core::str::from_utf8(self).ok()
         }
 
         fn to_string_lossy(&self) -> Cow<'_, str> {

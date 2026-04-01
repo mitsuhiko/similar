@@ -24,7 +24,14 @@
 //! The former uses [`DiffableStr::to_string_lossy`], the latter uses
 //! [`DiffableStr::as_bytes`] for each line.
 #[cfg(feature = "text")]
-use std::{fmt, io};
+use alloc::string::{String, ToString};
+#[cfg(feature = "text")]
+use alloc::vec::Vec;
+#[cfg(feature = "text")]
+use core::fmt;
+
+#[cfg(all(feature = "text", feature = "std"))]
+use std::io;
 
 use crate::text::{DiffableStr, TextDiff};
 use crate::types::{Algorithm, DiffOp};
@@ -177,6 +184,7 @@ impl<'diff, 'old, 'new, T: DiffableStr + ?Sized> UnifiedDiff<'diff, 'old, 'new, 
     }
 
     /// Write the unified diff as bytes to the output stream.
+    #[cfg(feature = "std")]
     pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error>
     where
         'diff: 'old + 'new,
@@ -244,6 +252,7 @@ impl<'diff, 'old, 'new, T: DiffableStr + ?Sized> UnifiedDiffHunk<'diff, 'old, 'n
     }
 
     /// Write the hunk as bytes to the output stream.
+    #[cfg(feature = "std")]
     pub fn to_writer<W: io::Write>(&self, mut w: W) -> Result<(), io::Error>
     where
         'diff: 'old + 'new,

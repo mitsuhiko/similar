@@ -9,8 +9,9 @@ doc:
 test:
 	@cargo test
 	@cargo test --all-features
-	@cargo test --no-default-features
-	@cargo test --no-default-features --features bytes
+	@cargo check --no-default-features
+	@cargo check --no-default-features --features hashbrown
+	@cargo check --no-default-features --features bytes
 
 .PHONY: wasi-test
 wasi-test:

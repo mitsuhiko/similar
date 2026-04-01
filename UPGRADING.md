@@ -7,10 +7,23 @@ changes.
 ## In Short
 
 - Update your Rust toolchain to `1.85` or newer.
+- `std` is now an explicit default feature. For `no_std`, disable default features.
 - Replace `TextDiff::old_slices()` and `TextDiff::new_slices()` with the new accessor methods.
 - Audit any code that passes custom or external `DiffOp` values into `TextDiff::iter_changes`.
 - Prefer `diff_ratio` over `get_diff_ratio`.
 - If you wrote explicit `TextDiff` type annotations, update them for the new lifetime shape.
+
+## `std` Is Now a Feature (Enabled by Default)
+
+In 3.0, the crate explicitly models standard library support as a feature:
+
+- default: `features = ["std", "text"]`
+- `no_std`: `default-features = false`
+
+`no_std` map backends:
+
+- default: `alloc::collections::BTreeMap`
+- opt-in: `features = ["hashbrown"]`
 
 ## `TextDiff` Slice Access Changed
 
@@ -84,6 +97,16 @@ similar::TextDiff<'old, 'new, 'bufs, str>
 // 3.0 shape
 similar::TextDiff<'old, 'new, str>
 ```
+
+## More Constructors Are `const`
+
+The following constructors are now usable in const contexts:
+
+- `similar::algorithms::Capture::new`
+- `similar::algorithms::Replace::new`
+- `similar::algorithms::NoFinishHook::new`
+- `similar::InlineChangeOptions::new` (with `inline` feature)
+- `similar::TextDiff::configure` / `TextDiffConfig::new` (with `text` feature)
 
 ## `get_diff_ratio` is now `diff_ratio`
 

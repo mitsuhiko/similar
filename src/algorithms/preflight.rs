@@ -1,11 +1,12 @@
-use std::any::type_name;
-use std::collections::HashMap;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use std::ops::{Index, Range};
+use alloc::vec::Vec;
+use core::any::type_name;
+use core::hash::Hash;
+use core::ops::{Index, Range};
 
 use crate::algorithms::DiffHook;
+use crate::algorithms::utils::stable_hash;
 use crate::deadline_support::{Instant, deadline_exceeded};
+use crate::types::MapType;
 
 const DISJOINT_FAST_PATH_MIN_LEN: usize = 512;
 const DISJOINT_FAST_PATH_MIN_WORK: usize = 128 * 1024;
@@ -82,14 +83,7 @@ where
     Old::Output: Hash,
     New::Output: PartialEq<Old::Output> + Hash,
 {
-    #[inline(always)]
-    fn hash_value<T: Hash + ?Sized>(value: &T) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        value.hash(&mut hasher);
-        hasher.finish()
-    }
-
-    let mut by_hash = HashMap::<u64, Vec<usize>>::new();
+    let mut by_hash = MapType::<u64, Vec<usize>>::new();
     for (idx, old_idx) in old_range.enumerate() {
         if (idx & (DISJOINT_FAST_PATH_DEADLINE_CHECK_INTERVAL - 1) == 0)
             && deadline_exceeded(deadline)
@@ -97,7 +91,7 @@ where
             return None;
         }
         by_hash
-            .entry(hash_value(&old[old_idx]))
+            .entry(stable_hash(&old[old_idx]))
             .or_default()
             .push(old_idx);
     }
@@ -108,7 +102,7 @@ where
         {
             return None;
         }
-        if let Some(candidates) = by_hash.get(&hash_value(&new[new_idx])) {
+        if let Some(candidates) = by_hash.get(&stable_hash(&new[new_idx])) {
             let new_item = &new[new_idx];
             if candidates.iter().any(|&old_idx| new_item == &old[old_idx]) {
                 return Some(true);
@@ -137,7 +131,7 @@ fn test_has_common_item_hash_collisions() {
     struct Collide(u32);
 
     impl Hash for Collide {
-        fn hash<H: Hasher>(&self, state: &mut H) {
+        fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
             0u8.hash(state);
         }
     }

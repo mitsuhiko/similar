@@ -1,12 +1,15 @@
-use std::borrow::Cow;
-use std::fmt;
+use alloc::borrow::Cow;
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::fmt;
 
 use crate::deadline_support::Instant;
 use crate::text::{DiffableStr, TextDiff};
 use crate::types::{Algorithm, Change, ChangeTag, DiffOp, DiffTag};
 use crate::{capture_diff_deadline, diff_ratio};
 
-use std::ops::Index;
+use core::ops::Index;
 
 use super::utils::upper_seq_ratio;
 
@@ -49,19 +52,19 @@ pub struct InlineChangeOptions {
 
 impl Default for InlineChangeOptions {
     fn default() -> Self {
+        InlineChangeOptions::new()
+    }
+}
+
+impl InlineChangeOptions {
+    /// Creates default inline change options.
+    pub const fn new() -> Self {
         InlineChangeOptions {
             algorithm: Algorithm::Patience,
             mode: InlineChangeMode::Auto,
             min_ratio: 0.5,
             semantic_cleanup: false,
         }
-    }
-}
-
-impl InlineChangeOptions {
-    /// Creates default inline change options.
-    pub fn new() -> Self {
-        Self::default()
     }
 
     /// Sets the algorithm used for second-level refinement inside replaced ranges.
@@ -809,7 +812,7 @@ where
     Old: Index<usize, Output = T> + ?Sized,
     New: Index<usize, Output = T> + ?Sized,
 {
-    let mut expanded = expand_replace_ops(std::mem::take(ops));
+    let mut expanded = expand_replace_ops(core::mem::take(ops));
     merge_inline_ops(&mut expanded);
     cleanup_inline_overlaps::<_, _, T>(old, new, &mut expanded);
     cleanup_semantic_lossless::<_, _, T>(old, new, &mut expanded);

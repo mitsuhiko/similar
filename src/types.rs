@@ -1,5 +1,12 @@
-use std::fmt;
-use std::ops::{Index, Range};
+use core::fmt;
+use core::ops::{Index, Range};
+
+#[cfg(all(not(feature = "std"), not(feature = "hashbrown")))]
+pub(crate) type MapType<K, V> = alloc::collections::BTreeMap<K, V>;
+#[cfg(all(not(feature = "std"), feature = "hashbrown"))]
+pub(crate) type MapType<K, V> = hashbrown::HashMap<K, V>;
+#[cfg(feature = "std")]
+pub(crate) type MapType<K, V> = std::collections::HashMap<K, V>;
 
 use crate::algorithms::DiffHook;
 use crate::algorithms::utils::is_empty_range;
@@ -468,7 +475,7 @@ impl DiffOp {
 mod text_additions {
     use super::*;
     use crate::text::DiffableStr;
-    use std::borrow::Cow;
+    use alloc::borrow::Cow;
 
     /// The text interface can produce changes over [`DiffableStr`] implementing
     /// values.  As those are generic interfaces for different types of strings

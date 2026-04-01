@@ -1,4 +1,5 @@
-use std::convert::Infallible;
+use alloc::vec::Vec;
+use core::convert::Infallible;
 
 use crate::algorithms::DiffHook;
 use crate::{DiffOp, group_diff_ops};
@@ -9,8 +10,8 @@ pub struct Capture(Vec<DiffOp>);
 
 impl Capture {
     /// Creates a new capture hook.
-    pub fn new() -> Capture {
-        Capture::default()
+    pub const fn new() -> Capture {
+        Capture(Vec::new())
     }
 
     /// Converts the capture hook into a vector of ops.

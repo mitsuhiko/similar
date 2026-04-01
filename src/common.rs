@@ -1,5 +1,7 @@
-use std::hash::Hash;
-use std::ops::{Index, Range};
+use alloc::vec;
+use alloc::vec::Vec;
+use core::hash::Hash;
+use core::ops::{Index, Range};
 
 use crate::algorithms::{Capture, Compact, Replace, diff_deadline};
 use crate::deadline_support::Instant;
@@ -20,8 +22,8 @@ pub fn capture_diff<Old, New>(
 where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
-    Old::Output: Hash + Eq + Ord,
-    New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
     capture_diff_deadline(alg, old, old_range, new, new_range, None)
 }
@@ -40,8 +42,8 @@ pub fn capture_diff_deadline<Old, New>(
 where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
-    Old::Output: Hash + Eq + Ord,
-    New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
     let mut d = Compact::new(Replace::new(Capture::new()), old, new);
     diff_deadline(alg, &mut d, old, old_range, new, new_range, deadline).unwrap();
@@ -51,7 +53,7 @@ where
 /// Creates a diff between old and new with the given algorithm capturing the ops.
 pub fn capture_diff_slices<T>(alg: Algorithm, old: &[T], new: &[T]) -> Vec<DiffOp>
 where
-    T: Eq + Hash + Ord,
+    T: Eq + Hash,
 {
     capture_diff_slices_deadline(alg, old, new, None)
 }
@@ -66,7 +68,7 @@ pub fn capture_diff_slices_deadline<T>(
     deadline: Option<Instant>,
 ) -> Vec<DiffOp>
 where
-    T: Eq + Hash + Ord,
+    T: Eq + Hash,
 {
     capture_diff_deadline(alg, old, 0..old.len(), new, 0..new.len(), deadline)
 }

@@ -25,8 +25,9 @@
 //! optimize towards returning the most useful slice that one would expect for
 //! the type of diff performed.
 
-use std::hash::Hash;
-use std::ops::{Index, Range};
+use alloc::vec::Vec;
+use core::hash::Hash;
+use core::ops::{Index, Range};
 
 use crate::{
     Algorithm, ChangeTag, DiffOp, DiffableStr, DiffableStrRef, TextDiff, capture_diff_slices,

@@ -113,8 +113,8 @@ mod preflight;
 mod replace;
 pub(crate) mod utils;
 
-use std::hash::Hash;
-use std::ops::{Index, Range};
+use core::hash::Hash;
+use core::ops::{Index, Range};
 
 use crate::deadline_support::Instant;
 pub use capture::Capture;
@@ -147,8 +147,8 @@ where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
     D: DiffHook,
-    Old::Output: Hash + Eq + Ord,
-    New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
     diff_deadline(alg, d, old, old_range, new, new_range, None)
 }
@@ -175,8 +175,8 @@ where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
     D: DiffHook,
-    Old::Output: Hash + Eq + Ord,
-    New::Output: PartialEq<Old::Output> + Hash + Eq + Ord,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
     match alg {
         Algorithm::Myers => myers::diff_deadline(d, old, old_range, new, new_range, deadline),
@@ -193,7 +193,7 @@ where
 pub fn diff_slices<D, T>(alg: Algorithm, d: &mut D, old: &[T], new: &[T]) -> Result<(), D::Error>
 where
     D: DiffHook,
-    T: Eq + Hash + Ord,
+    T: Eq + Hash,
 {
     diff(alg, d, old, 0..old.len(), new, 0..new.len())
 }
@@ -208,7 +208,7 @@ pub fn diff_slices_deadline<D, T>(
 ) -> Result<(), D::Error>
 where
     D: DiffHook,
-    T: Eq + Hash + Ord,
+    T: Eq + Hash,
 {
     diff_deadline(alg, d, old, 0..old.len(), new, 0..new.len(), deadline)
 }

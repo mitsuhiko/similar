@@ -27,10 +27,27 @@ jobs:
       - name: Test
         run: cargo check --all-features
 
+  check-no-std:
+    name: Check no_std configurations
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: thumbv7em-none-eabihf
+      - name: Check no_std (BTreeMap backend)
+        run: cargo check --no-default-features --target thumbv7em-none-eabihf
+      - name: Check no_std (hashbrown backend)
+        run: cargo check --no-default-features --features hashbrown --target thumbv7em-none-eabihf
+      - name: Check no_std text + bytes path
+        run: cargo check --no-default-features --features bytes --target thumbv7em-none-eabihf
+
   test-wasi:
     name: Test on WASI
     runs-on: ubuntu-latest
-  
+
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master

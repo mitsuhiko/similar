@@ -9,9 +9,9 @@
 //!
 //! See [`crate::algorithms`] for shared heuristics and the
 //! `diff_deadline_raw` API.
-use std::collections::BTreeMap;
-use std::hash::Hash;
-use std::ops::{Index, Range};
+use alloc::collections::BTreeMap;
+use core::hash::Hash;
+use core::ops::{Index, Range};
 
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::{DiffHook, preflight};

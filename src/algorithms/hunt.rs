@@ -15,8 +15,11 @@
 //! See [`crate::algorithms`] for shared heuristics and the
 //! `diff_deadline_raw` API.
 
-use std::collections::HashMap;
-use std::ops::{Index, Range};
+use alloc::vec::Vec;
+use core::hash::Hash;
+use core::ops::{Index, Range};
+
+use crate::types::MapType;
 
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::{DiffHook, IdentifyDistinct, NoFinishHook, myers, preflight};
@@ -43,8 +46,8 @@ where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
     D: DiffHook,
-    Old::Output: std::hash::Hash + Eq,
-    New::Output: PartialEq<Old::Output> + std::hash::Hash + Eq,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
     diff_deadline(d, old, old_range, new, new_range, None)
 }
@@ -67,8 +70,8 @@ where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
     D: DiffHook,
-    Old::Output: std::hash::Hash + Eq,
-    New::Output: PartialEq<Old::Output> + std::hash::Hash + Eq,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
     diff_deadline_impl(d, old, old_range, new, new_range, deadline, true, false)
 }
@@ -86,8 +89,8 @@ where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
     D: DiffHook,
-    Old::Output: std::hash::Hash + Eq,
-    New::Output: PartialEq<Old::Output> + std::hash::Hash + Eq,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
     diff_deadline_impl(d, old, old_range, new, new_range, deadline, false, true)
 }
@@ -106,8 +109,8 @@ where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
     D: DiffHook,
-    Old::Output: std::hash::Hash + Eq,
-    New::Output: PartialEq<Old::Output> + std::hash::Hash + Eq,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
     if run_preflight
         && preflight::maybe_emit_disjoint_fast_path(
@@ -267,11 +270,11 @@ fn build_match_list<New>(
     new: &New,
     new_range: Range<usize>,
     deadline: Option<Instant>,
-) -> Option<HashMap<usize, Vec<usize>>>
+) -> Option<MapType<usize, Vec<usize>>>
 where
     New: Index<usize, Output = usize> + ?Sized,
 {
-    let mut rv = HashMap::new();
+    let mut rv = MapType::new();
     for new_index in new_range {
         if deadline_exceeded(deadline) {
             return None;
@@ -300,7 +303,7 @@ fn lower_bound(slice: &[usize], value: usize) -> usize {
 fn hunt_anchors<Old>(
     old: &Old,
     old_range: Range<usize>,
-    match_list: &HashMap<usize, Vec<usize>>,
+    match_list: &MapType<usize, Vec<usize>>,
     deadline: Option<Instant>,
 ) -> Option<Vec<(usize, usize)>>
 where

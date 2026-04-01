@@ -123,7 +123,7 @@ pub struct NoFinishHook<D: DiffHook>(D);
 
 impl<D: DiffHook> NoFinishHook<D> {
     /// Wraps another hook.
-    pub fn new(d: D) -> NoFinishHook<D> {
+    pub const fn new(d: D) -> NoFinishHook<D> {
         NoFinishHook(d)
     }
 

@@ -134,6 +134,9 @@
 //! cases it's useful to pull in extra functionality.  Likewise you can turn
 //! off some functionality.
 //!
+//! * `std`: enabled by default.  Turns on integration with the Rust standard
+//!   library (including deadline support via [`Instant`]).  Disabling this
+//!   feature makes the crate `no_std` compatible (with `alloc`).
 //! * `text`: this feature is enabled by default and enables the text based
 //!   diffing types such as [`TextDiff`].
 //!   If the crate is used without default features it's removed.
@@ -154,7 +157,13 @@
 //!   the `web_time` crate.  Because this is a change to the public interface,
 //!   this feature must be used with care.  The instant type for this crate is
 //!   then re-exported top-level module.
+//! * `hashbrown`: in `no_std` mode, switches internal map storage from
+//!   [`alloc::collections::BTreeMap`] to `hashbrown::HashMap`.
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
+extern crate alloc;
+#[cfg(test)]
+extern crate std;
 pub mod algorithms;
 pub mod iter;
 #[cfg(feature = "text")]

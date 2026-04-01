@@ -18,8 +18,10 @@
 //! recursion (prefix/suffix trimming, front-anchor peeling, small-side exact
 //! fallback), with the optional deadline as a final safeguard.
 
-use std::hash::Hash;
-use std::ops::{Index, IndexMut, Range};
+use alloc::vec;
+use alloc::vec::Vec;
+use core::hash::Hash;
+use core::ops::{Index, IndexMut, Range};
 
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::{DiffHook, preflight};
@@ -705,13 +707,13 @@ where
                 }
 
                 let replace_span = old_skip.max(new_skip);
-                let candidate = (common, std::cmp::Reverse(replace_span), old_skip, new_skip);
+                let candidate = (common, core::cmp::Reverse(replace_span), old_skip, new_skip);
                 let better = best
                     .map(|(best_old_skip, best_new_skip, best_common)| {
                         candidate
                             > (
                                 best_common,
-                                std::cmp::Reverse(best_old_skip.max(best_new_skip)),
+                                core::cmp::Reverse(best_old_skip.max(best_new_skip)),
                                 best_old_skip,
                                 best_new_skip,
                             )

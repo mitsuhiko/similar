@@ -1,14 +1,40 @@
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
-use std::fmt::Debug;
-use std::hash::{Hash, Hasher};
-use std::ops::{Add, Index, Range};
+use alloc::vec::Vec;
+use core::fmt::{self, Debug};
+use core::hash::{Hash, Hasher};
+use core::ops::{Add, Index, Range};
+
+use crate::types::MapType;
 
 /// Utility function to check if a range is empty that works on older rust versions
 #[inline(always)]
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn is_empty_range<T: PartialOrd<T>>(range: &Range<T>) -> bool {
     !(range.start < range.end)
+}
+
+/// Hashes a value into a stable `u64` using FNV-1a.
+#[inline(always)]
+pub(crate) fn stable_hash<T: Hash + ?Sized>(value: &T) -> u64 {
+    struct FnvHasher(u64);
+
+    impl Hasher for FnvHasher {
+        #[inline(always)]
+        fn finish(&self) -> u64 {
+            self.0
+        }
+
+        #[inline(always)]
+        fn write(&mut self, bytes: &[u8]) {
+            for byte in bytes {
+                self.0 ^= *byte as u64;
+                self.0 = self.0.wrapping_mul(0x100000001b3);
+            }
+        }
+    }
+
+    let mut hasher = FnvHasher(0xcbf29ce484222325);
+    value.hash(&mut hasher);
+    hasher.finish()
 }
 
 /// Represents an item in the vector returned by [`unique`].
@@ -41,7 +67,7 @@ impl<'a, Idx: Index<usize> + 'a> Debug for UniqueItem<'a, Idx>
 where
     Idx::Output: Debug,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("UniqueItem")
             .field("value", &self.value())
             .field("original_index", &self.original_index())
@@ -88,23 +114,33 @@ where
     Idx: Index<usize> + ?Sized,
     Idx::Output: Hash + Eq,
 {
-    let mut by_item = HashMap::new();
+    // We key buckets by hash to stay compatible with both HashMap and
+    // BTreeMap backends without requiring `Idx::Output: Ord`.
+    let mut by_hash = MapType::<u64, Vec<(usize, Option<usize>)>>::new();
     for index in range {
-        match by_item.entry(&lookup[index]) {
-            Entry::Vacant(entry) => {
-                entry.insert(Some(index));
-            }
-            Entry::Occupied(mut entry) => {
-                let entry = entry.get_mut();
-                if entry.is_some() {
-                    *entry = None
+        let hash = stable_hash(&lookup[index]);
+        let bucket = by_hash.entry(hash).or_default();
+
+        let mut found = false;
+        for (representative, unique_index) in bucket.iter_mut() {
+            if lookup[index] == lookup[*representative] {
+                if unique_index.is_some() {
+                    *unique_index = None;
                 }
+                found = true;
+                break;
             }
         }
+
+        if !found {
+            bucket.push((index, Some(index)));
+        }
     }
-    let mut rv = by_item
+
+    let mut rv = by_hash
         .into_iter()
-        .filter_map(|(_, x)| x)
+        .flat_map(|(_, bucket)| bucket.into_iter())
+        .filter_map(|(_, unique_index)| unique_index)
         .map(|index| UniqueItem { lookup, index })
         .collect::<Vec<_>>();
     rv.sort_by_key(|a| a.original_index());
@@ -222,47 +258,13 @@ where
         New: Index<usize> + ?Sized,
         New::Output: Eq + Hash + PartialEq<Old::Output>,
     {
-        enum Key<'old, 'new, Old: ?Sized, New: ?Sized> {
-            Old(&'old Old),
-            New(&'new New),
+        #[derive(Clone, Copy)]
+        enum Representative {
+            Old(usize),
+            New(usize),
         }
 
-        impl<Old, New> Hash for Key<'_, '_, Old, New>
-        where
-            Old: Hash + ?Sized,
-            New: Hash + ?Sized,
-        {
-            fn hash<H: Hasher>(&self, state: &mut H) {
-                match *self {
-                    Key::Old(val) => val.hash(state),
-                    Key::New(val) => val.hash(state),
-                }
-            }
-        }
-
-        impl<Old, New> PartialEq for Key<'_, '_, Old, New>
-        where
-            Old: Eq + ?Sized,
-            New: Eq + PartialEq<Old> + ?Sized,
-        {
-            #[inline(always)]
-            fn eq(&self, other: &Self) -> bool {
-                match (self, other) {
-                    (Key::Old(a), Key::Old(b)) => a == b,
-                    (Key::New(a), Key::New(b)) => a == b,
-                    (Key::Old(a), Key::New(b)) | (Key::New(b), Key::Old(a)) => b == a,
-                }
-            }
-        }
-
-        impl<Old, New> Eq for Key<'_, '_, Old, New>
-        where
-            Old: Eq + ?Sized,
-            New: Eq + PartialEq<Old> + ?Sized,
-        {
-        }
-
-        let mut map = HashMap::new();
+        let mut map = MapType::<u64, Vec<(Representative, Int)>>::new();
         let mut old_seq = Vec::new();
         let mut new_seq = Vec::new();
         let mut next_id = Int::default();
@@ -271,27 +273,34 @@ where
         let new_start = new_range.start;
 
         for idx in old_range {
-            let item = Key::Old(&old[idx]);
-            let id = match map.entry(item) {
-                Entry::Occupied(o) => *o.get(),
-                Entry::Vacant(v) => {
-                    let id = next_id;
-                    next_id = next_id + step;
-                    *v.insert(id)
-                }
+            let hash = stable_hash(&old[idx]);
+            let bucket = map.entry(hash).or_default();
+            let id = if let Some((_, id)) = bucket.iter().find(
+                |(rep, _)| matches!(rep, Representative::Old(rep_idx) if old[idx] == old[*rep_idx]),
+            ) {
+                *id
+            } else {
+                let id = next_id;
+                next_id = next_id + step;
+                bucket.push((Representative::Old(idx), id));
+                id
             };
             old_seq.push(id);
         }
 
         for idx in new_range {
-            let item = Key::New(&new[idx]);
-            let id = match map.entry(item) {
-                Entry::Occupied(o) => *o.get(),
-                Entry::Vacant(v) => {
-                    let id = next_id;
-                    next_id = next_id + step;
-                    *v.insert(id)
-                }
+            let hash = stable_hash(&new[idx]);
+            let bucket = map.entry(hash).or_default();
+            let id = if let Some((_, id)) = bucket.iter().find(|(rep, _)| match rep {
+                Representative::Old(rep_idx) => new[idx] == old[*rep_idx],
+                Representative::New(rep_idx) => new[idx] == new[*rep_idx],
+            }) {
+                *id
+            } else {
+                let id = next_id;
+                next_id = next_id + step;
+                bucket.push((Representative::New(idx), id));
+                id
             };
             new_seq.push(id);
         }

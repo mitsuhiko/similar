@@ -18,7 +18,7 @@ pub struct Replace<D: DiffHook> {
 
 impl<D: DiffHook> Replace<D> {
     /// Creates a new replace hook wrapping another hook.
-    pub fn new(d: D) -> Self {
+    pub const fn new(d: D) -> Self {
         Replace {
             d,
             del: None,

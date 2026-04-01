@@ -5,8 +5,8 @@
 //! this crate use `impl Iterator` for this reason but restrictions in the
 //! language don't allow this to be used in all places on the versions of
 //! rust this crate wants to compile for.
-use std::marker::PhantomData;
-use std::ops::{Index, Range};
+use core::marker::PhantomData;
+use core::ops::{Index, Range};
 
 use crate::{Change, ChangeTag, DiffOp, DiffTag};
 

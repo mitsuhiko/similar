@@ -13,8 +13,8 @@
 //!
 //! See [`crate::algorithms`] for shared heuristics and the
 //! `diff_deadline_raw` API.
-use std::hash::Hash;
-use std::ops::{Index, Range};
+use core::hash::Hash;
+use core::ops::{Index, Range};
 
 use crate::algorithms::{DiffHook, NoFinishHook, Replace, myers, preflight};
 use crate::deadline_support::Instant;

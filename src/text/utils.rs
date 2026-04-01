@@ -1,5 +1,8 @@
-use std::collections::HashMap;
-use std::hash::Hash;
+use alloc::vec::Vec;
+use core::hash::Hash;
+
+use crate::algorithms::utils::stable_hash;
+use crate::types::MapType;
 
 use super::DiffableStrRef;
 
@@ -19,32 +22,65 @@ pub fn upper_seq_ratio<T: PartialEq>(seq1: &[T], seq2: &[T]) -> f32 {
 ///
 /// It counts the number of matches without regard to order, which is an
 /// obvious upper bound.
-pub struct QuickSeqRatio<'a, T: DiffableStrRef + ?Sized>(HashMap<&'a T, i32>);
+pub struct QuickSeqRatio<'a, T: DiffableStrRef + ?Sized> {
+    counts: MapType<u64, Vec<(&'a T, i32)>>,
+    unique_count: usize,
+}
 
 impl<'a, T: DiffableStrRef + Hash + Eq + ?Sized> QuickSeqRatio<'a, T> {
     pub fn new(seq: &[&'a T]) -> QuickSeqRatio<'a, T> {
-        let mut counts = HashMap::new();
+        let mut counts = MapType::<u64, Vec<(&T, i32)>>::new();
+        let mut unique_count = 0;
         for &word in seq {
-            *counts.entry(word).or_insert(0) += 1;
+            let bucket = counts.entry(stable_hash(word)).or_default();
+            if let Some((_, count)) = bucket.iter_mut().find(|(candidate, _)| *candidate == word) {
+                *count += 1;
+            } else {
+                bucket.push((word, 1));
+                unique_count += 1;
+            }
         }
-        QuickSeqRatio(counts)
+        QuickSeqRatio {
+            counts,
+            unique_count,
+        }
     }
 
     pub fn calc(&self, seq: &[&T]) -> f32 {
-        let n = self.0.len() + seq.len();
+        let n = self.unique_count + seq.len();
         if n == 0 {
             return 1.0;
         }
 
-        let mut available = HashMap::new();
+        let mut available = MapType::<u64, Vec<(&T, i32)>>::new();
         let mut matches = 0;
         for &word in seq {
-            let x = if let Some(count) = available.get(&word) {
+            let hash = stable_hash(word);
+            let bucket = available.entry(hash).or_default();
+
+            let x = if let Some((_, count)) =
+                bucket.iter_mut().find(|(candidate, _)| *candidate == word)
+            {
                 *count
             } else {
-                self.0.get(&word).copied().unwrap_or(0)
+                let initial = self
+                    .counts
+                    .get(&hash)
+                    .and_then(|source_bucket| {
+                        source_bucket
+                            .iter()
+                            .find(|(candidate, _)| *candidate == word)
+                            .map(|(_, count)| *count)
+                    })
+                    .unwrap_or(0);
+                bucket.push((word, initial));
+                initial
             };
-            available.insert(word, x - 1);
+
+            if let Some((_, count)) = bucket.iter_mut().find(|(candidate, _)| *candidate == word) {
+                *count = x - 1;
+            }
+
             if x > 0 {
                 matches += 1;
             }

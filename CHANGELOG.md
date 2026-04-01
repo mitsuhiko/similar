@@ -35,6 +35,13 @@ All notable changes to similar are documented here.
   `(Algorithm, old, new, options)`.
 * `utils::diff_lines` now avoids a second line-tokenization pass.
 * Renamed `get_diff_ratio` to `diff_ratio`.
+* Added first-class `no_std + alloc` support with an explicit default `std`
+  feature.
+* Added optional `hashbrown` backend for `no_std` map storage
+  (`default-features = false, features = ["hashbrown"]`), while the default
+  `no_std` backend uses `alloc::collections::BTreeMap`.
+* Made core constructors const-ready (`Capture::new`, `Replace::new`,
+  `NoFinishHook::new`, `InlineChangeOptions::new`, `TextDiff::configure`).
 
 ## 2.7.0
 
