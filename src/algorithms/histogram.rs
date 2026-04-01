@@ -14,6 +14,8 @@
 //! See [`crate::algorithms`] for shared heuristics and the
 //! `diff_deadline_raw` API.
 
+#[cfg(test)]
+use alloc::vec;
 use alloc::vec::Vec;
 use core::hash::Hash;
 use core::ops::{Index, Range};
@@ -585,6 +587,7 @@ fn test_no_common_elements() {
     );
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn test_deadline_fallback() {
     use std::ops::Index;

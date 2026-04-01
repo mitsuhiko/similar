@@ -113,6 +113,8 @@ mod preflight;
 mod replace;
 pub(crate) mod utils;
 
+#[cfg(test)]
+use alloc::vec::Vec;
 use core::hash::Hash;
 use core::ops::{Index, Range};
 

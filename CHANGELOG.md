@@ -20,6 +20,10 @@ All notable changes to similar are documented here.
   shared heuristics and keep minimal intrinsic trait bounds where needed.
 * Added test files in `examples/diffs` that can be used with the some of the
   examples as input pairs.
+* Added `CachedLookup`, a helper for adapting virtual or computed sequences by
+  materializing items on first access and then serving borrowed values through
+  normal indexing.  The `owned-lookup` example demonstrates this approach for
+  issue #33.
 * Fixed ranged indexing in the classic LCS table algorithm.
 * Improved diff compaction to merge adjacent delete hunks across equal runs.
 * Excluded development scripts from published crate contents.  #87

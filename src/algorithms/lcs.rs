@@ -10,6 +10,8 @@
 //! See [`crate::algorithms`] for shared heuristics and the
 //! `diff_deadline_raw` API.
 use alloc::collections::BTreeMap;
+#[cfg(test)]
+use alloc::vec;
 use core::hash::Hash;
 use core::ops::{Index, Range};
 

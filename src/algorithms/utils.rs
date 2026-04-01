@@ -1,3 +1,5 @@
+#[cfg(test)]
+use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt::{self, Debug};
 use core::hash::{Hash, Hasher};

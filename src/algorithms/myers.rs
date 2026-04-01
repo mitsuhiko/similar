@@ -1176,6 +1176,7 @@ impl DiffHook for SleepOnFirstEmit {
     }
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn test_small_side_exact_commits_after_first_emit() {
     use std::time::Duration;
@@ -1223,6 +1224,7 @@ fn test_small_side_exact_commits_after_first_emit() {
     }
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn test_deadline_reached() {
     use std::ops::Index;
@@ -1321,6 +1323,7 @@ fn test_front_anchor_regressions_stay_exact() {
     }
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn test_heuristic_deadline_guards() {
     use std::cell::Cell;
