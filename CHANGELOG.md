@@ -4,6 +4,8 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+## 3.0.0
+
 * Added a Git-style Histogram diff implementation exposed as
   `Algorithm::Histogram`, including deadline-aware Myers fallback and
   comprehensive regression/behavior tests.
