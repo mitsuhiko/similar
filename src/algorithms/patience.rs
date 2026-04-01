@@ -8,10 +8,15 @@
 //!
 //! This is based on the patience implementation of [pijul](https://pijul.org/)
 //! by Pierre-Étienne Meunier.
+//!
+//! # Heuristics
+//!
+//! See [`crate::algorithms`] for shared heuristics and the
+//! `diff_deadline_raw` API.
 use std::hash::Hash;
 use std::ops::{Index, Range};
 
-use crate::algorithms::{DiffHook, NoFinishHook, Replace, myers};
+use crate::algorithms::{DiffHook, NoFinishHook, Replace, myers, preflight};
 use crate::deadline_support::Instant;
 
 use super::utils::{UniqueItem, unique};
@@ -57,6 +62,58 @@ where
     New::Output: PartialEq<Old::Output> + Hash + Eq,
     D: DiffHook,
 {
+    diff_deadline_impl(d, old, old_range, new, new_range, deadline, true, false)
+}
+
+/// Raw patience diff algorithm with deadline and without shared heuristics.
+pub fn diff_deadline_raw<Old, New, D>(
+    d: &mut D,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
+    D: DiffHook,
+{
+    diff_deadline_impl(d, old, old_range, new, new_range, deadline, false, true)
+}
+
+fn diff_deadline_impl<Old, New, D>(
+    d: &mut D,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
+    run_preflight: bool,
+    use_raw_myers: bool,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
+    D: DiffHook,
+{
+    if run_preflight
+        && preflight::maybe_emit_disjoint_fast_path(
+            d,
+            old,
+            old_range.clone(),
+            new,
+            new_range.clone(),
+            deadline,
+        )?
+    {
+        return Ok(());
+    }
+
     let old_indexes = unique(old, old_range.clone());
     let new_indexes = unique(new, new_range.clone());
 
@@ -71,15 +128,28 @@ where
         new_end: new_range.end,
         new_indexes: &new_indexes,
         deadline,
+        use_raw_myers,
     });
-    myers::diff_deadline(
-        &mut d,
-        &old_indexes,
-        0..old_indexes.len(),
-        &new_indexes,
-        0..new_indexes.len(),
-        deadline,
-    )?;
+
+    if use_raw_myers {
+        myers::diff_deadline_raw(
+            &mut d,
+            &old_indexes,
+            0..old_indexes.len(),
+            &new_indexes,
+            0..new_indexes.len(),
+            deadline,
+        )?;
+    } else {
+        myers::diff_deadline(
+            &mut d,
+            &old_indexes,
+            0..old_indexes.len(),
+            &new_indexes,
+            0..new_indexes.len(),
+            deadline,
+        )?;
+    }
     Ok(())
 }
 
@@ -94,6 +164,7 @@ struct Patience<'old, 'new, 'd, Old: ?Sized, New: ?Sized, D> {
     new_end: usize,
     new_indexes: &'new [UniqueItem<'new, New>],
     deadline: Option<Instant>,
+    use_raw_myers: bool,
 }
 
 impl<'old, 'new, 'd, Old, New, D> DiffHook for Patience<'old, 'new, 'd, Old, New, D>
@@ -101,7 +172,8 @@ where
     D: DiffHook + 'd,
     Old: Index<usize> + ?Sized + 'old,
     New: Index<usize> + ?Sized + 'new,
-    New::Output: PartialEq<Old::Output>,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
     type Error = D::Error;
     fn equal(&mut self, old: usize, new: usize, len: usize) -> Result<(), D::Error> {
@@ -119,14 +191,25 @@ where
                 self.d.equal(a0, b0, self.old_current - a0)?;
             }
             let mut no_finish_d = NoFinishHook::new(&mut self.d);
-            myers::diff_deadline(
-                &mut no_finish_d,
-                self.old,
-                self.old_current..self.old_indexes[old].original_index(),
-                self.new,
-                self.new_current..self.new_indexes[new].original_index(),
-                self.deadline,
-            )?;
+            if self.use_raw_myers {
+                myers::diff_deadline_raw(
+                    &mut no_finish_d,
+                    self.old,
+                    self.old_current..self.old_indexes[old].original_index(),
+                    self.new,
+                    self.new_current..self.new_indexes[new].original_index(),
+                    self.deadline,
+                )?;
+            } else {
+                myers::diff_deadline(
+                    &mut no_finish_d,
+                    self.old,
+                    self.old_current..self.old_indexes[old].original_index(),
+                    self.new,
+                    self.new_current..self.new_indexes[new].original_index(),
+                    self.deadline,
+                )?;
+            }
             self.old_current = self.old_indexes[old].original_index();
             self.new_current = self.new_indexes[new].original_index();
         }
@@ -134,14 +217,25 @@ where
     }
 
     fn finish(&mut self) -> Result<(), D::Error> {
-        myers::diff_deadline(
-            self.d,
-            self.old,
-            self.old_current..self.old_end,
-            self.new,
-            self.new_current..self.new_end,
-            self.deadline,
-        )
+        if self.use_raw_myers {
+            myers::diff_deadline_raw(
+                self.d,
+                self.old,
+                self.old_current..self.old_end,
+                self.new,
+                self.new_current..self.new_end,
+                self.deadline,
+            )
+        } else {
+            myers::diff_deadline(
+                self.d,
+                self.old,
+                self.old_current..self.old_end,
+                self.new,
+                self.new_current..self.new_end,
+                self.deadline,
+            )
+        }
     }
 }
 

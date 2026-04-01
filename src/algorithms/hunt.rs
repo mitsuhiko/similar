@@ -9,12 +9,17 @@
 //!
 //! * time: `O((N + R) log L)` where `R` is the number of matching pairs
 //! * space: `O(N + M + R)`
+//!
+//! # Heuristics
+//!
+//! See [`crate::algorithms`] for shared heuristics and the
+//! `diff_deadline_raw` API.
 
 use std::collections::HashMap;
 use std::ops::{Index, Range};
 
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
-use crate::algorithms::{DiffHook, IdentifyDistinct, NoFinishHook, myers};
+use crate::algorithms::{DiffHook, IdentifyDistinct, NoFinishHook, myers, preflight};
 use crate::deadline_support::{Instant, deadline_exceeded};
 
 #[derive(Clone, Copy)]
@@ -65,6 +70,58 @@ where
     Old::Output: std::hash::Hash + Eq,
     New::Output: PartialEq<Old::Output> + std::hash::Hash + Eq,
 {
+    diff_deadline_impl(d, old, old_range, new, new_range, deadline, true, false)
+}
+
+/// Raw Hunt-style diff algorithm with deadline and without shared heuristics.
+pub fn diff_deadline_raw<Old, New, D>(
+    d: &mut D,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    D: DiffHook,
+    Old::Output: std::hash::Hash + Eq,
+    New::Output: PartialEq<Old::Output> + std::hash::Hash + Eq,
+{
+    diff_deadline_impl(d, old, old_range, new, new_range, deadline, false, true)
+}
+
+fn diff_deadline_impl<Old, New, D>(
+    d: &mut D,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
+    run_preflight: bool,
+    use_raw_myers: bool,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    D: DiffHook,
+    Old::Output: std::hash::Hash + Eq,
+    New::Output: PartialEq<Old::Output> + std::hash::Hash + Eq,
+{
+    if run_preflight
+        && preflight::maybe_emit_disjoint_fast_path(
+            d,
+            old,
+            old_range.clone(),
+            new,
+            new_range.clone(),
+            deadline,
+        )?
+    {
+        return Ok(());
+    }
+
     // Build a shared integer domain first so we can use a compact key type for
     // match lists while still supporting old/new lookups of different types.
     let h = IdentifyDistinct::<usize>::new(old, old_range, new, new_range);
@@ -75,6 +132,7 @@ where
         h.new_lookup(),
         h.new_range(),
         deadline,
+        use_raw_myers,
     )
 }
 
@@ -85,6 +143,7 @@ fn diff_deadline_int<Old, New, D>(
     new: &New,
     new_range: Range<usize>,
     deadline: Option<Instant>,
+    use_raw_myers: bool,
 ) -> Result<(), D::Error>
 where
     Old: Index<usize, Output = usize> + ?Sized,
@@ -150,6 +209,38 @@ where
             )?;
         } else {
             let mut no_finish_d = NoFinishHook::new(&mut *d);
+            if use_raw_myers {
+                myers::diff_deadline_raw(
+                    &mut no_finish_d,
+                    old,
+                    old_mid_range,
+                    new,
+                    new_mid_range,
+                    deadline,
+                )?;
+            } else {
+                myers::diff_deadline(
+                    &mut no_finish_d,
+                    old,
+                    old_mid_range,
+                    new,
+                    new_mid_range,
+                    deadline,
+                )?;
+            }
+        }
+    } else {
+        let mut no_finish_d = NoFinishHook::new(&mut *d);
+        if use_raw_myers {
+            myers::diff_deadline_raw(
+                &mut no_finish_d,
+                old,
+                old_mid_range,
+                new,
+                new_mid_range,
+                deadline,
+            )?;
+        } else {
             myers::diff_deadline(
                 &mut no_finish_d,
                 old,
@@ -159,16 +250,6 @@ where
                 deadline,
             )?;
         }
-    } else {
-        let mut no_finish_d = NoFinishHook::new(&mut *d);
-        myers::diff_deadline(
-            &mut no_finish_d,
-            old,
-            old_mid_range,
-            new,
-            new_mid_range,
-            deadline,
-        )?;
     }
 
     if common_suffix_len > 0 {

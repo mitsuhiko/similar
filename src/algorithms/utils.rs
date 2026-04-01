@@ -61,6 +61,24 @@ where
     }
 }
 
+impl<'a, Idx> Eq for UniqueItem<'a, Idx>
+where
+    Idx: Index<usize> + ?Sized,
+    Idx::Output: Eq,
+{
+}
+
+impl<Idx> Hash for UniqueItem<'_, Idx>
+where
+    Idx: Index<usize> + ?Sized,
+    Idx::Output: Hash,
+{
+    #[inline(always)]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.value().hash(state);
+    }
+}
+
 /// Returns only unique items in the sequence as vector.
 ///
 /// Each item is wrapped in a [`UniqueItem`] so that both the value and the

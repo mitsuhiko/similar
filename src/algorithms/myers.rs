@@ -11,20 +11,18 @@
 //!
 //! # Heuristics
 //!
-//! In addition to the classic middle-snake recursion, this implementation uses
-//! a few local shortcuts to avoid pathological behavior on very large inputs:
+//! See [`crate::algorithms`] for the shared heuristics policy and the
+//! `diff_deadline_raw` API.
 //!
-//! - common prefix/suffix trimming before recursion
-//! - a small front-anchor search to peel large shifted equal runs
-//! - an exact dynamic-programming fallback when one side is tiny and the other
-//!   side is large (which avoids quadratic middle-snake blowups)
-//!
-//! The optional deadline remains available as a final safeguard.
+//! This algorithm additionally applies local shortcuts inside the core
+//! recursion (prefix/suffix trimming, front-anchor peeling, small-side exact
+//! fallback), with the optional deadline as a final safeguard.
 
+use std::hash::Hash;
 use std::ops::{Index, IndexMut, Range};
 
-use crate::algorithms::DiffHook;
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
+use crate::algorithms::{DiffHook, preflight};
 use crate::deadline_support::{Instant, deadline_exceeded};
 
 /// Myers' diff algorithm.
@@ -41,7 +39,8 @@ where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
     D: DiffHook,
-    New::Output: PartialEq<Old::Output>,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
     diff_deadline(d, old, old_range, new, new_range, None)
 }
@@ -53,6 +52,56 @@ where
 /// This diff is done with an optional deadline that defines the maximal
 /// execution time permitted before it bails and falls back to an approximation.
 pub fn diff_deadline<Old, New, D>(
+    d: &mut D,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    D: DiffHook,
+    Old::Output: Hash + Eq,
+    New::Output: PartialEq<Old::Output> + Hash + Eq,
+{
+    if preflight::maybe_emit_disjoint_fast_path(
+        d,
+        old,
+        old_range.clone(),
+        new,
+        new_range.clone(),
+        deadline,
+    )? {
+        return Ok(());
+    }
+
+    diff_deadline_impl(d, old, old_range, new, new_range, deadline)
+}
+
+/// Raw Myers diff algorithm with deadline and without shared heuristics.
+///
+/// This preserves the historical bound profile and accepts non-hashable
+/// value types as long as cross-type equality is available.
+pub fn diff_deadline_raw<Old, New, D>(
+    d: &mut D,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    D: DiffHook,
+    New::Output: PartialEq<Old::Output>,
+{
+    diff_deadline_impl(d, old, old_range, new, new_range, deadline)
+}
+
+fn diff_deadline_impl<Old, New, D>(
     d: &mut D,
     old: &Old,
     old_range: Range<usize>,
@@ -943,6 +992,17 @@ fn test_diff() {
 }
 
 #[test]
+fn test_raw_accepts_partialeq_only_values() {
+    let old = [1.0f32, 2.0, 3.0];
+    let new = [1.0f32, 4.0, 3.0];
+
+    let mut d = crate::algorithms::Capture::new();
+    diff_deadline_raw(&mut d, &old, 0..old.len(), &new, 0..new.len(), None).unwrap();
+
+    assert!(!d.ops().is_empty());
+}
+
+#[test]
 fn test_contiguous() {
     let a: &[usize] = &[0, 1, 2, 3, 4, 4, 4, 5];
     let b: &[usize] = &[0, 1, 2, 8, 9, 4, 4, 7];
@@ -970,15 +1030,8 @@ fn test_small_side_exact_variants() {
         let new = (0..1000u32).map(|x| x + 10).collect::<Vec<_>>();
 
         let mut d = crate::algorithms::Capture::new();
-        let used = maybe_emit_small_side_exact(
-            &mut d,
-            old,
-            0..old.len(),
-            &new,
-            0..new.len(),
-            None,
-        )
-        .unwrap();
+        let used = maybe_emit_small_side_exact(&mut d, old, 0..old.len(), &new, 0..new.len(), None)
+            .unwrap();
 
         assert!(used);
         assert_eq!(
@@ -1005,15 +1058,9 @@ fn test_small_side_exact_variants() {
         new[500] = 0;
 
         let mut d = crate::algorithms::Capture::new();
-        let used = maybe_emit_small_side_exact(
-            &mut d,
-            &old,
-            0..old.len(),
-            &new,
-            0..new.len(),
-            None,
-        )
-        .unwrap();
+        let used =
+            maybe_emit_small_side_exact(&mut d, &old, 0..old.len(), &new, 0..new.len(), None)
+                .unwrap();
 
         assert!(used);
         assert!(d.ops().iter().any(|op| {
@@ -1034,15 +1081,9 @@ fn test_small_side_exact_variants() {
         let new = vec![500u32];
 
         let mut d = crate::algorithms::Capture::new();
-        let used = maybe_emit_small_side_exact(
-            &mut d,
-            &old,
-            0..old.len(),
-            &new,
-            0..new.len(),
-            None,
-        )
-        .unwrap();
+        let used =
+            maybe_emit_small_side_exact(&mut d, &old, 0..old.len(), &new, 0..new.len(), None)
+                .unwrap();
 
         assert!(used);
 

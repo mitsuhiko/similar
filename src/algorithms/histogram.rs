@@ -8,12 +8,17 @@
 //! * time: input-dependent (typically close to Hunt/Patience-style behavior);
 //!   worst-case falls back to Myers (`O((N+M)D)`)
 //! * space: `O(N + M)` plus match-list/index overhead
+//!
+//! # Heuristics
+//!
+//! See [`crate::algorithms`] for shared heuristics and the
+//! `diff_deadline_raw` API.
 
 use std::collections::HashMap;
 use std::ops::{Index, Range};
 
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
-use crate::algorithms::{DiffHook, IdentifyDistinct, NoFinishHook, myers};
+use crate::algorithms::{DiffHook, IdentifyDistinct, NoFinishHook, myers, preflight};
 use crate::deadline_support::{Instant, deadline_exceeded};
 
 const MAX_CHAIN_LENGTH: usize = 64;
@@ -72,6 +77,58 @@ where
     Old::Output: std::hash::Hash + Eq,
     New::Output: PartialEq<Old::Output> + std::hash::Hash + Eq,
 {
+    diff_deadline_impl(d, old, old_range, new, new_range, deadline, true, false)
+}
+
+/// Raw histogram diff algorithm with deadline and without shared heuristics.
+pub fn diff_deadline_raw<Old, New, D>(
+    d: &mut D,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    D: DiffHook,
+    Old::Output: std::hash::Hash + Eq,
+    New::Output: PartialEq<Old::Output> + std::hash::Hash + Eq,
+{
+    diff_deadline_impl(d, old, old_range, new, new_range, deadline, false, true)
+}
+
+fn diff_deadline_impl<Old, New, D>(
+    d: &mut D,
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
+    run_preflight: bool,
+    use_raw_myers: bool,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    D: DiffHook,
+    Old::Output: std::hash::Hash + Eq,
+    New::Output: PartialEq<Old::Output> + std::hash::Hash + Eq,
+{
+    if run_preflight
+        && preflight::maybe_emit_disjoint_fast_path(
+            d,
+            old,
+            old_range.clone(),
+            new,
+            new_range.clone(),
+            deadline,
+        )?
+    {
+        return Ok(());
+    }
+
     // Build a shared integer domain so we can use a compact key type while
     // still supporting differing old/new output types.
     let h = IdentifyDistinct::<usize>::new(old, old_range, new, new_range);
@@ -82,6 +139,7 @@ where
         h.new_lookup(),
         h.new_range(),
         deadline,
+        use_raw_myers,
     )
 }
 
@@ -92,6 +150,7 @@ fn diff_deadline_int<Old, New, D>(
     new: &New,
     new_range: Range<usize>,
     deadline: Option<Instant>,
+    use_raw_myers: bool,
 ) -> Result<(), D::Error>
 where
     Old: Index<usize, Output = usize> + ?Sized,
@@ -99,7 +158,15 @@ where
     D: DiffHook,
 {
     let mut no_finish_d = NoFinishHook::new(d);
-    diff_impl(&mut no_finish_d, old, old_range, new, new_range, deadline)?;
+    diff_impl(
+        &mut no_finish_d,
+        old,
+        old_range,
+        new,
+        new_range,
+        deadline,
+        use_raw_myers,
+    )?;
     no_finish_d.into_inner().finish()
 }
 
@@ -110,6 +177,7 @@ fn diff_impl<Old, New, D>(
     new: &New,
     mut new_range: Range<usize>,
     deadline: Option<Instant>,
+    use_raw_myers: bool,
 ) -> Result<(), D::Error>
 where
     Old: Index<usize, Output = usize> + ?Sized,
@@ -152,13 +220,13 @@ where
             SearchResult::Anchor(anchor) => {
                 let left_old = old_range.start..anchor.old_start;
                 let left_new = new_range.start..anchor.new_start;
-                diff_impl(d, old, left_old, new, left_new, deadline)?;
+                diff_impl(d, old, left_old, new, left_new, deadline, use_raw_myers)?;
 
                 d.equal(anchor.old_start, anchor.new_start, anchor.len)?;
 
                 let right_old = (anchor.old_start + anchor.len)..old_range.end;
                 let right_new = (anchor.new_start + anchor.len)..new_range.end;
-                diff_impl(d, old, right_old, new, right_new, deadline)?;
+                diff_impl(d, old, right_old, new, right_new, deadline, use_raw_myers)?;
             }
             SearchResult::None => {
                 d.delete(old_range.start, old_range.len(), new_range.start)?;
@@ -166,14 +234,25 @@ where
             }
             SearchResult::Fallback => {
                 let mut myers_hook = NoFinishHook::new(&mut *d);
-                myers::diff_deadline(
-                    &mut myers_hook,
-                    old,
-                    old_range.clone(),
-                    new,
-                    new_range.clone(),
-                    deadline,
-                )?;
+                if use_raw_myers {
+                    myers::diff_deadline_raw(
+                        &mut myers_hook,
+                        old,
+                        old_range.clone(),
+                        new,
+                        new_range.clone(),
+                        deadline,
+                    )?;
+                } else {
+                    myers::diff_deadline(
+                        &mut myers_hook,
+                        old,
+                        old_range.clone(),
+                        new,
+                        new_range.clone(),
+                        deadline,
+                    )?;
+                }
             }
         }
     }
