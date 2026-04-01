@@ -9,7 +9,9 @@
 //!
 //! * [`algorithms`]: This implements the different types of diffing algorithms.
 //!   It provides both low level access to the algorithms with the minimal
-//!   trait bounds necessary, as well as a generic interface.
+//!   trait bounds necessary, as well as a generic interface.  See the
+//!   module's **"Which algorithm should you use?"** section for practical
+//!   recommendations beyond the default [`Algorithm::Myers`].
 //! * [`udiff`]: Unified diff functionality.
 //! * [`utils`]: utilities for common diff related operations.  This module
 //!   provides additional diffing functions for working with text diffs.
