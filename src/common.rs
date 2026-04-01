@@ -77,7 +77,7 @@ where
 /// ratio of `0.0` would indicate completely distinct sequences.  The input
 /// is the sequence of diff operations and the length of the old and new
 /// sequence.
-pub fn get_diff_ratio(ops: &[DiffOp], old_len: usize, new_len: usize) -> f32 {
+pub fn diff_ratio(ops: &[DiffOp], old_len: usize, new_len: usize) -> f32 {
     let matches = ops
         .iter()
         .map(|op| {

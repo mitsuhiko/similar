@@ -19,7 +19,7 @@ use crate::algorithms::IdentifyDistinct;
 use crate::deadline_support::{Instant, duration_to_deadline};
 use crate::udiff::UnifiedDiff;
 use crate::{
-    Algorithm, Change, ChangeTag, DiffOp, DiffTag, capture_diff_deadline, get_diff_ratio,
+    Algorithm, Change, ChangeTag, DiffOp, DiffTag, capture_diff_deadline, diff_ratio,
     group_diff_ops,
 };
 
@@ -729,7 +729,7 @@ impl<'old, 'new, T: DiffableStr + ?Sized> TextDiff<'old, 'new, T> {
     /// assert_eq!(diff.ratio(), 0.75);
     /// ```
     pub fn ratio(&self) -> f32 {
-        get_diff_ratio(self.ops(), self.old_len(), self.new_len())
+        diff_ratio(self.ops(), self.old_len(), self.new_len())
     }
 
     /// Iterates over the changes the op expands to.
@@ -765,6 +765,68 @@ impl<'old, 'new, T: DiffableStr + ?Sized> TextDiff<'old, 'new, T> {
     /// [`TextDiff::iter_changes`].
     pub fn iter_all_changes(&self) -> impl Iterator<Item = Change<&T>> + '_ {
         self.ops().iter().flat_map(|op| self.iter_changes(op))
+    }
+
+    /// Flattens out the diff into all inline changes.
+    ///
+    /// This is a shortcut for combining [`TextDiff::ops`] with
+    /// [`TextDiff::iter_inline_changes`].
+    ///
+    /// Requires the `inline` feature.
+    #[cfg(feature = "inline")]
+    pub fn iter_all_inline_changes(&self) -> impl Iterator<Item = InlineChange<'_, T>> + '_ {
+        self.ops()
+            .iter()
+            .flat_map(move |op| self.iter_inline_changes(op))
+    }
+
+    /// Flattens out the diff into all inline changes with an explicit deadline.
+    ///
+    /// This is a shortcut for combining [`TextDiff::ops`] with
+    /// [`TextDiff::iter_inline_changes_deadline`].
+    ///
+    /// Requires the `inline` feature.
+    #[cfg(feature = "inline")]
+    pub fn iter_all_inline_changes_deadline(
+        &self,
+        deadline: Option<Instant>,
+    ) -> impl Iterator<Item = InlineChange<'_, T>> + '_ {
+        self.ops()
+            .iter()
+            .flat_map(move |op| self.iter_inline_changes_deadline(op, deadline))
+    }
+
+    /// Flattens out the diff into all inline changes with custom options.
+    ///
+    /// This is a shortcut for combining [`TextDiff::ops`] with
+    /// [`TextDiff::iter_inline_changes_with_options`].
+    ///
+    /// Requires the `inline` feature.
+    #[cfg(feature = "inline")]
+    pub fn iter_all_inline_changes_with_options(
+        &self,
+        options: InlineChangeOptions,
+    ) -> impl Iterator<Item = InlineChange<'_, T>> + '_ {
+        self.ops()
+            .iter()
+            .flat_map(move |op| self.iter_inline_changes_with_options(op, options))
+    }
+
+    /// Flattens out the diff into all inline changes with custom options and deadline.
+    ///
+    /// This is a shortcut for combining [`TextDiff::ops`] with
+    /// [`TextDiff::iter_inline_changes_with_options_deadline`].
+    ///
+    /// Requires the `inline` feature.
+    #[cfg(feature = "inline")]
+    pub fn iter_all_inline_changes_with_options_deadline(
+        &self,
+        options: InlineChangeOptions,
+        deadline: Option<Instant>,
+    ) -> impl Iterator<Item = InlineChange<'_, T>> + '_ {
+        self.ops().iter().flat_map(move |op| {
+            self.iter_inline_changes_with_options_deadline(op, options, deadline)
+        })
     }
 
     /// Utility to return a unified diff formatter.

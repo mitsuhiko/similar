@@ -422,8 +422,8 @@ pub fn diff_lines<'x, T: DiffableStrRef + ?Sized>(
 
 /// Expands a line diff into [`InlineChange`] values.
 ///
-/// This applies [`TextDiff::iter_inline_changes_with_options`] to every op in
-/// the passed diff object.
+/// This applies [`TextDiff::iter_all_inline_changes_with_options`] to the
+/// passed diff object.
 ///
 /// Requires the `inline` feature.
 #[cfg(feature = "inline")]
@@ -431,11 +431,7 @@ pub fn diff_lines_inline<'diff, 'old, 'new, T: DiffableStr + ?Sized>(
     diff: &'diff TextDiff<'old, 'new, T>,
     options: InlineChangeOptions,
 ) -> Vec<InlineChange<'diff, T>> {
-    let mut rv = Vec::new();
-    for op in diff.ops() {
-        rv.extend(diff.iter_inline_changes_with_options(op, options));
-    }
-    rv
+    diff.iter_all_inline_changes_with_options(options).collect()
 }
 
 #[test]
