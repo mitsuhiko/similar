@@ -191,6 +191,28 @@ fn test_non_string_iter_change() {
 }
 
 #[test]
+fn test_compact_keeps_diffop_cursors_contiguous() {
+    let a = vec![1, 1, 0, 2];
+    let b = vec![2, 1, 0, 0, 0, 0];
+    let ops = capture_diff_slices(Algorithm::Myers, &a, &b);
+
+    for i in 1..ops.len() {
+        let prev = &ops[i - 1];
+        let op = &ops[i];
+        assert_eq!(
+            op.old_range().start,
+            prev.old_range().end,
+            "old_index gap at op {i}: {prev:?} -> {op:?}"
+        );
+        assert_eq!(
+            op.new_range().start,
+            prev.new_range().end,
+            "new_index gap at op {i}: {prev:?} -> {op:?}"
+        );
+    }
+}
+
+#[test]
 fn test_myers_compacts_adjacent_deletes_issue_80() {
     let a: Vec<u8> = vec![0, 1, 0, 0, 0, 1, 2];
     let b: Vec<u8> = vec![1, 0, 1];

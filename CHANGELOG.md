@@ -4,6 +4,10 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+* Fixed `Compact` emitting inconsistent `DiffOp` cursor positions after
+  compaction, which could leave `Delete`/`Insert` operations with stale
+  `new_index`/`old_index` values.
+
 ## 3.0.0
 
 * Added a Git-style Histogram diff implementation exposed as

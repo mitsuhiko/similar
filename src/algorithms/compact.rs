@@ -142,6 +142,56 @@ where
         }
         pointer += 1;
     }
+
+    normalize_diff_op_cursors(ops);
+}
+
+fn normalize_diff_op_cursors(ops: &mut [DiffOp]) {
+    let mut old_cursor = 0;
+    let mut new_cursor = 0;
+
+    if let Some(op) = ops.first() {
+        old_cursor = op.old_range().start;
+        new_cursor = op.new_range().start;
+    }
+
+    for op in ops.iter_mut() {
+        match op {
+            DiffOp::Equal {
+                old_index,
+                new_index,
+                len,
+            } => {
+                old_cursor = *old_index + *len;
+                new_cursor = *new_index + *len;
+            }
+            DiffOp::Delete {
+                old_index,
+                old_len,
+                new_index,
+            } => {
+                *new_index = new_cursor;
+                old_cursor = *old_index + *old_len;
+            }
+            DiffOp::Insert {
+                old_index,
+                new_index,
+                new_len,
+            } => {
+                *old_index = old_cursor;
+                new_cursor = *new_index + *new_len;
+            }
+            DiffOp::Replace {
+                old_index,
+                old_len,
+                new_index,
+                new_len,
+            } => {
+                old_cursor = *old_index + *old_len;
+                new_cursor = *new_index + *new_len;
+            }
+        }
+    }
 }
 
 fn shift_diff_ops_up<Old, New>(
