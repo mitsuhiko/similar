@@ -1,5 +1,5 @@
 //! Demonstrates tolerant float diffing by projecting `f64` values into explicit
-//! comparison buckets with [`similar::algorithms::CachedLookup`].
+//! comparison buckets with [`similar::capture_diff_slices_by_key`].
 //!
 //! This is a good fit when your domain can express approximate equality via a
 //! stable normalization step (for example rounding sensor data to a tolerance
@@ -9,8 +9,7 @@
 //! comparison: it gives you a transitive, hashable key that works with the
 //! regular diff APIs.
 
-use similar::algorithms::CachedLookup;
-use similar::{Algorithm, ChangeTag, DiffOp, capture_diff};
+use similar::{Algorithm, ChangeTag, DiffOp, capture_diff_slices_by_key};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 enum FloatBucket {
@@ -31,15 +30,9 @@ fn bucket_f64(value: f64, epsilon: f64) -> FloatBucket {
 }
 
 fn diff_with_buckets(old: &[f64], new: &[f64], epsilon: f64) -> Vec<DiffOp> {
-    let old_keys = CachedLookup::new(old.len(), |idx| bucket_f64(old[idx], epsilon));
-    let new_keys = CachedLookup::new(new.len(), |idx| bucket_f64(new[idx], epsilon));
-    capture_diff(
-        Algorithm::Myers,
-        &old_keys,
-        0..old_keys.len(),
-        &new_keys,
-        0..new_keys.len(),
-    )
+    capture_diff_slices_by_key(Algorithm::Myers, old, new, |value| {
+        bucket_f64(*value, epsilon)
+    })
 }
 
 fn main() {

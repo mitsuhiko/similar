@@ -77,6 +77,48 @@ where
     capture_diff_deadline(alg, old, 0..old.len(), new, 0..new.len(), deadline)
 }
 
+/// Creates a diff between old and new slices using a derived key.
+///
+/// This eagerly computes the derived keys for both slices and then diffs the
+/// resulting key vectors. For lazily computed or virtual sequences, use
+/// [`crate::algorithms::CachedLookup`] directly.
+pub fn capture_diff_slices_by_key<T, K>(
+    alg: Algorithm,
+    old: &[T],
+    new: &[T],
+    key: impl Fn(&T) -> K,
+) -> Vec<DiffOp>
+where
+    K: Eq + Hash,
+{
+    capture_diff_slices_by_key_deadline(alg, old, new, key, None)
+}
+
+/// Creates a diff between old and new slices using a derived key.
+///
+/// Works like [`capture_diff_slices_by_key`] but with an optional deadline.
+pub fn capture_diff_slices_by_key_deadline<T, K>(
+    alg: Algorithm,
+    old: &[T],
+    new: &[T],
+    key: impl Fn(&T) -> K,
+    deadline: Option<Instant>,
+) -> Vec<DiffOp>
+where
+    K: Eq + Hash,
+{
+    let old_keys = old.iter().map(&key).collect::<Vec<_>>();
+    let new_keys = new.iter().map(key).collect::<Vec<_>>();
+    capture_diff_deadline(
+        alg,
+        &old_keys,
+        0..old_keys.len(),
+        &new_keys,
+        0..new_keys.len(),
+        deadline,
+    )
+}
+
 /// Return a measure of similarity in the range `0..=1`.
 ///
 /// A ratio of `1.0` means the two sequences are a complete match, a
@@ -210,6 +252,96 @@ fn test_compact_keeps_diffop_cursors_contiguous() {
             "new_index gap at op {i}: {prev:?} -> {op:?}"
         );
     }
+}
+
+#[test]
+fn test_capture_diff_slices_by_key() {
+    #[derive(Debug, Clone)]
+    struct Record {
+        id: u32,
+        _value: &'static str,
+    }
+
+    let old = vec![
+        Record { id: 1, _value: "a" },
+        Record { id: 2, _value: "b" },
+        Record { id: 3, _value: "c" },
+    ];
+    let new = vec![
+        Record { id: 1, _value: "x" },
+        Record { id: 4, _value: "d" },
+        Record { id: 3, _value: "z" },
+    ];
+
+    let ops = capture_diff_slices_by_key(Algorithm::Myers, &old, &new, |record| record.id);
+    let changes: Vec<_> = ops
+        .iter()
+        .flat_map(|op| op.iter_changes(&old, &new))
+        .map(|change| (change.tag(), change.value().id))
+        .collect();
+
+    use crate::ChangeTag;
+    assert_eq!(
+        changes,
+        vec![
+            (ChangeTag::Equal, 1),
+            (ChangeTag::Delete, 2),
+            (ChangeTag::Insert, 4),
+            (ChangeTag::Equal, 3),
+        ]
+    );
+}
+
+#[test]
+fn test_capture_diff_slices_by_key_all_algorithms() {
+    let old = vec![(1, "a"), (2, "b"), (3, "c")];
+    let new = vec![(1, "x"), (3, "y"), (4, "z")];
+
+    for alg in [
+        Algorithm::Myers,
+        Algorithm::Patience,
+        Algorithm::Lcs,
+        Algorithm::Hunt,
+        Algorithm::Histogram,
+    ] {
+        let ops = capture_diff_slices_by_key(alg, &old, &new, |value| value.0);
+        let changes: Vec<_> = ops
+            .iter()
+            .flat_map(|op| op.iter_changes(&old, &new))
+            .map(|change| (change.tag(), change.value().0))
+            .collect();
+
+        use crate::ChangeTag;
+        assert_eq!(
+            changes,
+            vec![
+                (ChangeTag::Equal, 1),
+                (ChangeTag::Delete, 2),
+                (ChangeTag::Equal, 3),
+                (ChangeTag::Insert, 4),
+            ],
+            "failed for {alg:?}"
+        );
+    }
+}
+
+#[test]
+fn test_capture_diff_slices_by_key_deadline() {
+    use core::time::Duration;
+
+    let old = vec![(1, "a"), (2, "b")];
+    let new = vec![(1, "x"), (3, "c")];
+
+    let ops = capture_diff_slices_by_key_deadline(
+        Algorithm::Myers,
+        &old,
+        &new,
+        |value| value.0,
+        Some(Instant::now() + Duration::from_secs(1)),
+    );
+
+    assert!(matches!(ops[0], DiffOp::Equal { len: 1, .. }));
+    assert!(ops.iter().any(|op| matches!(op, DiffOp::Replace { .. })));
 }
 
 #[test]

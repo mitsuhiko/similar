@@ -4,6 +4,8 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+* Added `capture_diff_slices_by_key` and `capture_diff_slices_by_key_deadline`
+  as convenience helpers for diffing slices by derived keys.
 * Fixed `Compact` emitting inconsistent `DiffOp` cursor positions after
   compaction, which could leave `Delete`/`Insert` operations with stale
   `new_index`/`old_index` values.
