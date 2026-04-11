@@ -1,6 +1,6 @@
 [package]
 name = "similar"
-version = "3.0.0"
+version = "3.1.0"
 authors = [
     "Armin Ronacher <armin.ronacher@active-4.com>",
     "Pierre-Étienne Meunier <pe@pijul.org>",

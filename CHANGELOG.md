@@ -4,11 +4,15 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+## 3.1.0
+
 * Added `capture_diff_slices_by_key` and `capture_diff_slices_by_key_deadline`
   as convenience helpers for diffing slices by derived keys.
 * Fixed `Compact` emitting inconsistent `DiffOp` cursor positions after
   compaction, which could leave `Delete`/`Insert` operations with stale
   `new_index`/`old_index` values.
+* Added explicit lifetime capture (`+ use<...>`) on iterator-returning APIs to
+  improve compatibility with Rust 2024 lifetime capture behavior.  #93
 
 ## 3.0.0
 
