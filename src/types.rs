@@ -353,7 +353,7 @@ impl DiffOp {
         &self,
         old: &'lookup Old,
         new: &'lookup New,
-    ) -> impl Iterator<Item = (ChangeTag, &'lookup T)>
+    ) -> impl Iterator<Item = (ChangeTag, &'lookup T)> + use<'lookup, Old, New, T>
     where
         T: 'lookup + ?Sized,
         Old: Index<Range<usize>, Output = T> + ?Sized,
