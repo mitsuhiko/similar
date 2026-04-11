@@ -173,7 +173,10 @@ impl<'diff, 'old, 'new, T: DiffableStr + ?Sized> UnifiedDiff<'diff, 'old, 'new, 
     }
 
     /// Iterates over all hunks as configured.
-    pub fn iter_hunks(&self) -> impl Iterator<Item = UnifiedDiffHunk<'diff, 'old, 'new, T>> + use<'diff, 'old, 'new, T> {
+    pub fn iter_hunks(
+        &self,
+    ) -> impl Iterator<Item = UnifiedDiffHunk<'diff, 'old, 'new, T>> + use<'diff, 'old, 'new, T>
+    {
         let diff = self.diff;
         let missing_newline_hint = self.missing_newline_hint;
         self.diff

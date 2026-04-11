@@ -164,7 +164,10 @@ impl<'x, T: DiffableStr + ?Sized> TextDiffRemapper<'x, T> {
     ///
     /// This method can panic if the input strings passed to the constructor
     /// are incompatible with the input strings passed to the diffing algorithm.
-    pub fn iter_slices(&self, op: &DiffOp) -> impl Iterator<Item = (ChangeTag, &'x T)> + use<'x, T> {
+    pub fn iter_slices(
+        &self,
+        op: &DiffOp,
+    ) -> impl Iterator<Item = (ChangeTag, &'x T)> + use<'x, T> {
         // note: this is equivalent to the code in `DiffOp::iter_slices`.  It is
         // a copy/paste because the slicing currently cannot be well abstracted
         // because of lifetime issues caused by the `Index` trait.
