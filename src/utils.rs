@@ -451,3 +451,16 @@ fn test_remapper() {
     assert_eq!(remap.slice(0..5), Some("foo bar baz"));
     assert_eq!(remap.slice(0..6), None);
 }
+
+#[test]
+fn test_empty_diff() {
+    for algorithm in [Algorithm::Lcs, Algorithm::Hunt] {
+        let diff = TextDiff::configure()
+            .algorithm(algorithm)
+            .diff_chars("", "");
+        assert!(diff.ops().is_empty());
+        assert!(diff_chars(algorithm, "", "").is_empty());
+        assert!(diff_words(algorithm, "", "").is_empty());
+        assert!(diff_lines(algorithm, "", "").is_empty());
+    }
+}

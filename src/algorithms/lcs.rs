@@ -112,6 +112,10 @@ where
     D: DiffHook,
     New::Output: PartialEq<Old::Output>,
 {
+    if is_empty_range(&old_range) && is_empty_range(&new_range) {
+        d.finish()?;
+        return Ok(());
+    }
     if is_empty_range(&new_range) {
         d.delete(old_range.start, old_range.len(), new_range.start)?;
         d.finish()?;
