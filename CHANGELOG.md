@@ -4,6 +4,9 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+* Fixed `Algorithm::Lcs` deadline fallback emitting edits twice, which produced
+  out-of-bounds `DiffOp` ranges and panics when consuming timed-out diffs.  #97
+
 ## 3.1.1
 
 * Fixed `DiffOp` cursor positions when compacting adjacent inserts/deletes and

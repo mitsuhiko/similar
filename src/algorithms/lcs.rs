@@ -172,13 +172,10 @@ where
                 new_idx += 1;
             }
         }
-    } else {
-        let old_orig_idx = old_range.start + common_prefix_len + old_idx;
-        let new_orig_idx = new_range.start + common_prefix_len + new_idx;
-        d.delete(old_orig_idx, old_len, new_orig_idx)?;
-        d.insert(old_orig_idx, new_orig_idx, new_len)?;
     }
 
+    // Emit any unconsumed tail. If table construction exceeded the deadline,
+    // both cursors are still zero and this becomes the fallback edit script.
     if old_idx < old_len {
         d.delete(
             old_range.start + common_prefix_len + old_idx,
@@ -279,6 +276,48 @@ fn test_raw_accepts_partialeq_only_values() {
     diff_deadline_raw(&mut d, &old, 0..old.len(), &new, 0..new.len(), None).unwrap();
 
     assert!(!d.ops().is_empty());
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn test_deadline_fallback_issue_97() {
+    use core::time::Duration;
+
+    use crate::DiffOp;
+    use crate::algorithms::Capture;
+
+    let old = [1u32, 2];
+    let new = [3u32, 4];
+    let deadline = Instant::now()
+        .checked_sub(Duration::from_millis(1))
+        .unwrap();
+    let mut d = Capture::new();
+
+    diff_deadline_raw(
+        &mut d,
+        &old,
+        0..old.len(),
+        &new,
+        0..new.len(),
+        Some(deadline),
+    )
+    .unwrap();
+
+    assert_eq!(
+        d.into_ops(),
+        vec![
+            DiffOp::Delete {
+                old_index: 0,
+                old_len: 2,
+                new_index: 0,
+            },
+            DiffOp::Insert {
+                old_index: 2,
+                new_index: 0,
+                new_len: 2,
+            },
+        ]
+    );
 }
 
 #[test]
