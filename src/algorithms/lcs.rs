@@ -132,7 +132,7 @@ where
 
     // If the sequences are not different then we're done
     if common_prefix_len == old_range.len() && (old_range.len() == new_range.len()) {
-        d.equal(0, 0, old_range.len())?;
+        d.equal(old_range.start, new_range.start, old_range.len())?;
         d.finish()?;
         return Ok(());
     }
@@ -419,6 +419,31 @@ fn test_subrange_regression() {
                 new_index: 6,
             },
         ]
+    );
+}
+
+#[test]
+fn test_identical_subrange_issue_98() {
+    use crate::{Algorithm, ChangeTag, DiffOp, capture_diff};
+
+    let old = ["a", "b", "c"];
+    let new = ["z", "b", "c"];
+    let ops = capture_diff(Algorithm::Lcs, &old, 1..3, &new, 1..3);
+
+    assert_eq!(
+        ops,
+        vec![DiffOp::Equal {
+            old_index: 1,
+            new_index: 1,
+            len: 2,
+        }]
+    );
+    assert_eq!(
+        ops.iter()
+            .flat_map(|op| op.iter_changes(&old, &new))
+            .map(|change| (change.tag(), change.value()))
+            .collect::<Vec<_>>(),
+        vec![(ChangeTag::Equal, "b"), (ChangeTag::Equal, "c")]
     );
 }
 
