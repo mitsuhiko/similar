@@ -440,6 +440,19 @@ pub fn diff_lines_inline<'diff, 'old, 'new, T: DiffableStr + ?Sized>(
 }
 
 #[test]
+fn test_empty_inputs_issue_99() {
+    for algorithm in [Algorithm::Lcs, Algorithm::Hunt] {
+        let diff = TextDiff::configure()
+            .algorithm(algorithm)
+            .diff_chars("", "");
+        assert!(diff.ops().is_empty(), "failed for {algorithm:?}");
+        assert!(diff_chars(algorithm, "", "").is_empty());
+        assert!(diff_words(algorithm, "", "").is_empty());
+        assert!(diff_lines(algorithm, "", "").is_empty());
+    }
+}
+
+#[test]
 fn test_remapper() {
     let a = "foo bar baz";
     let words = a.tokenize_words();
