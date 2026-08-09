@@ -9,9 +9,8 @@
 //!
 //! See [`crate::algorithms`] for shared heuristics and the
 //! `diff_deadline_raw` API.
-use alloc::collections::BTreeMap;
-#[cfg(test)]
 use alloc::vec;
+use alloc::vec::Vec;
 use core::hash::Hash;
 use core::ops::{Index, Range};
 
@@ -165,9 +164,7 @@ where
                 d.equal(old_orig_idx, new_orig_idx, 1)?;
                 old_idx += 1;
                 new_idx += 1;
-            } else if table.get(&(new_idx, old_idx + 1)).unwrap_or(&0)
-                >= table.get(&(new_idx + 1, old_idx)).unwrap_or(&0)
-            {
+            } else if table.get(new_idx, old_idx + 1) >= table.get(new_idx + 1, old_idx) {
                 d.delete(old_orig_idx, 1, new_orig_idx)?;
                 old_idx += 1;
             } else {
@@ -207,13 +204,60 @@ where
     d.finish()
 }
 
-fn make_table<Old, New>(
+#[derive(Clone, Copy)]
+enum LcsTableLayout {
+    Forward,
+    ReverseRows {
+        old_len: usize,
+        new_len: usize,
+        transposed: bool,
+    },
+}
+
+struct LcsTable {
+    width: usize,
+    values: Vec<u32>,
+    layout: LcsTableLayout,
+}
+
+impl LcsTable {
+    #[inline(always)]
+    fn get(&self, new_index: usize, old_index: usize) -> u32 {
+        let index = match self.layout {
+            LcsTableLayout::Forward => new_index * self.width + old_index,
+            LcsTableLayout::ReverseRows {
+                new_len,
+                transposed: false,
+                ..
+            } => (new_len - new_index) * self.width + old_index,
+            LcsTableLayout::ReverseRows {
+                old_len,
+                transposed: true,
+                ..
+            } => (old_len - old_index) * self.width + new_index,
+        };
+        self.values[index]
+    }
+}
+
+const TABLE_DEADLINE_CHECK_INTERVAL: usize = 1024;
+
+fn append_zeroed_row(values: &mut Vec<u32>, width: usize) -> usize {
+    let row = values.len();
+    let new_len = row.checked_add(width).expect("LCS table capacity overflow");
+    // Keep allocation failure behavior consistent with normal Vec growth.
+    // A deadline controls computation time; it must not hide allocation errors.
+    values.resize(new_len, 0);
+    row
+}
+
+fn make_table_incremental<Old, New>(
     old: &Old,
     old_range: Range<usize>,
     new: &New,
     new_range: Range<usize>,
     deadline: Option<Instant>,
-) -> Option<BTreeMap<(usize, usize), u32>>
+) -> Option<LcsTable>
 where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
@@ -221,43 +265,178 @@ where
 {
     let old_len = old_range.len();
     let new_len = new_range.len();
-    let mut table = BTreeMap::new();
+    // Keep each incremental row on the shorter axis. This bounds the amount
+    // allocated and zeroed between deadline checks for unbalanced inputs.
+    let transposed = new_len < old_len;
+    let column_len = if transposed { new_len } else { old_len };
+    let row_len = if transposed { old_len } else { new_len };
+    let width = column_len.checked_add(1).expect("LCS table width overflow");
+    let mut values = Vec::new();
+    append_zeroed_row(&mut values, width);
 
-    for i in (0..new_len).rev() {
-        // are we running for too long?  give up on the table
+    for row_index in (0..row_len).rev() {
         if deadline_exceeded(deadline) {
             return None;
         }
 
-        for j in (0..old_len).rev() {
-            let val = if new[new_range.start + i] == old[old_range.start + j] {
-                table.get(&(i + 1, j + 1)).unwrap_or(&0) + 1
-            } else {
-                *table
-                    .get(&(i + 1, j))
-                    .unwrap_or(&0)
-                    .max(table.get(&(i, j + 1)).unwrap_or(&0))
-            };
-            if val > 0 {
-                table.insert((i, j), val);
+        let next_row = values.len() - width;
+        let row = append_zeroed_row(&mut values, width);
+        for column_index in (0..column_len).rev() {
+            if (column_index & (TABLE_DEADLINE_CHECK_INTERVAL - 1) == 0)
+                && deadline_exceeded(deadline)
+            {
+                return None;
             }
+
+            let equal = if transposed {
+                new[new_range.start + column_index] == old[old_range.start + row_index]
+            } else {
+                new[new_range.start + row_index] == old[old_range.start + column_index]
+            };
+            values[row + column_index] = if equal {
+                values[next_row + column_index + 1] + 1
+            } else {
+                values[next_row + column_index].max(values[row + column_index + 1])
+            };
         }
     }
 
-    Some(table)
+    Some(LcsTable {
+        width,
+        values,
+        layout: LcsTableLayout::ReverseRows {
+            old_len,
+            new_len,
+            transposed,
+        },
+    })
+}
+
+fn make_table<Old, New>(
+    old: &Old,
+    old_range: Range<usize>,
+    new: &New,
+    new_range: Range<usize>,
+    deadline: Option<Instant>,
+) -> Option<LcsTable>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    New::Output: PartialEq<Old::Output>,
+{
+    if deadline_exceeded(deadline) {
+        return None;
+    }
+
+    let old_len = old_range.len();
+    let new_len = new_range.len();
+    if old_len == 0 || new_len == 0 {
+        return None;
+    }
+
+    if deadline.is_some() {
+        return make_table_incremental(old, old_range, new, new_range, deadline);
+    }
+
+    let width = old_len.checked_add(1).expect("LCS table width overflow");
+    let height = new_len.checked_add(1).expect("LCS table height overflow");
+    let cell_count = width
+        .checked_mul(height)
+        .expect("LCS table capacity overflow");
+    let mut values = vec![0u32; cell_count];
+
+    for i in (0..new_len).rev() {
+        let row = i * width;
+        let next_row = (i + 1) * width;
+        for j in (0..old_len).rev() {
+            values[row + j] = if new[new_range.start + i] == old[old_range.start + j] {
+                values[next_row + j + 1] + 1
+            } else {
+                values[next_row + j].max(values[row + j + 1])
+            };
+        }
+    }
+
+    Some(LcsTable {
+        width,
+        values,
+        layout: LcsTableLayout::Forward,
+    })
+}
+
+#[test]
+fn test_empty_table_dimension_does_not_allocate() {
+    let values = [0u8];
+    assert!(make_table(&values, 0..0, &values, 0..usize::MAX, None).is_none());
+    assert!(make_table(&values, 0..usize::MAX, &values, 0..0, None).is_none());
+}
+
+#[test]
+#[should_panic(expected = "LCS table capacity overflow")]
+fn test_table_size_overflow_panics() {
+    let values = [0u8];
+    let old_len = usize::MAX / 2;
+    let _ = make_table(&values, 0..old_len, &values, 0..2, None);
 }
 
 #[test]
 fn test_table() {
-    let table = make_table(&vec![2, 3], 0..2, &vec![0, 1, 2], 0..3, None).unwrap();
-    let expected = {
-        let mut m = BTreeMap::new();
-        m.insert((1, 0), 1);
-        m.insert((0, 0), 1);
-        m.insert((2, 0), 1);
-        m
-    };
-    assert_eq!(table, expected);
+    let old = vec![2, 3];
+    let new = vec![0, 1, 2];
+    let table = make_table(&old, 0..old.len(), &new, 0..new.len(), None).unwrap();
+    assert_eq!(table.width, 3);
+    assert_eq!(table.get(0, 0), 1);
+    assert_eq!(table.get(1, 0), 1);
+    assert_eq!(table.get(2, 0), 1);
+    assert_eq!(table.get(3, 0), 0);
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn test_incremental_table_matches_contiguous_in_both_orientations() {
+    use core::time::Duration;
+
+    for (old, new) in [
+        (vec![1, 2, 3], vec![0, 1, 3, 4, 5]),
+        (vec![0, 1, 3, 4, 5], vec![1, 2, 3]),
+    ] {
+        let contiguous = make_table(&old, 0..old.len(), &new, 0..new.len(), None).unwrap();
+        let incremental = make_table(
+            &old,
+            0..old.len(),
+            &new,
+            0..new.len(),
+            Some(Instant::now() + Duration::from_secs(1)),
+        )
+        .unwrap();
+
+        for new_index in 0..=new.len() {
+            for old_index in 0..=old.len() {
+                assert_eq!(
+                    incremental.get(new_index, old_index),
+                    contiguous.get(new_index, old_index)
+                );
+            }
+        }
+    }
+}
+
+#[cfg(all(feature = "std", not(target_arch = "wasm32")))]
+#[test]
+fn test_deadline_table_allocation_is_incremental() {
+    use core::time::Duration;
+
+    let old = (0..511u32).collect::<Vec<_>>();
+    let new = (0..1_000_000u32).map(|value| value + 1).collect::<Vec<_>>();
+    let table = make_table(
+        &old,
+        0..old.len(),
+        &new,
+        0..new.len(),
+        Some(Instant::now() + Duration::from_millis(1)),
+    );
+
+    assert!(table.is_none());
 }
 
 #[test]

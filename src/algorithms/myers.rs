@@ -117,12 +117,45 @@ where
     D: DiffHook,
     New::Output: PartialEq<Old::Output>,
 {
-    let max_d = max_d(old_range.len(), new_range.len());
-    let mut vb = V::new(max_d);
-    let mut vf = V::new(max_d);
-    conquer(
-        d, old, old_range, new, new_range, &mut vf, &mut vb, deadline,
-    )?;
+    // Size the working vectors for the changed middle, not the full inputs.
+    // This is particularly important for large files with sparse edits: the
+    // Myers vectors are linear in the ranges they are sized from, while a long
+    // common prefix or suffix needs no search storage at all.
+    let common_prefix_len = common_prefix_len(old, old_range.clone(), new, new_range.clone());
+    let after_prefix_old = old_range.start + common_prefix_len..old_range.end;
+    let after_prefix_new = new_range.start + common_prefix_len..new_range.end;
+    let common_suffix_len =
+        common_suffix_len(old, after_prefix_old.clone(), new, after_prefix_new.clone());
+    let middle_old = after_prefix_old.start..after_prefix_old.end - common_suffix_len;
+    let middle_new = after_prefix_new.start..after_prefix_new.end - common_suffix_len;
+
+    if common_prefix_len > 0 {
+        d.equal(old_range.start, new_range.start, common_prefix_len)?;
+    }
+
+    if middle_old.is_empty() && middle_new.is_empty() {
+        // Nothing to emit.
+    } else if middle_old.is_empty() {
+        d.insert(middle_old.start, middle_new.start, middle_new.len())?;
+    } else if middle_new.is_empty() {
+        d.delete(middle_old.start, middle_old.len(), middle_new.start)?;
+    } else {
+        let max_d = max_d(middle_old.len(), middle_new.len());
+        let mut vb = V::new(max_d);
+        let mut vf = V::new(max_d);
+        conquer(
+            d, old, middle_old, new, middle_new, &mut vf, &mut vb, deadline,
+        )?;
+    }
+
+    if common_suffix_len > 0 {
+        d.equal(
+            old_range.end - common_suffix_len,
+            new_range.end - common_suffix_len,
+            common_suffix_len,
+        )?;
+    }
+
     d.finish()
 }
 
