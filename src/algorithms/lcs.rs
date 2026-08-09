@@ -64,7 +64,7 @@ where
     Old::Output: Hash + Eq,
     New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
-    if preflight::maybe_emit_disjoint_fast_path(
+    if preflight::maybe_emit_replace_fast_path(
         d,
         old,
         old_range.clone(),

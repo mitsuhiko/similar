@@ -54,9 +54,9 @@
 //!
 //! At a high level, the current heuristics are:
 //!
-//! - **Shared disjoint-range fast path** (all algorithms):
-//!   if two large ranges appear to have no common items, we skip expensive
-//!   search and emit a straight delete+insert replacement.
+//! - **Shared near-disjoint-range fast path** (all algorithms):
+//!   if two large ranges have no common items, or only a negligible handful,
+//!   we skip expensive search and emit a straight delete+insert replacement.
 //! - **Prefix/suffix trimming** (used widely):
 //!   matching runs at the beginning/end are emitted immediately so each
 //!   algorithm only works on the changed middle.
@@ -227,7 +227,7 @@ where
 }
 
 #[test]
-fn test_disjoint_fast_path_cross_type_guard() {
+fn test_replace_fast_path_cross_type_guard() {
     use crate::DiffOp;
     use std::hash::{Hash, Hasher};
 

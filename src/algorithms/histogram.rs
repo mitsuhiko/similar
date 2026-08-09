@@ -123,7 +123,7 @@ where
     New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
     if run_preflight
-        && preflight::maybe_emit_disjoint_fast_path(
+        && preflight::maybe_emit_replace_fast_path(
             d,
             old,
             old_range.clone(),

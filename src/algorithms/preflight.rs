@@ -11,8 +11,10 @@ const DISJOINT_FAST_PATH_MIN_LEN: usize = 512;
 const DISJOINT_FAST_PATH_MIN_WORK: usize = 128 * 1024;
 const DISJOINT_FAST_PATH_DEADLINE_CHECK_INTERVAL: usize = 1024;
 const DISJOINT_FAST_PATH_BOUNDARY_PROBE: usize = 8;
+const NEAR_DISJOINT_COMMON_ITEM_DIVISOR: usize = 1024;
+const NEAR_DISJOINT_MAX_COMMON_ITEMS: usize = 64;
 
-pub(crate) fn maybe_emit_disjoint_fast_path<Old, New, D>(
+pub(crate) fn maybe_emit_replace_fast_path<Old, New, D>(
     d: &mut D,
     old: &Old,
     old_range: Range<usize>,
@@ -70,13 +72,27 @@ where
         }
     }
 
-    let has_common_item =
-        match has_common_item(old, old_range.clone(), new, new_range.clone(), deadline) {
-            Some(value) => value,
-            None => return Ok(false),
-        };
+    // A handful of matching items does not justify an expensive exact search
+    // through otherwise unrelated ranges. In particular, stopping this scan at
+    // the first match lets one coincidental line defeat the disjoint fast path
+    // and send Myers/LCS into near-worst-case work. Scale the tolerated overlap
+    // with the shorter input, but cap it so meaningful sparse anchors still go
+    // to the selected algorithm.
+    let common_item_budget = (old_len.min(new_len) / NEAR_DISJOINT_COMMON_ITEM_DIVISOR)
+        .clamp(1, NEAR_DISJOINT_MAX_COMMON_ITEMS);
+    let exceeds_budget = match has_more_than_common_items(
+        old,
+        old_range.clone(),
+        new,
+        new_range.clone(),
+        common_item_budget,
+        deadline,
+    ) {
+        Some(value) => value,
+        None => return Ok(false),
+    };
 
-    if has_common_item {
+    if exceeds_budget {
         return Ok(false);
     }
 
@@ -86,11 +102,12 @@ where
     Ok(true)
 }
 
-fn has_common_item<Old, New>(
+fn has_more_than_common_items<Old, New>(
     old: &Old,
     old_range: Range<usize>,
     new: &New,
     new_range: Range<usize>,
+    common_item_budget: usize,
     deadline: Option<Instant>,
 ) -> Option<bool>
 where
@@ -114,6 +131,7 @@ where
         }
     }
 
+    let mut common_items = 0usize;
     for (idx, new_idx) in new_range.enumerate() {
         if (idx & (DISJOINT_FAST_PATH_DEADLINE_CHECK_INTERVAL - 1) == 0)
             && deadline_exceeded(deadline)
@@ -123,7 +141,10 @@ where
         if let Some(candidates) = by_hash.get(&stable_hash(&new[new_idx])) {
             let new_item = &new[new_idx];
             if candidates.iter().any(|&old_idx| new_item == &old[old_idx]) {
-                return Some(true);
+                common_items += 1;
+                if common_items > common_item_budget {
+                    return Some(true);
+                }
             }
         }
     }
@@ -132,19 +153,48 @@ where
 }
 
 #[test]
-fn test_has_common_item() {
+fn test_common_item_budget() {
+    let old = &[1, 2, 3];
+    let new = &[9, 3, 2];
     assert_eq!(
-        has_common_item(&[1, 2, 3], 0..3, &[9, 3, 10], 0..3, None),
+        has_more_than_common_items(old, 0..3, new, 0..3, 0, None),
         Some(true)
     );
     assert_eq!(
-        has_common_item(&[1, 2, 3], 0..3, &[9, 8, 10], 0..3, None),
+        has_more_than_common_items(old, 0..3, new, 0..3, 1, None),
+        Some(true)
+    );
+    assert_eq!(
+        has_more_than_common_items(old, 0..3, new, 0..3, 2, None),
+        Some(false)
+    );
+    assert_eq!(
+        has_more_than_common_items(old, 0..3, &[9, 8, 10], 0..3, 0, None),
         Some(false)
     );
 }
 
 #[test]
-fn test_has_common_item_hash_collisions() {
+fn test_nearly_disjoint_ranges_use_replace_fast_path() {
+    use crate::{Algorithm, DiffOp, capture_diff_slices};
+
+    let old = (0..4096u32).collect::<Vec<_>>();
+    let mut new = (10_000..14_096u32).collect::<Vec<_>>();
+    new[2048] = old[1024];
+
+    assert_eq!(
+        capture_diff_slices(Algorithm::Myers, &old, &new),
+        vec![DiffOp::Replace {
+            old_index: 0,
+            old_len: old.len(),
+            new_index: 0,
+            new_len: new.len(),
+        }]
+    );
+}
+
+#[test]
+fn test_common_item_budget_with_hash_collisions() {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct Collide(u32);
 
@@ -155,22 +205,24 @@ fn test_has_common_item_hash_collisions() {
     }
 
     assert_eq!(
-        has_common_item(
+        has_more_than_common_items(
             &[Collide(1), Collide(2)],
             0..2,
             &[Collide(3), Collide(4)],
             0..2,
-            None
+            0,
+            None,
         ),
         Some(false)
     );
     assert_eq!(
-        has_common_item(
+        has_more_than_common_items(
             &[Collide(1), Collide(2)],
             0..2,
             &[Collide(3), Collide(2)],
             0..2,
-            None
+            0,
+            None,
         ),
         Some(true)
     );
