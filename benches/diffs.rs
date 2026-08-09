@@ -1,8 +1,25 @@
+use std::fmt::Write as _;
 use std::hint::black_box;
 use std::sync::OnceLock;
+use std::time::Duration;
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use similar::{Algorithm, TextDiff};
+use similar::{Algorithm, TextDiff, capture_diff_slices};
+
+const ALL_ALGORITHMS: &[Algorithm] = &[
+    Algorithm::Myers,
+    Algorithm::Patience,
+    Algorithm::Lcs,
+    Algorithm::Hunt,
+    Algorithm::Histogram,
+];
+
+const SCALABLE_ALGORITHMS: &[Algorithm] = &[
+    Algorithm::Myers,
+    Algorithm::Patience,
+    Algorithm::Hunt,
+    Algorithm::Histogram,
+];
 
 #[derive(Clone, Copy)]
 enum DiffMode {
@@ -11,249 +28,275 @@ enum DiffMode {
 }
 
 #[derive(Clone, Copy)]
-struct BenchCase {
+struct Fixture {
     name: &'static str,
     mode: DiffMode,
-    algorithm: Algorithm,
     old: &'static str,
     new: &'static str,
 }
 
-const SAMPLE_CASES: &[BenchCase] = &[
-    BenchCase {
-        name: "case01_simple_edit",
+const FIXTURES: &[Fixture] = &[
+    Fixture {
+        name: "simple_edit_lines",
         mode: DiffMode::Lines,
-        algorithm: Algorithm::Myers,
-        old: include_str!("../examples/diffs/case01_simple_edit.before.txt"),
-        new: include_str!("../examples/diffs/case01_simple_edit.after.txt"),
+        old: include_str!("../examples/diffs/case01.01.before_simple_edit.txt"),
+        new: include_str!("../examples/diffs/case01.02.after_simple_edit.txt"),
     },
-    BenchCase {
-        name: "case02_patience_reorder",
+    Fixture {
+        name: "patience_reorder_lines",
         mode: DiffMode::Lines,
-        algorithm: Algorithm::Patience,
-        old: include_str!("../examples/diffs/case02_patience_reorder.before.txt"),
-        new: include_str!("../examples/diffs/case02_patience_reorder.after.txt"),
+        old: include_str!("../examples/diffs/case02.01.before_patience_reorder.txt"),
+        new: include_str!("../examples/diffs/case02.02.after_patience_reorder.txt"),
     },
-    BenchCase {
-        name: "case03_repeated_lines",
+    Fixture {
+        name: "repeated_lines",
         mode: DiffMode::Lines,
-        algorithm: Algorithm::Myers,
-        old: include_str!("../examples/diffs/case03_repeated_lines.before.txt"),
-        new: include_str!("../examples/diffs/case03_repeated_lines.after.txt"),
+        old: include_str!("../examples/diffs/case03.01.before_repeated_lines.txt"),
+        new: include_str!("../examples/diffs/case03.02.after_repeated_lines.txt"),
     },
-    BenchCase {
-        name: "case04_code_refactor",
+    Fixture {
+        name: "code_refactor_lines",
         mode: DiffMode::Lines,
-        algorithm: Algorithm::Myers,
-        old: include_str!("../examples/diffs/case04_code_refactor.before.txt"),
-        new: include_str!("../examples/diffs/case04_code_refactor.after.txt"),
+        old: include_str!("../examples/diffs/case04.01.before_code_refactor.txt"),
+        new: include_str!("../examples/diffs/case04.02.after_code_refactor.txt"),
     },
-    BenchCase {
-        name: "case05_whitespace_punctuation_words",
+    Fixture {
+        name: "whitespace_punctuation_words",
         mode: DiffMode::Words,
-        algorithm: Algorithm::Myers,
-        old: include_str!("../examples/diffs/case05_whitespace_punctuation.before.txt"),
-        new: include_str!("../examples/diffs/case05_whitespace_punctuation.after.txt"),
+        old: include_str!("../examples/diffs/case05.01.before_whitespace_punctuation.txt"),
+        new: include_str!("../examples/diffs/case05.02.after_whitespace_punctuation.txt"),
     },
-    BenchCase {
-        name: "case06_insertions_edges",
+    Fixture {
+        name: "insertions_at_edges_lines",
         mode: DiffMode::Lines,
-        algorithm: Algorithm::Myers,
-        old: include_str!("../examples/diffs/case06_insertions_edges.before.txt"),
-        new: include_str!("../examples/diffs/case06_insertions_edges.after.txt"),
+        old: include_str!("../examples/diffs/case06.01.before_insertions_edges.txt"),
+        new: include_str!("../examples/diffs/case06.02.after_insertions_edges.txt"),
     },
 ];
 
-fn run_case(case: BenchCase) -> usize {
+fn fixture_diff(fixture: Fixture, algorithm: Algorithm) -> usize {
     let mut config = TextDiff::configure();
-    config.algorithm(case.algorithm);
-
-    let diff = match case.mode {
-        DiffMode::Lines => config.diff_lines(case.old, case.new),
-        DiffMode::Words => config.diff_words(case.old, case.new),
+    config.algorithm(algorithm);
+    let diff = match fixture.mode {
+        DiffMode::Lines => config.diff_lines(fixture.old, fixture.new),
+        DiffMode::Words => config.diff_words(fixture.old, fixture.new),
     };
-
-    diff.ops().len()
+    black_box(diff.ops().len())
 }
 
-fn bench_sample_cases(c: &mut Criterion) {
-    let mut group = c.benchmark_group("sample_cases");
-    group.sample_size(30);
+fn sparse_unique(size: usize) -> (Vec<u32>, Vec<u32>) {
+    let old = (0..size as u32).collect::<Vec<_>>();
+    let mut new = old.clone();
+    // Keep edits away from the boundaries so prefix/suffix trimming is measured.
+    new[size / 5] = u32::MAX;
+    new[size / 2] = u32::MAX - 1;
+    new[size * 4 / 5] = u32::MAX - 2;
+    (old, new)
+}
 
-    for &case in SAMPLE_CASES {
-        group.throughput(Throughput::Bytes((case.old.len() + case.new.len()) as u64));
+fn repeated_shift(size: usize) -> (Vec<u32>, Vec<u32>) {
+    let old = (0..size).map(|index| (index & 1) as u32).collect();
+    let new = (0..size).map(|index| ((index + 1) & 1) as u32).collect();
+    (old, new)
+}
+
+fn disjoint(size: usize) -> (Vec<u32>, Vec<u32>) {
+    (
+        (0..size as u32).collect(),
+        (0..size as u32).map(|value| value + size as u32).collect(),
+    )
+}
+
+fn large_sparse_text() -> &'static (String, String) {
+    static DATA: OnceLock<(String, String)> = OnceLock::new();
+    DATA.get_or_init(|| {
+        let mut old = String::with_capacity(1_000_000);
+        let mut new = String::with_capacity(1_000_000);
+        writeln!(new, "// inserted header").unwrap();
+
+        for index in 0..20_000 {
+            writeln!(old, "record {index:06}: alpha beta gamma delta").unwrap();
+            if index % 5_000 == 2_500 {
+                writeln!(new, "record {index:06}: alpha beta gamma EDITED").unwrap();
+            } else {
+                writeln!(new, "record {index:06}: alpha beta gamma delta").unwrap();
+            }
+        }
+        writeln!(new, "// inserted footer").unwrap();
+        (old, new)
+    })
+}
+
+fn late_edit_text() -> &'static (String, String) {
+    static DATA: OnceLock<(String, String)> = OnceLock::new();
+    DATA.get_or_init(|| {
+        let mut old = String::with_capacity(1_000_000);
+        let mut new = String::with_capacity(1_000_000);
+        for index in 0..20_000 {
+            writeln!(old, "record {index:06}: unchanged payload").unwrap();
+            if index == 19_999 {
+                writeln!(new, "record {index:06}: edited payload").unwrap();
+            } else {
+                writeln!(new, "record {index:06}: unchanged payload").unwrap();
+            }
+        }
+        (old, new)
+    })
+}
+
+fn bench_fixtures(c: &mut Criterion) {
+    let mut group = c.benchmark_group("text_fixtures");
+    group.sample_size(30);
+    group.measurement_time(Duration::from_secs(1));
+
+    for fixture in FIXTURES {
+        group.throughput(Throughput::Bytes(
+            (fixture.old.len() + fixture.new.len()) as u64,
+        ));
+        for &algorithm in ALL_ALGORITHMS {
+            group.bench_with_input(
+                BenchmarkId::new(fixture.name, format!("{algorithm:?}")),
+                &(fixture, algorithm),
+                |b, &(fixture, algorithm)| {
+                    b.iter(|| fixture_diff(black_box(*fixture), algorithm));
+                },
+            );
+        }
+    }
+    group.finish();
+}
+
+fn bench_algorithm_matrix(c: &mut Criterion) {
+    let identical = (0..20_000u32).collect::<Vec<_>>();
+    let sparse = sparse_unique(20_000);
+    let disjoint = disjoint(20_000);
+    let repeated = repeated_shift(2_000);
+
+    let mut group = c.benchmark_group("algorithm_core");
+    group.sample_size(20);
+    group.measurement_time(Duration::from_secs(2));
+
+    group.throughput(Throughput::Elements((identical.len() * 2) as u64));
+    for &algorithm in ALL_ALGORITHMS {
         group.bench_with_input(
-            BenchmarkId::new(case.name, format!("{:?}", case.algorithm)),
-            &case,
-            |b, &case| {
-                b.iter(|| black_box(run_case(case)));
+            BenchmarkId::new("identical", format!("{algorithm:?}/n={}", identical.len())),
+            &algorithm,
+            |b, &algorithm| {
+                b.iter(|| {
+                    black_box(capture_diff_slices(
+                        algorithm,
+                        black_box(&identical),
+                        black_box(&identical),
+                    ))
+                });
             },
         );
     }
 
+    for (name, (old, new)) in [("sparse_unique", &sparse), ("disjoint", &disjoint)] {
+        group.throughput(Throughput::Elements((old.len() + new.len()) as u64));
+        for &algorithm in SCALABLE_ALGORITHMS {
+            group.bench_with_input(
+                BenchmarkId::new(name, format!("{algorithm:?}/n={}", old.len())),
+                &algorithm,
+                |b, &algorithm| {
+                    b.iter(|| {
+                        black_box(capture_diff_slices(
+                            algorithm,
+                            black_box(old),
+                            black_box(new),
+                        ))
+                    });
+                },
+            );
+        }
+    }
+
+    group.throughput(Throughput::Elements(
+        (repeated.0.len() + repeated.1.len()) as u64,
+    ));
+    for &algorithm in SCALABLE_ALGORITHMS {
+        group.bench_with_input(
+            BenchmarkId::new(
+                "repeated_shift",
+                format!("{algorithm:?}/n={}", repeated.0.len()),
+            ),
+            &algorithm,
+            |b, &algorithm| {
+                b.iter(|| {
+                    black_box(capture_diff_slices(
+                        algorithm,
+                        black_box(&repeated.0),
+                        black_box(&repeated.1),
+                    ))
+                });
+            },
+        );
+    }
     group.finish();
 }
 
-fn large_sparse_files() -> &'static (String, String) {
-    static DATA: OnceLock<(String, String)> = OnceLock::new();
-    DATA.get_or_init(|| {
-        let mut old = String::new();
-        let mut new = String::new();
+fn bench_dense_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("dense_repeated_scaling");
+    group.sample_size(15);
+    group.measurement_time(Duration::from_secs(2));
 
-        new.push_str("// inserted header line 1\n");
-        new.push_str("// inserted header line 2\n");
-
-        for i in 0..60_000 {
-            let base = format!("record {i:06}: alpha beta gamma delta epsilon\n");
-            old.push_str(&base);
-
-            if i % 8_000 == 0 {
-                new.push_str(&format!(
-                    "record {i:06}: alpha beta gamma DELTA epsilon (edited)\n"
-                ));
-                new.push_str(&format!("record {i:06}.1: inserted sibling record\n"));
-            } else {
-                new.push_str(&base);
-            }
-        }
-
-        new.push_str("// inserted footer line\n");
-
-        (old, new)
-    })
-}
-
-fn pathological_repeated_files() -> &'static (String, String) {
-    static DATA: OnceLock<(String, String)> = OnceLock::new();
-    DATA.get_or_init(|| {
-        let mut old = String::new();
-        let mut new = String::new();
-
-        for i in 0..20_000 {
-            let old_bucket = i % 8;
-            let new_bucket = (i + 1) % 8;
-
-            old.push_str(&format!("bucket-{old_bucket}: repeated payload\n"));
-            new.push_str(&format!("bucket-{new_bucket}: repeated payload\n"));
-
-            if i % 4_000 == 0 {
-                old.push_str(&format!("anchor-old-{i:05}\n"));
-                new.push_str(&format!("anchor-new-{i:05}\n"));
-            }
-        }
-
-        (old, new)
-    })
-}
-
-fn unbalanced_append_without_trailing_newline() -> &'static (String, String) {
-    static DATA: OnceLock<(String, String)> = OnceLock::new();
-    DATA.get_or_init(|| {
-        let old = (0..3_000)
-            .map(|i| format!("line {i}"))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        let appended = (0..100_000)
-            .map(|i| format!("extra {i}"))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        let new = format!("{}\n{}", old, appended);
-        (old, new)
-    })
-}
-
-fn unbalanced_sparse_overlap() -> &'static (String, String) {
-    static DATA: OnceLock<(String, String)> = OnceLock::new();
-    DATA.get_or_init(|| {
-        let prefix = (0..3_000)
-            .map(|i| format!("line {i}"))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        let old_tail = (0..8)
-            .map(|i| format!("tail {i}"))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        let old = format!("{}\n{}", prefix, old_tail);
-
-        let mut new_tail = (0..100_000)
-            .map(|i| format!("extra {i}"))
-            .collect::<Vec<_>>();
-        new_tail[50_000] = "tail 0".to_string();
-
-        let new = format!("{}\n{}", prefix, new_tail.join("\n"));
-        (old, new)
-    })
-}
-
-fn bench_large_cases(c: &mut Criterion) {
-    let mut group = c.benchmark_group("large_cases");
-    group.sample_size(10);
-
-    let (old_sparse, new_sparse) = large_sparse_files();
-    group.throughput(Throughput::Bytes(
-        (old_sparse.len() + new_sparse.len()) as u64,
-    ));
-    group.bench_function("large_sparse_file_lines::Myers", |b| {
-        b.iter(|| {
-            let mut config = TextDiff::configure();
-            config.algorithm(Algorithm::Myers);
-            let diff = config.diff_lines(black_box(old_sparse), black_box(new_sparse));
-            black_box(diff.ops().len())
-        });
-    });
-
-    let (old_pathological, new_pathological) = pathological_repeated_files();
-    group.throughput(Throughput::Bytes(
-        (old_pathological.len() + new_pathological.len()) as u64,
-    ));
-    group.bench_function("pathological_repeated_file_lines::Myers", |b| {
-        b.iter(|| {
-            let mut config = TextDiff::configure();
-            config.algorithm(Algorithm::Myers);
-            let diff = config.diff_lines(black_box(old_pathological), black_box(new_pathological));
-            black_box(diff.ops().len())
-        });
-    });
-
-    let (old_unbalanced_append, new_unbalanced_append) =
-        unbalanced_append_without_trailing_newline();
-    group.throughput(Throughput::Bytes(
-        (old_unbalanced_append.len() + new_unbalanced_append.len()) as u64,
-    ));
-    group.bench_function("unbalanced_append_no_trailing_newline::Myers", |b| {
-        b.iter(|| {
-            let mut config = TextDiff::configure();
-            config.algorithm(Algorithm::Myers);
-            let diff = config.diff_lines(
-                black_box(old_unbalanced_append),
-                black_box(new_unbalanced_append),
+    for size in [128, 256, 512, 1024] {
+        let (old, new) = repeated_shift(size);
+        group.throughput(Throughput::Elements((size * 2) as u64));
+        for &algorithm in ALL_ALGORITHMS {
+            group.bench_with_input(
+                BenchmarkId::new(format!("n={size}"), format!("{algorithm:?}")),
+                &algorithm,
+                |b, &algorithm| {
+                    b.iter(|| {
+                        black_box(capture_diff_slices(
+                            algorithm,
+                            black_box(&old),
+                            black_box(&new),
+                        ))
+                    });
+                },
             );
-            black_box(diff.ops().len())
-        });
-    });
-
-    let (old_unbalanced_sparse, new_unbalanced_sparse) = unbalanced_sparse_overlap();
-    group.throughput(Throughput::Bytes(
-        (old_unbalanced_sparse.len() + new_unbalanced_sparse.len()) as u64,
-    ));
-    group.bench_function("unbalanced_sparse_overlap::Myers", |b| {
-        b.iter(|| {
-            let mut config = TextDiff::configure();
-            config.algorithm(Algorithm::Myers);
-            let diff = config.diff_lines(
-                black_box(old_unbalanced_sparse),
-                black_box(new_unbalanced_sparse),
-            );
-            black_box(diff.ops().len())
-        });
-    });
-
+        }
+    }
     group.finish();
 }
 
-criterion_group!(benches, bench_sample_cases, bench_large_cases);
+fn bench_text_end_to_end(c: &mut Criterion) {
+    let sparse = large_sparse_text();
+    let late_edit = late_edit_text();
+    let mut group = c.benchmark_group("text_end_to_end");
+    group.sample_size(15);
+    group.measurement_time(Duration::from_secs(2));
+
+    for (name, (old, new)) in [
+        ("sparse_20k_lines", sparse),
+        ("late_edit_20k_lines", late_edit),
+    ] {
+        group.throughput(Throughput::Bytes((old.len() + new.len()) as u64));
+        for &algorithm in SCALABLE_ALGORITHMS {
+            group.bench_with_input(
+                BenchmarkId::new(name, format!("{algorithm:?}")),
+                &algorithm,
+                |b, &algorithm| {
+                    b.iter(|| {
+                        let mut config = TextDiff::configure();
+                        config.algorithm(algorithm);
+                        black_box(config.diff_lines(black_box(old), black_box(new)))
+                    });
+                },
+            );
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_fixtures,
+    bench_algorithm_matrix,
+    bench_dense_scaling,
+    bench_text_end_to_end
+);
 criterion_main!(benches);

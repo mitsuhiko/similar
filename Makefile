@@ -32,4 +32,7 @@ lint:
 bench:
 	@cargo bench --bench diffs
 
-.PHONY: all doc test format format-check lint bench
+bench-memory:
+	@cargo bench --bench allocations
+
+.PHONY: all doc test format format-check lint bench bench-memory

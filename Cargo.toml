@@ -79,5 +79,9 @@ required-features = ["text", "serde"]
 name = "diffs"
 harness = false
 
+[[bench]]
+name = "allocations"
+harness = false
+
 [profile.release]
 debug = true
