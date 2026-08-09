@@ -7,6 +7,45 @@ use core::ops::{Add, Index, Range};
 
 use crate::types::MapType;
 
+/// A small bucket that stores its first value inline.
+///
+/// Most hash buckets in diff inputs contain a single value.  Using a `Vec` for
+/// every bucket adds one heap allocation per distinct input item, so the common
+/// one-value case lives directly in the map instead.
+pub(crate) struct HashBucket<T> {
+    first: T,
+    rest: Vec<T>,
+}
+
+impl<T> HashBucket<T> {
+    pub(crate) fn new(first: T) -> Self {
+        Self {
+            first,
+            rest: Vec::new(),
+        }
+    }
+
+    pub(crate) fn push(&mut self, value: T) {
+        self.rest.push(value);
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.rest.len() + 1
+    }
+
+    pub(crate) fn iter(&self) -> impl DoubleEndedIterator<Item = &T> {
+        core::iter::once(&self.first).chain(self.rest.iter())
+    }
+
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        core::iter::once(&mut self.first).chain(self.rest.iter_mut())
+    }
+
+    pub(crate) fn into_iter(self) -> impl Iterator<Item = T> {
+        core::iter::once(self.first).chain(self.rest)
+    }
+}
+
 /// Utility function to check if a range is empty that works on older rust versions
 #[inline(always)]
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
@@ -118,10 +157,13 @@ where
 {
     // We key buckets by hash to stay compatible with both HashMap and
     // BTreeMap backends without requiring `Idx::Output: Ord`.
-    let mut by_hash = MapType::<u64, Vec<(usize, Option<usize>)>>::new();
+    let mut by_hash = MapType::<u64, HashBucket<(usize, Option<usize>)>>::new();
     for index in range {
         let hash = stable_hash(&lookup[index]);
-        let bucket = by_hash.entry(hash).or_default();
+        let Some(bucket) = by_hash.get_mut(&hash) else {
+            by_hash.insert(hash, HashBucket::new((index, Some(index))));
+            continue;
+        };
 
         let mut found = false;
         for (representative, unique_index) in bucket.iter_mut() {
@@ -140,8 +182,8 @@ where
     }
 
     let mut rv = by_hash
-        .into_iter()
-        .flat_map(|(_, bucket)| bucket.into_iter())
+        .into_values()
+        .flat_map(|bucket| bucket.into_iter())
         .filter_map(|(_, unique_index)| unique_index)
         .map(|index| UniqueItem { lookup, index })
         .collect::<Vec<_>>();
@@ -267,7 +309,7 @@ where
             New(usize),
         }
 
-        let mut map = MapType::<u64, Vec<(Representative, Int)>>::new();
+        let mut map = MapType::<u64, HashBucket<(Representative, Int)>>::new();
         let mut old_seq = Vec::new();
         let mut new_seq = Vec::new();
         let mut next_id = Int::default();
@@ -277,15 +319,21 @@ where
 
         for idx in old_range {
             let hash = stable_hash(&old[idx]);
-            let bucket = map.entry(hash).or_default();
-            let id = if let Some((_, id)) = bucket.iter().find(
-                |(rep, _)| matches!(rep, Representative::Old(rep_idx) if old[idx] == old[*rep_idx]),
-            ) {
-                *id
+            let id = if let Some(bucket) = map.get_mut(&hash) {
+                if let Some((_, id)) = bucket.iter().find(
+                    |(rep, _)| matches!(rep, Representative::Old(rep_idx) if old[idx] == old[*rep_idx]),
+                ) {
+                    *id
+                } else {
+                    let id = next_id;
+                    next_id = next_id + step;
+                    bucket.push((Representative::Old(idx), id));
+                    id
+                }
             } else {
                 let id = next_id;
                 next_id = next_id + step;
-                bucket.push((Representative::Old(idx), id));
+                map.insert(hash, HashBucket::new((Representative::Old(idx), id)));
                 id
             };
             old_seq.push(id);
@@ -293,16 +341,22 @@ where
 
         for idx in new_range {
             let hash = stable_hash(&new[idx]);
-            let bucket = map.entry(hash).or_default();
-            let id = if let Some((_, id)) = bucket.iter().find(|(rep, _)| match rep {
-                Representative::Old(rep_idx) => new[idx] == old[*rep_idx],
-                Representative::New(rep_idx) => new[idx] == new[*rep_idx],
-            }) {
-                *id
+            let id = if let Some(bucket) = map.get_mut(&hash) {
+                if let Some((_, id)) = bucket.iter().find(|(rep, _)| match rep {
+                    Representative::Old(rep_idx) => new[idx] == old[*rep_idx],
+                    Representative::New(rep_idx) => new[idx] == new[*rep_idx],
+                }) {
+                    *id
+                } else {
+                    let id = next_id;
+                    next_id = next_id + step;
+                    bucket.push((Representative::New(idx), id));
+                    id
+                }
             } else {
                 let id = next_id;
                 next_id = next_id + step;
-                bucket.push((Representative::New(idx), id));
+                map.insert(hash, HashBucket::new((Representative::New(idx), id)));
                 id
             };
             new_seq.push(id);

@@ -1,16 +1,16 @@
-use alloc::vec::Vec;
 use core::any::type_name;
 use core::hash::Hash;
 use core::ops::{Index, Range};
 
 use crate::algorithms::DiffHook;
-use crate::algorithms::utils::stable_hash;
+use crate::algorithms::utils::{HashBucket, stable_hash};
 use crate::deadline_support::{Instant, deadline_exceeded};
 use crate::types::MapType;
 
 const DISJOINT_FAST_PATH_MIN_LEN: usize = 512;
 const DISJOINT_FAST_PATH_MIN_WORK: usize = 128 * 1024;
 const DISJOINT_FAST_PATH_DEADLINE_CHECK_INTERVAL: usize = 1024;
+const DISJOINT_FAST_PATH_BOUNDARY_PROBE: usize = 8;
 
 pub(crate) fn maybe_emit_disjoint_fast_path<Old, New, D>(
     d: &mut D,
@@ -54,6 +54,22 @@ where
         return Ok(false);
     }
 
+    // Cheaply recognize a small insertion/deletion at either edge.  Without
+    // this probe, an inserted header makes otherwise identical large files pay
+    // for a full hash index merely to prove that they are not disjoint.
+    let probe_len = old_len
+        .min(new_len)
+        .min(DISJOINT_FAST_PATH_BOUNDARY_PROBE + 1);
+    for skip in 1..probe_len {
+        if new[new_range.start + skip] == old[old_range.start]
+            || new[new_range.start] == old[old_range.start + skip]
+            || new[new_range.end - 1 - skip] == old[old_range.end - 1]
+            || new[new_range.end - 1] == old[old_range.end - 1 - skip]
+        {
+            return Ok(false);
+        }
+    }
+
     let has_common_item =
         match has_common_item(old, old_range.clone(), new, new_range.clone(), deadline) {
             Some(value) => value,
@@ -83,17 +99,19 @@ where
     Old::Output: Hash,
     New::Output: PartialEq<Old::Output> + Hash,
 {
-    let mut by_hash = MapType::<u64, Vec<usize>>::new();
+    let mut by_hash = MapType::<u64, HashBucket<usize>>::new();
     for (idx, old_idx) in old_range.enumerate() {
         if (idx & (DISJOINT_FAST_PATH_DEADLINE_CHECK_INTERVAL - 1) == 0)
             && deadline_exceeded(deadline)
         {
             return None;
         }
-        by_hash
-            .entry(stable_hash(&old[old_idx]))
-            .or_default()
-            .push(old_idx);
+        let hash = stable_hash(&old[old_idx]);
+        if let Some(bucket) = by_hash.get_mut(&hash) {
+            bucket.push(old_idx);
+        } else {
+            by_hash.insert(hash, HashBucket::new(old_idx));
+        }
     }
 
     for (idx, new_idx) in new_range.enumerate() {

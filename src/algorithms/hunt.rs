@@ -23,7 +23,7 @@ use core::ops::{Index, Range};
 
 use crate::types::MapType;
 
-use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
+use crate::algorithms::utils::{HashBucket, common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::{DiffHook, IdentifyDistinct, NoFinishHook, myers, preflight};
 use crate::deadline_support::{Instant, deadline_exceeded};
 
@@ -275,18 +275,20 @@ fn build_match_list<New>(
     new: &New,
     new_range: Range<usize>,
     deadline: Option<Instant>,
-) -> Option<MapType<usize, Vec<usize>>>
+) -> Option<MapType<usize, HashBucket<usize>>>
 where
     New: Index<usize, Output = usize> + ?Sized,
 {
-    let mut rv = MapType::new();
+    let mut rv = MapType::<usize, HashBucket<usize>>::new();
     for new_index in new_range {
         if deadline_exceeded(deadline) {
             return None;
         }
-        rv.entry(new[new_index])
-            .or_insert_with(Vec::new)
-            .push(new_index);
+        if let Some(positions) = rv.get_mut(&new[new_index]) {
+            positions.push(new_index);
+        } else {
+            rv.insert(new[new_index], HashBucket::new(new_index));
+        }
     }
     Some(rv)
 }
@@ -308,7 +310,7 @@ fn lower_bound(slice: &[usize], value: usize) -> usize {
 fn hunt_anchors<Old>(
     old: &Old,
     old_range: Range<usize>,
-    match_list: &MapType<usize, Vec<usize>>,
+    match_list: &MapType<usize, HashBucket<usize>>,
     deadline: Option<Instant>,
 ) -> Option<Vec<(usize, usize)>>
 where

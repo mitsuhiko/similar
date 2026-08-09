@@ -16,13 +16,14 @@
 
 #[cfg(test)]
 use alloc::vec;
+#[cfg(test)]
 use alloc::vec::Vec;
 use core::hash::Hash;
 use core::ops::{Index, Range};
 
 use crate::types::MapType;
 
-use crate::algorithms::utils::{common_prefix_len, common_suffix_len, is_empty_range};
+use crate::algorithms::utils::{HashBucket, common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::{DiffHook, IdentifyDistinct, NoFinishHook, myers, preflight};
 use crate::deadline_support::{Instant, deadline_exceeded};
 
@@ -284,13 +285,15 @@ where
         return SearchResult::Fallback;
     }
 
-    let mut old_positions = MapType::<usize, Vec<usize>>::new();
-    let mut old_counts = MapType::<usize, usize>::new();
+    let mut old_positions = MapType::<usize, HashBucket<usize>>::new();
 
     for old_idx in old_range.clone() {
         let value = old[old_idx];
-        old_positions.entry(value).or_default().push(old_idx);
-        *old_counts.entry(value).or_insert(0) += 1;
+        if let Some(positions) = old_positions.get_mut(&value) {
+            positions.push(old_idx);
+        } else {
+            old_positions.insert(value, HashBucket::new(old_idx));
+        }
     }
 
     let mut has_common = false;
@@ -314,7 +317,7 @@ where
             continue;
         }
 
-        for &old_idx in candidates {
+        for &old_idx in candidates.iter() {
             let mut old_start = old_idx;
             let mut new_start = new_idx;
             let mut old_end = old_idx;
@@ -327,7 +330,7 @@ where
             {
                 old_start -= 1;
                 new_start -= 1;
-                let cnt = old_counts[&old[old_start]];
+                let cnt = old_positions[&old[old_start]].len();
                 if cnt < min_count {
                     min_count = cnt;
                 }
@@ -339,7 +342,7 @@ where
             {
                 old_end += 1;
                 new_end += 1;
-                let cnt = old_counts[&old[old_end]];
+                let cnt = old_positions[&old[old_end]].len();
                 if cnt < min_count {
                     min_count = cnt;
                 }
