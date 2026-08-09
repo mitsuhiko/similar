@@ -75,6 +75,10 @@ required-features = ["text"]
 name = "serde"
 required-features = ["text", "serde"]
 
+[[example]]
+name = "perf-fuzz"
+required-features = ["std", "text"]
+
 [[bench]]
 name = "diffs"
 harness = false

@@ -35,4 +35,7 @@ bench:
 bench-memory:
 	@cargo bench --bench allocations
 
-.PHONY: all doc test format format-check lint bench bench-memory
+perf-fuzz:
+	@cargo run --release --example perf-fuzz -- $(PERF_FUZZ_ARGS)
+
+.PHONY: all doc test format format-check lint bench bench-memory perf-fuzz
