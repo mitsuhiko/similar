@@ -31,7 +31,9 @@ use crate::deadline_support::{Instant, deadline_exceeded};
 struct Candidate {
     old_index: usize,
     new_index: usize,
-    prev: Option<usize>,
+    // `usize::MAX` is the end-of-chain sentinel.  Avoiding `Option<usize>`
+    // keeps each candidate to three machine words instead of four.
+    prev: usize,
 }
 
 /// Hunt-style diff algorithm.
@@ -127,18 +129,40 @@ where
         return Ok(());
     }
 
-    // Build a shared integer domain first so we can use a compact key type for
-    // match lists while still supporting old/new lookups of different types.
-    let h = IdentifyDistinct::<usize>::new(old, old_range, new, new_range);
-    diff_deadline_int(
-        d,
-        h.old_lookup(),
-        h.old_range(),
-        h.new_lookup(),
-        h.new_range(),
-        deadline,
-        use_raw_myers,
-    )
+    // Trim before building the shared integer domain. Identical inputs then
+    // need no allocation, and sparse edits only remap their changed middle.
+    let prefix = common_prefix_len(old, old_range.clone(), new, new_range.clone());
+    let old_after_prefix = old_range.start + prefix..old_range.end;
+    let new_after_prefix = new_range.start + prefix..new_range.end;
+    let suffix = common_suffix_len(old, old_after_prefix.clone(), new, new_after_prefix.clone());
+    let old_middle = old_after_prefix.start..old_after_prefix.end - suffix;
+    let new_middle = new_after_prefix.start..new_after_prefix.end - suffix;
+
+    if prefix > 0 {
+        d.equal(old_range.start, new_range.start, prefix)?;
+    }
+
+    if !old_middle.is_empty() || !new_middle.is_empty() {
+        // Build a shared integer domain first so we can use a compact key type
+        // for match lists while supporting differing old/new output types.
+        let h = IdentifyDistinct::<usize>::new(old, old_middle, new, new_middle);
+        let mut no_finish_d = NoFinishHook::new(&mut *d);
+        diff_deadline_int(
+            &mut no_finish_d,
+            h.old_lookup(),
+            h.old_range(),
+            h.new_lookup(),
+            h.new_range(),
+            deadline,
+            use_raw_myers,
+        )?;
+    }
+
+    if suffix > 0 {
+        d.equal(old_range.end - suffix, new_range.end - suffix, suffix)?;
+    }
+
+    d.finish()
 }
 
 fn diff_deadline_int<Old, New, D>(
@@ -316,6 +340,31 @@ fn hunt_anchors<Old>(
 where
     Old: Index<usize, Output = usize> + ?Sized,
 {
+    const MAX_MATCH_PAIRS_PER_INPUT_ITEM: usize = 64;
+    const MAX_MATCH_PAIRS: usize = 1_000_000;
+
+    let max_match_pairs = old_range
+        .len()
+        .saturating_add(match_list.values().map(HashBucket::len).sum())
+        .saturating_mul(MAX_MATCH_PAIRS_PER_INPUT_ITEM)
+        .min(MAX_MATCH_PAIRS);
+    let mut match_pairs = 0usize;
+    for old_index in old_range.clone() {
+        if deadline_exceeded(deadline) {
+            return None;
+        }
+        if let Some(new_indexes) = match_list.get(&old[old_index]) {
+            match_pairs = match_pairs.saturating_add(new_indexes.len());
+            if match_pairs > max_match_pairs {
+                // Highly repetitive inputs make R (and the candidate chain)
+                // quadratic. Myers handles these cases with bounded linear
+                // memory and is usually faster, so use it as a safety valve
+                // before allocating a partial candidate chain.
+                return None;
+            }
+        }
+    }
+
     let mut thresh = Vec::new();
     let mut links = Vec::new();
     let mut candidates = Vec::new();
@@ -330,7 +379,7 @@ where
                 let k = lower_bound(&thresh, new_index);
 
                 if k == thresh.len() || new_index < thresh[k] {
-                    let prev = if k > 0 { Some(links[k - 1]) } else { None };
+                    let prev = if k > 0 { links[k - 1] } else { usize::MAX };
                     let candidate_index = candidates.len();
                     candidates.push(Candidate {
                         old_index,
@@ -360,11 +409,10 @@ where
     loop {
         let c = candidates[ptr];
         anchors.push((c.old_index, c.new_index));
-        if let Some(prev) = c.prev {
-            ptr = prev;
-        } else {
+        if c.prev == usize::MAX {
             break;
         }
+        ptr = c.prev;
     }
 
     anchors.reverse();
@@ -552,6 +600,16 @@ fn test_lcs_length_matches_classic_lcs() {
         let lcs = capture_diff_slices(Algorithm::Lcs, &a, &b);
         assert_eq!(equal_len(&hunt), equal_len(&lcs));
     }
+}
+
+#[test]
+fn test_repetitive_match_list_uses_memory_safety_valve() {
+    let size = 512;
+    let old = (0..size).map(|index| index & 1).collect::<Vec<_>>();
+    let new = (0..size).map(|index| (index + 1) & 1).collect::<Vec<_>>();
+    let match_list = build_match_list(&new, 0..new.len(), None).unwrap();
+
+    assert!(hunt_anchors(&old, 0..old.len(), &match_list, None).is_none());
 }
 
 #[test]
