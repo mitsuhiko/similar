@@ -4,6 +4,11 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+* Improved large-input performance by avoiding quadratic Histogram scans.
+* Reduced allocations in hash-based indexing, changed LCS tables to compact
+  contiguous storage, and sized Myers working memory after trimming common
+  input edges.
+
 ## 3.1.2
 
 * Fixed `Algorithm::Lcs` deadline fallback emitting edits twice, which produced
