@@ -135,18 +135,40 @@ where
         return Ok(());
     }
 
-    // Build a shared integer domain so we can use a compact key type while
-    // still supporting differing old/new output types.
-    let h = IdentifyDistinct::<usize>::new(old, old_range, new, new_range);
-    diff_deadline_int(
-        d,
-        h.old_lookup(),
-        h.old_range(),
-        h.new_lookup(),
-        h.new_range(),
-        deadline,
-        use_raw_myers,
-    )
+    // Trim before building the shared integer domain. Identical inputs then
+    // need no allocation, and sparse edits only remap their changed middle.
+    let prefix = common_prefix_len(old, old_range.clone(), new, new_range.clone());
+    let old_after_prefix = old_range.start + prefix..old_range.end;
+    let new_after_prefix = new_range.start + prefix..new_range.end;
+    let suffix = common_suffix_len(old, old_after_prefix.clone(), new, new_after_prefix.clone());
+    let old_middle = old_after_prefix.start..old_after_prefix.end - suffix;
+    let new_middle = new_after_prefix.start..new_after_prefix.end - suffix;
+
+    if prefix > 0 {
+        d.equal(old_range.start, new_range.start, prefix)?;
+    }
+
+    if !old_middle.is_empty() || !new_middle.is_empty() {
+        // Build a shared integer domain so we can use a compact key type while
+        // still supporting differing old/new output types.
+        let h = IdentifyDistinct::<usize>::new(old, old_middle, new, new_middle);
+        let mut no_finish_d = NoFinishHook::new(&mut *d);
+        diff_deadline_int(
+            &mut no_finish_d,
+            h.old_lookup(),
+            h.old_range(),
+            h.new_lookup(),
+            h.new_range(),
+            deadline,
+            use_raw_myers,
+        )?;
+    }
+
+    if suffix > 0 {
+        d.equal(old_range.end - suffix, new_range.end - suffix, suffix)?;
+    }
+
+    d.finish()
 }
 
 fn diff_deadline_int<Old, New, D>(
@@ -299,6 +321,10 @@ where
     let mut has_common = false;
     let mut best: Option<Anchor> = None;
     let mut best_count = usize::MAX;
+    // Extending every matching item across the same equal run makes nearly
+    // identical inputs quadratic.  Remember the furthest covered new index on
+    // each diagonal so every equal run is extended only once.
+    let mut covered_diagonals = MapType::<(bool, usize), usize>::new();
 
     for new_idx in new_range.clone() {
         if deadline_exceeded(deadline) {
@@ -318,6 +344,18 @@ where
         }
 
         for &old_idx in candidates.iter() {
+            let diagonal = if old_idx >= new_idx {
+                (true, old_idx - new_idx)
+            } else {
+                (false, new_idx - old_idx)
+            };
+            if covered_diagonals
+                .get(&diagonal)
+                .is_some_and(|&covered_end| new_idx <= covered_end)
+            {
+                continue;
+            }
+
             let mut old_start = old_idx;
             let mut new_start = new_idx;
             let mut old_end = old_idx;
@@ -330,6 +368,9 @@ where
             {
                 old_start -= 1;
                 new_start -= 1;
+                if (new_start & 1023 == 0) && deadline_exceeded(deadline) {
+                    return SearchResult::Fallback;
+                }
                 let cnt = old_positions[&old[old_start]].len();
                 if cnt < min_count {
                     min_count = cnt;
@@ -342,10 +383,19 @@ where
             {
                 old_end += 1;
                 new_end += 1;
+                if (new_end & 1023 == 0) && deadline_exceeded(deadline) {
+                    return SearchResult::Fallback;
+                }
                 let cnt = old_positions[&old[old_end]].len();
                 if cnt < min_count {
                     min_count = cnt;
                 }
+            }
+
+            if let Some(covered_end) = covered_diagonals.get_mut(&diagonal) {
+                *covered_end = (*covered_end).max(new_end);
+            } else {
+                covered_diagonals.insert(diagonal, new_end);
             }
 
             let len = old_end - old_start + 1;
@@ -674,6 +724,49 @@ fn test_cross_type_lookup_compatibility() {
         .sum::<usize>();
 
     assert_eq!(equal_len, 3);
+}
+
+#[test]
+fn test_anchor_search_scans_equal_runs_once() {
+    use core::cell::Cell;
+
+    struct CountingLookup<'a> {
+        values: &'a [usize],
+        lookups: Cell<usize>,
+    }
+
+    impl Index<usize> for CountingLookup<'_> {
+        type Output = usize;
+
+        fn index(&self, index: usize) -> &Self::Output {
+            self.lookups.set(self.lookups.get() + 1);
+            &self.values[index]
+        }
+    }
+
+    let size = 2048;
+    let old_values = (0..size).collect::<Vec<_>>();
+    let mut new_values = old_values.clone();
+    new_values[size / 4] = size + 1;
+    new_values[size / 2] = size + 2;
+    new_values[size * 3 / 4] = size + 3;
+    let old = CountingLookup {
+        values: &old_values,
+        lookups: Cell::new(0),
+    };
+    let new = CountingLookup {
+        values: &new_values,
+        lookups: Cell::new(0),
+    };
+
+    assert!(matches!(
+        find_anchor(&old, 0..size, &new, 0..size, None),
+        SearchResult::Anchor(_)
+    ));
+
+    // Re-extending the run from every matching item used to require millions
+    // of lookups for this input. The diagonal coverage cache keeps it linear.
+    assert!(old.lookups.get() + new.lookups.get() < size * 50);
 }
 
 #[test]

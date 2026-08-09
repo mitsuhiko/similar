@@ -541,7 +541,26 @@ impl TextDiffConfig {
         newline_terminated: bool,
     ) -> TextDiff<'old, 'new, T> {
         let deadline = self.deadline.and_then(|x| x.into_instant());
-        let ops = if old.len() > 100 || new.len() > 100 {
+        let remap_to_integers = (old.len() > 100 || new.len() > 100)
+            && !matches!(self.algorithm, Algorithm::Hunt | Algorithm::Histogram);
+        // Only pre-scan equality when it can avoid the integer-remapping pass
+        // and no timeout needs to be observed. Hunt and Histogram already trim
+        // equal ranges before building their indexes, so scanning here would
+        // duplicate their prefix comparison.
+        let inputs_are_equal = deadline.is_none()
+            && remap_to_integers
+            && old.len() == new.len()
+            && old
+                .iter()
+                .zip(new.iter())
+                .all(|(old_value, new_value)| old_value == new_value);
+        let ops = if inputs_are_equal {
+            vec![DiffOp::Equal {
+                old_index: 0,
+                new_index: 0,
+                len: old.len(),
+            }]
+        } else if remap_to_integers {
             let ih = IdentifyDistinct::<u32>::new(&old, 0..old.len(), &new, 0..new.len());
             capture_diff_deadline(
                 self.algorithm,

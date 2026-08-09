@@ -19,7 +19,7 @@ use core::ops::{Index, Range};
 use crate::algorithms::{DiffHook, NoFinishHook, Replace, myers, preflight};
 use crate::deadline_support::Instant;
 
-use super::utils::{UniqueItem, unique};
+use super::utils::{UniqueItem, common_prefix_len, unique};
 
 /// Patience diff algorithm.
 ///
@@ -114,10 +114,24 @@ where
         return Ok(());
     }
 
+    // Uniqueness must be computed over the complete ranges: values repeated
+    // in a common edge still are not valid Patience anchors in the middle.
+    // Identical input is the one case where the maps can be skipped safely,
+    // but do not add an unbudgeted prefix pass when a deadline is active.
+    if deadline.is_none() {
+        let prefix = common_prefix_len(old, old_range.clone(), new, new_range.clone());
+        if old_range.len() == new_range.len() && prefix == old_range.len() {
+            if prefix > 0 {
+                d.equal(old_range.start, new_range.start, prefix)?;
+            }
+            return d.finish();
+        }
+    }
+
     let old_indexes = unique(old, old_range.clone());
     let new_indexes = unique(new, new_range.clone());
 
-    let mut d = Replace::new(Patience {
+    let mut patience_d = Replace::new(Patience {
         d,
         old,
         old_current: old_range.start,
@@ -133,7 +147,7 @@ where
 
     if use_raw_myers {
         myers::diff_deadline_raw(
-            &mut d,
+            &mut patience_d,
             &old_indexes,
             0..old_indexes.len(),
             &new_indexes,
@@ -142,7 +156,7 @@ where
         )?;
     } else {
         myers::diff_deadline(
-            &mut d,
+            &mut patience_d,
             &old_indexes,
             0..old_indexes.len(),
             &new_indexes,
@@ -248,6 +262,40 @@ fn test_patience() {
     diff(&mut d, a, 0..a.len(), b, 0..b.len()).unwrap();
 
     insta::assert_debug_snapshot!(d.into_inner().ops());
+}
+
+#[test]
+fn test_uniqueness_includes_common_edges() {
+    let old = [1, 1, 0, 0];
+    let new = [0, 1, 1, 0];
+    let mut d = Replace::new(crate::algorithms::Capture::new());
+    diff(&mut d, &old, 0..old.len(), &new, 0..new.len()).unwrap();
+
+    assert_eq!(
+        d.into_inner().into_ops(),
+        vec![
+            crate::DiffOp::Insert {
+                old_index: 0,
+                new_index: 0,
+                new_len: 1,
+            },
+            crate::DiffOp::Equal {
+                old_index: 0,
+                new_index: 1,
+                len: 2,
+            },
+            crate::DiffOp::Delete {
+                old_index: 2,
+                old_len: 1,
+                new_index: 3,
+            },
+            crate::DiffOp::Equal {
+                old_index: 3,
+                new_index: 3,
+                len: 1,
+            },
+        ]
+    );
 }
 
 #[test]
