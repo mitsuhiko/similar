@@ -21,6 +21,21 @@ use crate::deadline_support::Instant;
 
 use super::utils::{UniqueItem, common_prefix_len, unique};
 
+#[derive(Clone, Copy)]
+struct DiffOptions {
+    run_preflight: bool,
+    use_raw_myers: bool,
+}
+
+const HEURISTIC_OPTIONS: DiffOptions = DiffOptions {
+    run_preflight: true,
+    use_raw_myers: false,
+};
+const RAW_OPTIONS: DiffOptions = DiffOptions {
+    run_preflight: false,
+    use_raw_myers: true,
+};
+
 /// Patience diff algorithm.
 ///
 /// Diff `old`, between indices `old_range` and `new` between indices `new_range`.
@@ -62,7 +77,15 @@ where
     New::Output: PartialEq<Old::Output> + Hash + Eq,
     D: DiffHook,
 {
-    diff_deadline_impl(d, old, old_range, new, new_range, deadline, true, false)
+    diff_deadline_impl(
+        d,
+        old,
+        old_range,
+        new,
+        new_range,
+        deadline,
+        HEURISTIC_OPTIONS,
+    )
 }
 
 /// Raw patience diff algorithm with deadline and without shared heuristics.
@@ -81,7 +104,7 @@ where
     New::Output: PartialEq<Old::Output> + Hash + Eq,
     D: DiffHook,
 {
-    diff_deadline_impl(d, old, old_range, new, new_range, deadline, false, true)
+    diff_deadline_impl(d, old, old_range, new, new_range, deadline, RAW_OPTIONS)
 }
 
 fn diff_deadline_impl<Old, New, D>(
@@ -91,8 +114,7 @@ fn diff_deadline_impl<Old, New, D>(
     new: &New,
     new_range: Range<usize>,
     deadline: Option<Instant>,
-    run_preflight: bool,
-    use_raw_myers: bool,
+    options: DiffOptions,
 ) -> Result<(), D::Error>
 where
     Old: Index<usize> + ?Sized,
@@ -101,7 +123,7 @@ where
     New::Output: PartialEq<Old::Output> + Hash + Eq,
     D: DiffHook,
 {
-    if run_preflight
+    if options.run_preflight
         && preflight::maybe_emit_replace_fast_path(
             d,
             old,
@@ -142,10 +164,10 @@ where
         new_end: new_range.end,
         new_indexes: &new_indexes,
         deadline,
-        use_raw_myers,
+        use_raw_myers: options.use_raw_myers,
     });
 
-    if use_raw_myers {
+    if options.use_raw_myers {
         myers::diff_deadline_raw(
             &mut patience_d,
             &old_indexes,

@@ -81,8 +81,10 @@ fn main() {
     println!("Edge case handling: {} operations", ops.len());
 
     println!("\n=== High Precision ===");
-    let old_precise = vec![1.0000000000001_f64, 2.0, 3.141592653589793];
-    let new_precise = vec![1.0000000000002_f64, 2.0, 3.141592653589794];
+    let pi = std::f64::consts::PI;
+    let nearby_pi = f64::from_bits(pi.to_bits() + 2);
+    let old_precise = vec![1.0000000000001_f64, 2.0, pi];
+    let new_precise = vec![1.0000000000002_f64, 2.0, nearby_pi];
     let ops_precise = diff_with_buckets(&old_precise, &new_precise, 1e-12);
     println!(
         "f64 comparison with bucket size 1e-12: {} operations",

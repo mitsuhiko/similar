@@ -144,10 +144,7 @@ impl InlineChangeOptions {
     }
 }
 
-fn tokenize_inline<'s, T: DiffableStr + ?Sized>(
-    string: &'s T,
-    mode: InlineChangeMode,
-) -> Vec<&'s T> {
+fn tokenize_inline<T: DiffableStr + ?Sized>(string: &T, mode: InlineChangeMode) -> Vec<&T> {
     match mode {
         InlineChangeMode::Auto => {
             #[cfg(feature = "unicode")]
@@ -590,8 +587,8 @@ where
                     next.new_range().len(),
                 );
 
-                while edit.new_range().len() > 0
-                    && next.new_range().len() > 0
+                while !edit.new_range().is_empty()
+                    && !next.new_range().is_empty()
                     && new[edit.new_range().start] == new[next.new_range().start]
                 {
                     prev.grow_right(1);
@@ -660,8 +657,8 @@ where
                     next.old_range().len(),
                 );
 
-                while edit.old_range().len() > 0
-                    && next.old_range().len() > 0
+                while !edit.old_range().is_empty()
+                    && !next.old_range().is_empty()
                     && old[edit.old_range().start] == old[next.old_range().start]
                 {
                     prev.grow_right(1);
@@ -752,12 +749,10 @@ where
 
             if pointer > 0 {
                 if let DiffOp::Equal { .. } = ops[pointer - 1] {
-                    if {
-                        let prev = ops[pointer - 1];
-                        let prev_old = prev.old_range();
-                        let prev_new = prev.new_range();
-                        prev_old.end == old_start && prev_new.end == new_start
-                    } {
+                    let prev = ops[pointer - 1];
+                    let prev_old = prev.old_range();
+                    let prev_new = prev.new_range();
+                    if prev_old.end == old_start && prev_new.end == new_start {
                         ops[pointer - 1].grow_right(prefix);
                     } else {
                         ops.insert(pointer, eq);

@@ -29,6 +29,21 @@ use crate::deadline_support::{Instant, deadline_exceeded};
 
 const MAX_CHAIN_LENGTH: usize = 64;
 
+#[derive(Clone, Copy)]
+struct DiffOptions {
+    run_preflight: bool,
+    use_raw_myers: bool,
+}
+
+const HEURISTIC_OPTIONS: DiffOptions = DiffOptions {
+    run_preflight: true,
+    use_raw_myers: false,
+};
+const RAW_OPTIONS: DiffOptions = DiffOptions {
+    run_preflight: false,
+    use_raw_myers: true,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Anchor {
     old_start: usize,
@@ -83,7 +98,15 @@ where
     Old::Output: Hash + Eq,
     New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
-    diff_deadline_impl(d, old, old_range, new, new_range, deadline, true, false)
+    diff_deadline_impl(
+        d,
+        old,
+        old_range,
+        new,
+        new_range,
+        deadline,
+        HEURISTIC_OPTIONS,
+    )
 }
 
 /// Raw histogram diff algorithm with deadline and without shared heuristics.
@@ -102,7 +125,7 @@ where
     Old::Output: Hash + Eq,
     New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
-    diff_deadline_impl(d, old, old_range, new, new_range, deadline, false, true)
+    diff_deadline_impl(d, old, old_range, new, new_range, deadline, RAW_OPTIONS)
 }
 
 fn diff_deadline_impl<Old, New, D>(
@@ -112,8 +135,7 @@ fn diff_deadline_impl<Old, New, D>(
     new: &New,
     new_range: Range<usize>,
     deadline: Option<Instant>,
-    run_preflight: bool,
-    use_raw_myers: bool,
+    options: DiffOptions,
 ) -> Result<(), D::Error>
 where
     Old: Index<usize> + ?Sized,
@@ -122,7 +144,7 @@ where
     Old::Output: Hash + Eq,
     New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
-    if run_preflight
+    if options.run_preflight
         && preflight::maybe_emit_replace_fast_path(
             d,
             old,
@@ -160,7 +182,7 @@ where
             h.new_lookup(),
             h.new_range(),
             deadline,
-            use_raw_myers,
+            options.use_raw_myers,
         )?;
     }
 
