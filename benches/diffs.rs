@@ -95,6 +95,17 @@ fn sparse_unique(size: usize) -> (Vec<u32>, Vec<u32>) {
     (old, new)
 }
 
+fn sparse_overlap(size: usize) -> (Vec<u32>, Vec<u32>) {
+    let old = (0..size as u32).collect::<Vec<_>>();
+    let mut new = (size as u32..size as u32 * 2).collect::<Vec<_>>();
+    for fraction in [1, 2, 3, 5, 7, 9] {
+        let old_index = size * fraction / 10;
+        let new_index = size * (fraction * 9 + 5) / 100;
+        new[new_index] = old[old_index];
+    }
+    (old, new)
+}
+
 fn repeated_shift(size: usize) -> (Vec<u32>, Vec<u32>) {
     let old = (0..size).map(|index| (index & 1) as u32).collect();
     let new = (0..size).map(|index| ((index + 1) & 1) as u32).collect();
@@ -170,6 +181,7 @@ fn bench_fixtures(c: &mut Criterion) {
 fn bench_algorithm_matrix(c: &mut Criterion) {
     let identical = (0..20_000u32).collect::<Vec<_>>();
     let sparse = sparse_unique(20_000);
+    let sparse_overlap = sparse_overlap(20_000);
     let disjoint = disjoint(20_000);
     let repeated = repeated_shift(2_000);
 
@@ -194,7 +206,11 @@ fn bench_algorithm_matrix(c: &mut Criterion) {
         );
     }
 
-    for (name, (old, new)) in [("sparse_unique", &sparse), ("disjoint", &disjoint)] {
+    for (name, (old, new)) in [
+        ("sparse_unique", &sparse),
+        ("sparse_overlap", &sparse_overlap),
+        ("disjoint", &disjoint),
+    ] {
         group.throughput(Throughput::Elements((old.len() + new.len()) as u64));
         for &algorithm in SCALABLE_ALGORITHMS {
             group.bench_with_input(

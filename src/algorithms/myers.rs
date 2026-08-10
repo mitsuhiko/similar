@@ -14,6 +14,9 @@
 //! See [`crate::algorithms`] for the shared heuristics policy and the
 //! `diff_deadline_raw` API.
 //!
+//! Before the search, the default entrypoints remove unmatched/confusing
+//! records.
+//!
 //! The default entrypoints use a Git-style bounded middle-snake search. On
 //! difficult inputs it accepts a good non-optimal split, or the best split
 //! reached after a size-dependent search limit. This keeps Myers useful as a
@@ -74,26 +77,21 @@ where
     Old::Output: Hash + Eq,
     New::Output: PartialEq<Old::Output> + Hash + Eq,
 {
-    if preflight::maybe_emit_replace_fast_path(
-        d,
-        old,
-        old_range.clone(),
-        new,
-        new_range.clone(),
-        deadline,
-    )? {
-        return Ok(());
+    match preflight::reduce_for_myers(old, old_range.clone(), new, new_range.clone(), deadline) {
+        Some(preflight::MyersPreflight::Reduced(reduced)) => diff_reduced(d, &reduced, deadline),
+        Some(preflight::MyersPreflight::Trimmed(trimmed)) => {
+            diff_deadline_pretrimmed(d, old, new, &trimmed, deadline, MyersMode::Heuristic)
+        }
+        None => diff_deadline_impl(
+            d,
+            old,
+            old_range,
+            new,
+            new_range,
+            deadline,
+            MyersMode::Heuristic,
+        ),
     }
-
-    diff_deadline_impl(
-        d,
-        old,
-        old_range,
-        new,
-        new_range,
-        deadline,
-        MyersMode::Heuristic,
-    )
 }
 
 /// Raw Myers diff algorithm with deadline and without heuristics that can
@@ -136,6 +134,134 @@ impl MyersSearch {
     }
 }
 
+struct ReducedDiffHook<'a, D> {
+    d: &'a mut D,
+    old_indices: &'a [usize],
+    new_indices: &'a [usize],
+    old_cursor: usize,
+    new_cursor: usize,
+    old_end: usize,
+    new_end: usize,
+}
+
+impl<D: DiffHook> ReducedDiffHook<'_, D> {
+    fn emit_gaps(&mut self, old_anchor: usize, new_anchor: usize) -> Result<(), D::Error> {
+        if self.old_cursor < old_anchor {
+            self.d.delete(
+                self.old_cursor,
+                old_anchor - self.old_cursor,
+                self.new_cursor,
+            )?;
+            self.old_cursor = old_anchor;
+        }
+        if self.new_cursor < new_anchor {
+            self.d.insert(
+                self.old_cursor,
+                self.new_cursor,
+                new_anchor - self.new_cursor,
+            )?;
+            self.new_cursor = new_anchor;
+        }
+        Ok(())
+    }
+}
+
+impl<D: DiffHook> DiffHook for ReducedDiffHook<'_, D> {
+    type Error = D::Error;
+
+    fn equal(&mut self, old_index: usize, new_index: usize, len: usize) -> Result<(), Self::Error> {
+        let mut offset = 0usize;
+        while offset < len {
+            let old_anchor = self.old_indices[old_index + offset];
+            let new_anchor = self.new_indices[new_index + offset];
+            self.emit_gaps(old_anchor, new_anchor)?;
+
+            let mut run_len = 1usize;
+            while offset + run_len < len
+                && self.old_indices[old_index + offset + run_len] == old_anchor + run_len
+                && self.new_indices[new_index + offset + run_len] == new_anchor + run_len
+            {
+                run_len += 1;
+            }
+            self.d.equal(old_anchor, new_anchor, run_len)?;
+            self.old_cursor = old_anchor + run_len;
+            self.new_cursor = new_anchor + run_len;
+            offset += run_len;
+        }
+        Ok(())
+    }
+
+    // Only equalities in the reduced sequence are anchors. Items deleted or
+    // inserted there remain part of the original gaps emitted around the next
+    // anchor (or by `finish`).
+    fn delete(
+        &mut self,
+        _old_index: usize,
+        _old_len: usize,
+        _new_index: usize,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn insert(
+        &mut self,
+        _old_index: usize,
+        _new_index: usize,
+        _new_len: usize,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn finish(&mut self) -> Result<(), Self::Error> {
+        self.emit_gaps(self.old_end, self.new_end)
+    }
+}
+
+fn diff_reduced<D: DiffHook>(
+    d: &mut D,
+    reduced: &preflight::ReducedDiffInput,
+    deadline: Option<Instant>,
+) -> Result<(), D::Error> {
+    let trimmed = &reduced.trimmed;
+    if trimmed.prefix_len > 0 {
+        d.equal(
+            trimmed.original_old_range.start,
+            trimmed.original_new_range.start,
+            trimmed.prefix_len,
+        )?;
+    }
+
+    let mut hook = ReducedDiffHook {
+        d,
+        old_indices: &reduced.old_indices,
+        new_indices: &reduced.new_indices,
+        old_cursor: trimmed.old_range.start,
+        new_cursor: trimmed.new_range.start,
+        old_end: trimmed.old_range.end,
+        new_end: trimmed.new_range.end,
+    };
+    let old_len = reduced.old_values.len();
+    let new_len = reduced.new_values.len();
+    diff_deadline_impl(
+        &mut hook,
+        &reduced.old_values,
+        0..old_len,
+        &reduced.new_values,
+        0..new_len,
+        deadline,
+        MyersMode::Heuristic,
+    )?;
+
+    if trimmed.suffix_len > 0 {
+        d.equal(
+            trimmed.original_old_range.end - trimmed.suffix_len,
+            trimmed.original_new_range.end - trimmed.suffix_len,
+            trimmed.suffix_len,
+        )?;
+    }
+    d.finish()
+}
+
 fn diff_deadline_impl<Old, New, D>(
     d: &mut D,
     old: &Old,
@@ -160,40 +286,74 @@ where
     let after_prefix_new = new_range.start + common_prefix_len..new_range.end;
     let common_suffix_len =
         common_suffix_len(old, after_prefix_old.clone(), new, after_prefix_new.clone());
-    let middle_old = after_prefix_old.start..after_prefix_old.end - common_suffix_len;
-    let middle_new = after_prefix_new.start..after_prefix_new.end - common_suffix_len;
+    let trimmed = preflight::TrimmedDiffInput {
+        old_range: after_prefix_old.start..after_prefix_old.end - common_suffix_len,
+        new_range: after_prefix_new.start..after_prefix_new.end - common_suffix_len,
+        original_old_range: old_range,
+        original_new_range: new_range,
+        prefix_len: common_prefix_len,
+        suffix_len: common_suffix_len,
+    };
+    diff_deadline_pretrimmed(d, old, new, &trimmed, deadline, mode)
+}
 
-    if common_prefix_len > 0 {
-        d.equal(old_range.start, new_range.start, common_prefix_len)?;
+fn diff_deadline_pretrimmed<Old, New, D>(
+    d: &mut D,
+    old: &Old,
+    new: &New,
+    trimmed: &preflight::TrimmedDiffInput,
+    deadline: Option<Instant>,
+    mode: MyersMode,
+) -> Result<(), D::Error>
+where
+    Old: Index<usize> + ?Sized,
+    New: Index<usize> + ?Sized,
+    D: DiffHook,
+    New::Output: PartialEq<Old::Output>,
+{
+    if trimmed.prefix_len > 0 {
+        d.equal(
+            trimmed.original_old_range.start,
+            trimmed.original_new_range.start,
+            trimmed.prefix_len,
+        )?;
     }
 
-    if middle_old.is_empty() && middle_new.is_empty() {
+    if trimmed.old_range.is_empty() && trimmed.new_range.is_empty() {
         // Nothing to emit.
-    } else if middle_old.is_empty() {
-        d.insert(middle_old.start, middle_new.start, middle_new.len())?;
-    } else if middle_new.is_empty() {
-        d.delete(middle_old.start, middle_old.len(), middle_new.start)?;
+    } else if trimmed.old_range.is_empty() {
+        d.insert(
+            trimmed.old_range.start,
+            trimmed.new_range.start,
+            trimmed.new_range.len(),
+        )?;
+    } else if trimmed.new_range.is_empty() {
+        d.delete(
+            trimmed.old_range.start,
+            trimmed.old_range.len(),
+            trimmed.new_range.start,
+        )?;
     } else {
-        let max_d = max_d(middle_old.len(), middle_new.len());
+        let max_d = max_d(trimmed.old_range.len(), trimmed.new_range.len());
         let mut vb = V::new(max_d);
         let mut vf = V::new(max_d);
         conquer(
             d,
             old,
-            middle_old,
+            trimmed.old_range.clone(),
             new,
-            middle_new,
+            trimmed.new_range.clone(),
             &mut vf,
             &mut vb,
             MyersSearch { deadline, mode },
         )?;
     }
 
-    if common_suffix_len > 0 {
+    if trimmed.suffix_len > 0 {
         d.equal(
-            old_range.end - common_suffix_len,
-            new_range.end - common_suffix_len,
-            common_suffix_len,
+            trimmed.original_old_range.end - trimmed.suffix_len,
+            trimmed.original_new_range.end - trimmed.suffix_len,
+            trimmed.suffix_len,
         )?;
     }
 
@@ -1347,7 +1507,72 @@ fn test_raw_accepts_partialeq_only_values() {
 }
 
 #[test]
-fn test_raw_myers_skips_behavior_changing_preflight() {
+fn test_myers_preflight_reuses_common_context_scan() {
+    use core::cell::Cell;
+    use core::hash::{Hash, Hasher};
+
+    struct Counted<'a> {
+        value: u32,
+        comparisons: &'a Cell<usize>,
+    }
+
+    impl Hash for Counted<'_> {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            self.value.hash(state);
+        }
+    }
+
+    impl PartialEq for Counted<'_> {
+        fn eq(&self, other: &Self) -> bool {
+            self.comparisons.set(self.comparisons.get() + 1);
+            self.value == other.value
+        }
+    }
+
+    impl Eq for Counted<'_> {}
+
+    let comparisons = Cell::new(0);
+    let old = (0..2048)
+        .map(|value| Counted {
+            value,
+            comparisons: &comparisons,
+        })
+        .collect::<Vec<_>>();
+    let new = (0..2048)
+        .map(|value| Counted {
+            value,
+            comparisons: &comparisons,
+        })
+        .collect::<Vec<_>>();
+    let mut d = crate::algorithms::Capture::new();
+
+    diff(&mut d, &old, 0..old.len(), &new, 0..new.len()).unwrap();
+    assert_eq!(comparisons.get(), old.len());
+
+    #[cfg(feature = "std")]
+    {
+        use core::time::Duration;
+
+        comparisons.set(0);
+        let deadline = Instant::now()
+            .checked_sub(Duration::from_millis(1))
+            .unwrap();
+        let mut d = crate::algorithms::Capture::new();
+        diff_deadline(
+            &mut d,
+            &old,
+            0..old.len(),
+            &new,
+            0..new.len(),
+            Some(deadline),
+        )
+        .unwrap();
+        assert_eq!(comparisons.get(), old.len());
+    }
+}
+
+#[test]
+fn test_myers_reduction_and_raw_myers_preserve_sparse_match() {
     use crate::{Algorithm, DiffOp, capture_diff_slices};
 
     let old = (0..1024u32).collect::<Vec<_>>();
@@ -1365,8 +1590,44 @@ fn test_raw_myers_skips_behavior_changing_preflight() {
     let heuristic = capture_diff_slices(Algorithm::Myers, &old, &new);
     let raw = capture_diff_slices(Algorithm::RawMyers, &old, &new);
 
-    assert_eq!(equal_len(&heuristic), 0);
+    assert_eq!(equal_len(&heuristic), 1);
     assert_eq!(equal_len(&raw), 1);
+}
+
+#[test]
+fn test_myers_reduction_preserves_subrange_offsets() {
+    use crate::{Algorithm, DiffOp, capture_diff};
+
+    let mut old = vec![99_999];
+    old.extend(0..1024u32);
+    old.push(88_888);
+    let mut new = vec![77_777];
+    new.extend(10_000..11_024u32);
+    new.push(66_666);
+    new[513] = old[257];
+
+    assert_eq!(
+        capture_diff(Algorithm::Myers, &old, 1..1025, &new, 1..1025),
+        vec![
+            DiffOp::Replace {
+                old_index: 1,
+                old_len: 256,
+                new_index: 1,
+                new_len: 512,
+            },
+            DiffOp::Equal {
+                old_index: 257,
+                new_index: 513,
+                len: 1,
+            },
+            DiffOp::Replace {
+                old_index: 258,
+                old_len: 767,
+                new_index: 514,
+                new_len: 511,
+            },
+        ]
+    );
 }
 
 #[test]

@@ -58,10 +58,11 @@
 //!
 //! At a high level, the current heuristics are:
 //!
-//! - **Shared near-disjoint-range fast path** (all heuristic algorithms):
+//! - **Shared near-disjoint-range fast path** (all heuristic algorithms except Myers):
 //!   if two large ranges have no common items, or only a negligible handful,
 //!   we skip expensive search and emit a straight delete+insert replacement.
-//!   [`Algorithm::RawMyers`] deliberately skips this fast path.
+//!   [`Algorithm::RawMyers`] deliberately skips this fast path. Myers instead
+//!   reduces the input so sparse useful matches remain visible.
 //! - **Prefix/suffix trimming** (used widely):
 //!   matching runs at the beginning/end are emitted immediately so each
 //!   algorithm only works on the changed middle.
