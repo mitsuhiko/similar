@@ -344,6 +344,7 @@ fn test_capture_diff_slices_by_key_all_algorithms() {
 
     for alg in [
         Algorithm::Myers,
+        Algorithm::RawMyers,
         Algorithm::Patience,
         Algorithm::Lcs,
         Algorithm::Hunt,

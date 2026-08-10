@@ -21,8 +21,19 @@ use crate::iter::ChangesIter;
 )]
 #[non_exhaustive]
 pub enum Algorithm {
-    /// Picks the myers algorithm from [`crate::algorithms::myers`]
+    /// Picks the practical, heuristic Myers algorithm from
+    /// [`crate::algorithms::myers`].
+    ///
+    /// This is the default. It can trade a minimal edit script for bounded work
+    /// on difficult inputs. Use [`Algorithm::RawMyers`] when a
+    /// shortest-edit-script search without these heuristics is required.
     Myers,
+    /// Picks the raw Myers algorithm from [`crate::algorithms::myers`].
+    ///
+    /// Unlike [`Algorithm::Myers`], this does not use heuristics that can change
+    /// the resulting edit script. Without a deadline it computes a shortest
+    /// edit script, but pathological inputs can take a very long time.
+    RawMyers,
     /// Picks the patience algorithm from [`crate::algorithms::patience`]
     Patience,
     /// Picks the classic LCS table algorithm from [`crate::algorithms::lcs`]

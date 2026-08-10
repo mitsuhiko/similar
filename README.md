@@ -36,7 +36,7 @@ fn main() {
 
 ## What's in the box?
 
-* Myers' diff
+* Practical heuristic Myers diff and raw Myers diff
 * Patience diff
 * Hunt-style diff
 * Histogram diff

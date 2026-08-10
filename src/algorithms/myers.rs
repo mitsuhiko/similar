@@ -14,9 +14,15 @@
 //! See [`crate::algorithms`] for the shared heuristics policy and the
 //! `diff_deadline_raw` API.
 //!
-//! This algorithm additionally applies local shortcuts inside the core
-//! recursion (prefix/suffix trimming, front-anchor peeling, small-side exact
-//! fallback), with the optional deadline as a final safeguard.
+//! The default entrypoints use a Git-style bounded middle-snake search. On
+//! difficult inputs it accepts a good non-optimal split, or the best split
+//! reached after a size-dependent search limit. This keeps Myers useful as a
+//! general fallback at the cost of occasionally producing a non-minimal edit
+//! script. [`diff_deadline_raw`] retains the raw shortest-path search.
+//!
+//! Both modes additionally apply exactness-preserving local shortcuts inside
+//! the core recursion (prefix/suffix trimming, front-anchor peeling, and a
+//! small-side exact fallback), with the optional deadline as a final safeguard.
 
 use alloc::vec;
 use alloc::vec::Vec;
@@ -79,10 +85,19 @@ where
         return Ok(());
     }
 
-    diff_deadline_impl(d, old, old_range, new, new_range, deadline)
+    diff_deadline_impl(
+        d,
+        old,
+        old_range,
+        new,
+        new_range,
+        deadline,
+        MyersMode::Heuristic,
+    )
 }
 
-/// Raw Myers diff algorithm with deadline and without shared heuristics.
+/// Raw Myers diff algorithm with deadline and without heuristics that can
+/// change the resulting edit script.
 ///
 /// This preserves the historical bound profile and accepts non-hashable
 /// value types as long as cross-type equality is available.
@@ -100,7 +115,25 @@ where
     D: DiffHook,
     New::Output: PartialEq<Old::Output>,
 {
-    diff_deadline_impl(d, old, old_range, new, new_range, deadline)
+    diff_deadline_impl(d, old, old_range, new, new_range, deadline, MyersMode::Raw)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MyersMode {
+    Heuristic,
+    Raw,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MyersSearch {
+    deadline: Option<Instant>,
+    mode: MyersMode,
+}
+
+impl MyersSearch {
+    fn with_mode(self, mode: MyersMode) -> Self {
+        Self { mode, ..self }
+    }
 }
 
 fn diff_deadline_impl<Old, New, D>(
@@ -110,6 +143,7 @@ fn diff_deadline_impl<Old, New, D>(
     new: &New,
     new_range: Range<usize>,
     deadline: Option<Instant>,
+    mode: MyersMode,
 ) -> Result<(), D::Error>
 where
     Old: Index<usize> + ?Sized,
@@ -144,7 +178,14 @@ where
         let mut vb = V::new(max_d);
         let mut vf = V::new(max_d);
         conquer(
-            d, old, middle_old, new, middle_new, &mut vf, &mut vb, deadline,
+            d,
+            old,
+            middle_old,
+            new,
+            middle_new,
+            &mut vf,
+            &mut vb,
+            MyersSearch { deadline, mode },
         )?;
     }
 
@@ -216,6 +257,16 @@ const SMALL_SIDE_EXACT_MIN_LARGE: usize = 512;
 const SMALL_SIDE_EXACT_MAX_WORK: usize = 64_000_000;
 const SMALL_SIDE_DEADLINE_CHECK_INTERVAL: usize = 1024;
 const FRONT_ANCHOR_DEADLINE_CHECK_INTERVAL: usize = 1024;
+
+// These follow the shape of Git/xdiff's practical Myers policy. Once the
+// search has become expensive, a long diagonal is a useful split even when it
+// is not known to lie on a shortest edit path. A separate size-dependent cap
+// ensures that inputs without such a diagonal cannot make the search
+// quadratic in their total length.
+const HEURISTIC_MIN_COST: usize = 256;
+const HEURISTIC_MIN_SNAKE: usize = 20;
+const HEURISTIC_MIN_MAX_COST: usize = 256;
+const HEURISTIC_PROGRESS_FACTOR: usize = 4;
 
 #[inline(always)]
 fn common_prefix_len_at<Old, New>(
@@ -792,6 +843,99 @@ where
 /// simultaneously run the basic algorithm in both the forward and reverse
 /// directions until furthest reaching forward and reverse paths starting at
 /// opposing corners 'overlap'.
+#[derive(Clone, Copy, Debug)]
+enum SplitDirection {
+    Forward,
+    Backward,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct HeuristicSplit {
+    old_index: usize,
+    new_index: usize,
+    progress: usize,
+    direction: SplitDirection,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MiddleSnakeSplit {
+    old_index: usize,
+    new_index: usize,
+    left_mode: MyersMode,
+    right_mode: MyersMode,
+}
+
+impl MiddleSnakeSplit {
+    fn exact(old_index: usize, new_index: usize) -> Self {
+        Self {
+            old_index,
+            new_index,
+            left_mode: MyersMode::Raw,
+            right_mode: MyersMode::Raw,
+        }
+    }
+
+    fn heuristic(split: HeuristicSplit, old_start: usize, new_start: usize) -> Self {
+        let (left_mode, right_mode) = match split.direction {
+            SplitDirection::Forward => (MyersMode::Raw, MyersMode::Heuristic),
+            SplitDirection::Backward => (MyersMode::Heuristic, MyersMode::Raw),
+        };
+        Self {
+            old_index: old_start + split.old_index,
+            new_index: new_start + split.new_index,
+            left_mode,
+            right_mode,
+        }
+    }
+}
+
+fn update_best_split(best: &mut Option<HeuristicSplit>, candidate: HeuristicSplit) {
+    if best
+        .as_ref()
+        .is_none_or(|current| candidate.progress > current.progress)
+    {
+        *best = Some(candidate);
+    }
+}
+
+fn is_interior_split(old_index: usize, new_index: usize, old_len: usize, new_len: usize) -> bool {
+    old_index <= old_len
+        && new_index <= new_len
+        && (old_index != 0 || new_index != 0)
+        && (old_index != old_len || new_index != new_len)
+}
+
+fn clamp_diagonal_point(
+    old_index: usize,
+    diagonal: isize,
+    old_len: usize,
+    new_len: usize,
+) -> Option<(usize, usize)> {
+    if diagonal < 0 && diagonal.unsigned_abs() > new_len {
+        return None;
+    }
+
+    let min_old = diagonal.max(0) as usize;
+    let max_old = if diagonal >= 0 {
+        old_len.min(new_len.saturating_add(diagonal as usize))
+    } else {
+        old_len.min(new_len.saturating_sub(diagonal.unsigned_abs()))
+    };
+    if min_old > max_old {
+        return None;
+    }
+
+    let old_index = old_index.clamp(min_old, max_old);
+    Some((old_index, (old_index as isize - diagonal) as usize))
+}
+
+fn heuristic_max_cost(old_len: usize, new_len: usize) -> usize {
+    old_len
+        .saturating_add(new_len)
+        .isqrt()
+        .max(HEURISTIC_MIN_MAX_COST)
+}
+
 fn find_middle_snake<Old, New>(
     old: &Old,
     old_range: Range<usize>,
@@ -799,8 +943,8 @@ fn find_middle_snake<Old, New>(
     new_range: Range<usize>,
     vf: &mut V,
     vb: &mut V,
-    deadline: Option<Instant>,
-) -> Option<(usize, usize)>
+    search: MyersSearch,
+) -> Option<MiddleSnakeSplit>
 where
     Old: Index<usize> + ?Sized,
     New: Index<usize> + ?Sized,
@@ -819,16 +963,23 @@ where
     // The initial point at (N, M+1)
     vb[1] = 0;
 
-    // We only need to explore ceil(D/2) + 1
+    // We only need to explore ceil(D/2) + 1.
     let d_max = max_d(n, m);
     assert!(vf.len() >= d_max);
     assert!(vb.len() >= d_max);
+    let max_cost = match search.mode {
+        MyersMode::Heuristic => heuristic_max_cost(n, m),
+        MyersMode::Raw => usize::MAX,
+    };
 
     for d in 0..d_max as isize {
-        // are we running for too long?
-        if deadline_exceeded(deadline) {
+        if deadline_exceeded(search.deadline) {
             break;
         }
+
+        let mut good_split = None;
+        let mut forward_split = None;
+        let mut backward_split = None;
 
         // Forward path
         for k in (-d..=d).rev().step_by(2) {
@@ -841,9 +992,7 @@ where
 
             // The coordinate of the start of a snake
             let (x0, y0) = (x, y);
-            //  While these sequences are identical, keep moving through the
-            //  graph with no cost
-            if x < old_range.len() && y < new_range.len() {
+            if x < n && y < m {
                 let advance = common_prefix_len_at(
                     old,
                     old_range.start + x,
@@ -854,6 +1003,7 @@ where
                 );
                 x += advance;
             }
+            let snake_len = x - x0;
 
             // This is the new best x value
             vf[k] = x;
@@ -861,11 +1011,45 @@ where
             // Only check for connections from the forward search when N - M is
             // odd and when there is a reciprocal k line coming from the other
             // direction.
-            if odd && (k - delta).abs() <= (d - 1) {
-                // TODO optimize this so we don't have to compare against n
-                if vf[k] + vb[-(k - delta)] >= n {
-                    // Return the snake
-                    return Some((x0 + old_range.start, y0 + new_range.start));
+            if odd && (k - delta).abs() <= (d - 1) && vf[k] + vb[-(k - delta)] >= n {
+                return Some(MiddleSnakeSplit::exact(
+                    x0 + old_range.start,
+                    y0 + new_range.start,
+                ));
+            }
+
+            if search.mode == MyersMode::Heuristic {
+                if let Some((split_old, split_new)) = clamp_diagonal_point(x, k, n, m) {
+                    if is_interior_split(split_old, split_new, n, m) {
+                        update_best_split(
+                            &mut forward_split,
+                            HeuristicSplit {
+                                old_index: split_old,
+                                new_index: split_new,
+                                progress: split_old.saturating_add(split_new),
+                                direction: SplitDirection::Forward,
+                            },
+                        );
+                    }
+                }
+
+                let useful_progress = x.saturating_add(y).saturating_sub(k.unsigned_abs());
+                if d as usize > HEURISTIC_MIN_COST
+                    && snake_len >= HEURISTIC_MIN_SNAKE
+                    && x < n
+                    && y < m
+                    && useful_progress > HEURISTIC_PROGRESS_FACTOR.saturating_mul(d as usize)
+                    && is_interior_split(x0, y0, n, m)
+                {
+                    update_best_split(
+                        &mut good_split,
+                        HeuristicSplit {
+                            old_index: x0,
+                            new_index: y0,
+                            progress: useful_progress,
+                            direction: SplitDirection::Forward,
+                        },
+                    );
                 }
             }
         }
@@ -878,8 +1062,8 @@ where
                 vb[k - 1] + 1
             };
             let mut y = (x as isize - k) as usize;
+            let x0 = x;
 
-            // The coordinate of the start of a snake
             if x < n && y < m {
                 let advance = common_suffix_len_at(
                     old,
@@ -892,23 +1076,88 @@ where
                 x += advance;
                 y += advance;
             }
+            let snake_len = x - x0;
 
             // This is the new best x value
             vb[k] = x;
 
-            if !odd && (k - delta).abs() <= d {
-                // TODO optimize this so we don't have to compare against n
-                if vb[k] + vf[-(k - delta)] >= n {
-                    // Return the snake
-                    return Some((n - x + old_range.start, m - y + new_range.start));
+            if !odd && (k - delta).abs() <= d && vb[k] + vf[-(k - delta)] >= n {
+                return Some(MiddleSnakeSplit::exact(
+                    n - x + old_range.start,
+                    m - y + new_range.start,
+                ));
+            }
+
+            if search.mode == MyersMode::Heuristic {
+                if let Some((distance_old, distance_new)) = clamp_diagonal_point(x, k, n, m) {
+                    let split_old = n - distance_old;
+                    let split_new = m - distance_new;
+                    if is_interior_split(split_old, split_new, n, m) {
+                        update_best_split(
+                            &mut backward_split,
+                            HeuristicSplit {
+                                old_index: split_old,
+                                new_index: split_new,
+                                progress: distance_old.saturating_add(distance_new),
+                                direction: SplitDirection::Backward,
+                            },
+                        );
+                    }
+                }
+
+                if x <= n && y <= m {
+                    let split_old = n - x;
+                    let split_new = m - y;
+                    let useful_progress = x.saturating_add(y).saturating_sub(k.unsigned_abs());
+                    if d as usize > HEURISTIC_MIN_COST
+                        && snake_len >= HEURISTIC_MIN_SNAKE
+                        && split_old > 0
+                        && split_new > 0
+                        && useful_progress > HEURISTIC_PROGRESS_FACTOR.saturating_mul(d as usize)
+                    {
+                        update_best_split(
+                            &mut good_split,
+                            HeuristicSplit {
+                                old_index: split_old,
+                                new_index: split_new,
+                                progress: useful_progress,
+                                direction: SplitDirection::Backward,
+                            },
+                        );
+                    }
                 }
             }
         }
 
-        // TODO: Maybe there's an opportunity to optimize and bail early?
+        if let Some(split) = good_split {
+            return Some(MiddleSnakeSplit::heuristic(
+                split,
+                old_range.start,
+                new_range.start,
+            ));
+        }
+
+        if d as usize >= max_cost {
+            let split = match (forward_split, backward_split) {
+                (Some(forward), Some(backward)) => {
+                    if forward.progress > backward.progress {
+                        forward
+                    } else {
+                        backward
+                    }
+                }
+                (Some(split), None) | (None, Some(split)) => split,
+                (None, None) => break,
+            };
+            return Some(MiddleSnakeSplit::heuristic(
+                split,
+                old_range.start,
+                new_range.start,
+            ));
+        }
     }
 
-    // deadline reached
+    // The deadline was reached before an exact or heuristic split was found.
     None
 }
 
@@ -921,7 +1170,7 @@ fn conquer<Old, New, D>(
     mut new_range: Range<usize>,
     vf: &mut V,
     vb: &mut V,
-    deadline: Option<Instant>,
+    search: MyersSearch,
 ) -> Result<(), D::Error>
 where
     Old: Index<usize> + ?Sized,
@@ -949,7 +1198,7 @@ where
     while old_range.start < old_range.end && new_range.start < new_range.end {
         let old_start_before = old_range.start;
         let new_start_before = new_range.start;
-        try_emit_front_anchor(d, old, &mut old_range, new, &mut new_range, deadline)?;
+        try_emit_front_anchor(d, old, &mut old_range, new, &mut new_range, search.deadline)?;
         if old_range.start == old_start_before && new_range.start == new_start_before {
             break;
         }
@@ -967,22 +1216,40 @@ where
         old_range.clone(),
         new,
         new_range.clone(),
-        deadline,
+        search.deadline,
     )? {
         // exact fallback emitted the script
-    } else if let Some((x_start, y_start)) = find_middle_snake(
+    } else if let Some(split) = find_middle_snake(
         old,
         old_range.clone(),
         new,
         new_range.clone(),
         vf,
         vb,
-        deadline,
+        search,
     ) {
-        let (old_a, old_b) = split_at(old_range, x_start);
-        let (new_a, new_b) = split_at(new_range, y_start);
-        conquer(d, old, old_a, new, new_a, vf, vb, deadline)?;
-        conquer(d, old, old_b, new, new_b, vf, vb, deadline)?;
+        let (old_a, old_b) = split_at(old_range, split.old_index);
+        let (new_a, new_b) = split_at(new_range, split.new_index);
+        conquer(
+            d,
+            old,
+            old_a,
+            new,
+            new_a,
+            vf,
+            vb,
+            search.with_mode(split.left_mode),
+        )?;
+        conquer(
+            d,
+            old,
+            old_b,
+            new,
+            new_b,
+            vf,
+            vb,
+            search.with_mode(split.right_mode),
+        )?;
     } else {
         d.delete(
             old_range.start,
@@ -1010,10 +1277,52 @@ fn test_find_middle_snake() {
     let max_d = max_d(a.len(), b.len());
     let mut vf = V::new(max_d);
     let mut vb = V::new(max_d);
-    let (x_start, y_start) =
-        find_middle_snake(a, 0..a.len(), b, 0..b.len(), &mut vf, &mut vb, None).unwrap();
-    assert_eq!(x_start, 4);
-    assert_eq!(y_start, 1);
+    let split = find_middle_snake(
+        a,
+        0..a.len(),
+        b,
+        0..b.len(),
+        &mut vf,
+        &mut vb,
+        MyersSearch {
+            deadline: None,
+            mode: MyersMode::Raw,
+        },
+    )
+    .unwrap();
+    assert_eq!(split.old_index, 4);
+    assert_eq!(split.new_index, 1);
+}
+
+#[test]
+fn test_heuristic_middle_snake_has_a_work_limit() {
+    let old = (0..1024u32).collect::<Vec<_>>();
+    let new = (2048..3072u32).collect::<Vec<_>>();
+    let max_d = max_d(old.len(), new.len());
+    let mut vf = V::new(max_d);
+    let mut vb = V::new(max_d);
+
+    let split = find_middle_snake(
+        &old,
+        0..old.len(),
+        &new,
+        0..new.len(),
+        &mut vf,
+        &mut vb,
+        MyersSearch {
+            deadline: None,
+            mode: MyersMode::Heuristic,
+        },
+    )
+    .unwrap();
+
+    assert!(split.left_mode == MyersMode::Heuristic || split.right_mode == MyersMode::Heuristic);
+    assert!(is_interior_split(
+        split.old_index,
+        split.new_index,
+        old.len(),
+        new.len()
+    ));
 }
 
 #[test]
@@ -1035,6 +1344,29 @@ fn test_raw_accepts_partialeq_only_values() {
     diff_deadline_raw(&mut d, &old, 0..old.len(), &new, 0..new.len(), None).unwrap();
 
     assert!(!d.ops().is_empty());
+}
+
+#[test]
+fn test_raw_myers_skips_behavior_changing_preflight() {
+    use crate::{Algorithm, DiffOp, capture_diff_slices};
+
+    let old = (0..1024u32).collect::<Vec<_>>();
+    let mut new = (10_000..11_024u32).collect::<Vec<_>>();
+    new[512] = old[256];
+
+    let equal_len = |ops: &[DiffOp]| {
+        ops.iter()
+            .map(|op| match op {
+                DiffOp::Equal { len, .. } => *len,
+                _ => 0,
+            })
+            .sum::<usize>()
+    };
+    let heuristic = capture_diff_slices(Algorithm::Myers, &old, &new);
+    let raw = capture_diff_slices(Algorithm::RawMyers, &old, &new);
+
+    assert_eq!(equal_len(&heuristic), 0);
+    assert_eq!(equal_len(&raw), 1);
 }
 
 #[test]

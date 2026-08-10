@@ -43,8 +43,10 @@ Useful options:
 --no-internal-deadline    test the no-deadline path (less safe for LCS)
 ```
 
-The default run covers all current algorithms: Myers, Patience, LCS, Hunt, and
-Histogram. Cases grow from 64 KiB to the configured maximum and rotate through
+The default run covers all current algorithms: Myers, Raw Myers, Patience,
+LCS, Hunt, and Histogram. Raw Myers is intentionally unbounded apart from the
+configured deadline and serves as an exact-search baseline.
+Cases grow from 64 KiB to the configured maximum and rotate through
 patterns intended to stress different heuristics:
 
 - low-cardinality cycles and phase-shifted bands;
@@ -110,8 +112,8 @@ cargo run --release --example perf-fuzz -- replay \
   --new fuzz/findings/<run>/<case>/after.txt
 ```
 
-To focus on one implementation, replace `all` with `myers`, `patience`, `lcs`,
-`hunt`, or `histogram`.
+To focus on one implementation, replace `all` with `myers`,
+`raw-myers`, `patience`, `lcs`, `hunt`, or `histogram`.
 
 ## Agent workflow
 

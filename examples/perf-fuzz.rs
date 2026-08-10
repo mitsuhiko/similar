@@ -23,6 +23,7 @@ const LINE_SUFFIX: &str = " token payload for similar performance fuzzing\n";
 
 const ALL_ALGORITHMS: &[Algorithm] = &[
     Algorithm::Myers,
+    Algorithm::RawMyers,
     Algorithm::Patience,
     Algorithm::Lcs,
     Algorithm::Hunt,
@@ -195,7 +196,7 @@ RUN OPTIONS:
 
 REPLAY OPTIONS:
   --old FILE --new FILE     recorded input pair
-  --algorithm NAME          Myers, Patience, Lcs, Hunt, Histogram, or all (default: all)
+  --algorithm NAME          Myers, RawMyers, Patience, Lcs, Hunt, Histogram, or all
   --timeout-ms N            stack/kill threshold (default: {DEFAULT_TIMEOUT_MS})
   --no-stacks
   --no-internal-deadline
@@ -346,6 +347,7 @@ fn validate_max_bytes(max_bytes: usize) -> Result<()> {
 fn parse_algorithm(value: &str) -> Result<Algorithm> {
     match value.to_ascii_lowercase().as_str() {
         "myers" => Ok(Algorithm::Myers),
+        "rawmyers" | "raw-myers" | "raw_myers" => Ok(Algorithm::RawMyers),
         "patience" => Ok(Algorithm::Patience),
         "lcs" => Ok(Algorithm::Lcs),
         "hunt" => Ok(Algorithm::Hunt),
@@ -357,6 +359,7 @@ fn parse_algorithm(value: &str) -> Result<Algorithm> {
 fn algorithm_name(algorithm: Algorithm) -> &'static str {
     match algorithm {
         Algorithm::Myers => "myers",
+        Algorithm::RawMyers => "raw-myers",
         Algorithm::Patience => "patience",
         Algorithm::Lcs => "lcs",
         Algorithm::Hunt => "hunt",

@@ -8,6 +8,7 @@ use similar::{Algorithm, TextDiff, capture_diff_slices};
 
 const ALL_ALGORITHMS: &[Algorithm] = &[
     Algorithm::Myers,
+    Algorithm::RawMyers,
     Algorithm::Patience,
     Algorithm::Lcs,
     Algorithm::Hunt,

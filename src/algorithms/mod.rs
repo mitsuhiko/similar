@@ -24,7 +24,11 @@
 //! If you need to tune behavior, use this rule of thumb:
 //!
 //! - **[`Algorithm::Myers`]** (default):
-//!   best all-around choice for mixed workloads.
+//!   best all-around choice for mixed workloads; uses bounded, non-minimal
+//!   splits when the classical search becomes too expensive.
+//! - **[`Algorithm::RawMyers`]**:
+//!   computes a shortest edit script without behavior-changing heuristics, but
+//!   can be very slow on difficult inputs.
 //! - **[`Algorithm::Patience`]**:
 //!   often more human-readable for refactors and reordered blocks, especially
 //!   when there are unique lines/tokens to anchor on.
@@ -54,9 +58,10 @@
 //!
 //! At a high level, the current heuristics are:
 //!
-//! - **Shared near-disjoint-range fast path** (all algorithms):
+//! - **Shared near-disjoint-range fast path** (all heuristic algorithms):
 //!   if two large ranges have no common items, or only a negligible handful,
 //!   we skip expensive search and emit a straight delete+insert replacement.
+//!   [`Algorithm::RawMyers`] deliberately skips this fast path.
 //! - **Prefix/suffix trimming** (used widely):
 //!   matching runs at the beginning/end are emitted immediately so each
 //!   algorithm only works on the changed middle.
@@ -71,11 +76,13 @@
 //!   Myers follows Eugene W. Myers' shortest-edit-script approach: it finds a
 //!   "middle snake" (a central diagonal run of equal items on an optimal edit
 //!   path) and recursively diffs the left and right sides around that split.
-//!   Beyond that classic middle-snake recursion, this implementation adds a
-//!   "front-anchor peel" for heavily unbalanced shifts (it probes a few small
-//!   one-sided skips near the start to find a long shared run, emits that
-//!   prefix anchor early, then recurses on the remaining tail) and an exact
-//!   small-side fallback when one side is tiny and the other is large.
+//!   Beyond that classic middle-snake recursion, the default implementation
+//!   accepts promising long snakes after the search becomes expensive and
+//!   forces the best currently reached split at a size-dependent work limit.
+//!   This follows the practical policy used by Git/xdiff and can produce a
+//!   non-minimal script. It also adds a "front-anchor peel" for heavily
+//!   unbalanced shifts and an exact small-side fallback. Use
+//!   [`Algorithm::RawMyers`] to disable behavior-changing heuristics.
 //!
 //! Some heuristic-enabled entrypoints may require stricter trait bounds than
 //! their raw counterpart (for example, shared heuristics that build hash-based
@@ -87,8 +94,9 @@
 //! If you want to skip shared heuristics, each algorithm module provides
 //! `diff_deadline_raw`, which keeps that algorithm's minimal intrinsic bounds.
 //!
-//! The top-level dispatcher [`diff_deadline`] always calls the
-//! heuristic-enabled entrypoints and never calls raw variants.
+//! The top-level dispatcher [`diff_deadline`] calls heuristic-enabled
+//! entrypoints except for [`Algorithm::RawMyers`], which dispatches to Myers'
+//! raw implementation.
 //!
 //! # Sequence Adapters
 //!
@@ -193,6 +201,9 @@ where
 {
     match alg {
         Algorithm::Myers => myers::diff_deadline(d, old, old_range, new, new_range, deadline),
+        Algorithm::RawMyers => {
+            myers::diff_deadline_raw(d, old, old_range, new, new_range, deadline)
+        }
         Algorithm::Patience => patience::diff_deadline(d, old, old_range, new, new_range, deadline),
         Algorithm::Lcs => lcs::diff_deadline(d, old, old_range, new, new_range, deadline),
         Algorithm::Hunt => hunt::diff_deadline(d, old, old_range, new, new_range, deadline),
