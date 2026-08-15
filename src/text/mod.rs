@@ -4,6 +4,7 @@ use alloc::collections::BinaryHeap;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cmp::Reverse;
+use core::hash::{Hash, Hasher};
 use core::ops::{Index, Range};
 use core::time::Duration;
 
@@ -36,6 +37,116 @@ impl Deadline {
         match self {
             Deadline::Absolute(instant) => Some(instant),
             Deadline::Relative(duration) => duration_to_deadline(duration),
+        }
+    }
+}
+
+/// Controls how whitespace is treated when comparing lines.
+///
+/// This setting only affects line diffs created with
+/// [`TextDiffConfig::diff_lines`]. Original lines are retained for rendering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum WhitespaceMode {
+    /// Compare whitespace exactly.
+    ///
+    /// This is the default.
+    #[default]
+    Exact,
+    /// Ignore changes in the amount of whitespace, like Git's `-b` option.
+    ///
+    /// Runs of spaces, tabs, or line-ending characters compare as a single
+    /// space, and trailing whitespace is ignored.
+    IgnoreChanges,
+    /// Ignore all spaces, tabs, and line-ending characters, like Git's `-w`
+    /// option.
+    IgnoreAll,
+}
+
+fn is_git_whitespace(byte: u8) -> bool {
+    matches!(byte, b' ' | b'\t' | b'\r' | b'\n')
+}
+
+#[derive(Clone, Copy)]
+struct WhitespaceKey<'a> {
+    bytes: &'a [u8],
+    mode: WhitespaceMode,
+}
+
+impl WhitespaceKey<'_> {
+    fn iter(&self) -> WhitespaceIter<'_> {
+        WhitespaceIter {
+            bytes: self.bytes,
+            mode: self.mode,
+            position: 0,
+        }
+    }
+}
+
+impl PartialEq for WhitespaceKey<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+
+impl Eq for WhitespaceKey<'_> {}
+
+impl Hash for WhitespaceKey<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let mut len = 0usize;
+        for byte in self.iter() {
+            byte.hash(state);
+            len += 1;
+        }
+        len.hash(state);
+    }
+}
+
+struct WhitespaceIter<'a> {
+    bytes: &'a [u8],
+    mode: WhitespaceMode,
+    position: usize,
+}
+
+impl Iterator for WhitespaceIter<'_> {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.mode {
+            WhitespaceMode::Exact => {
+                let byte = self.bytes.get(self.position).copied()?;
+                self.position += 1;
+                Some(byte)
+            }
+            WhitespaceMode::IgnoreAll => {
+                while let Some(&byte) = self.bytes.get(self.position) {
+                    self.position += 1;
+                    if !is_git_whitespace(byte) {
+                        return Some(byte);
+                    }
+                }
+                None
+            }
+            WhitespaceMode::IgnoreChanges => {
+                let &byte = self.bytes.get(self.position)?;
+                self.position += 1;
+                if !is_git_whitespace(byte) {
+                    return Some(byte);
+                }
+
+                while self
+                    .bytes
+                    .get(self.position)
+                    .copied()
+                    .is_some_and(is_git_whitespace)
+                {
+                    self.position += 1;
+                }
+
+                // Git's -b behavior ignores trailing whitespace while
+                // retaining a single separator for other whitespace runs.
+                (self.position < self.bytes.len()).then_some(b' ')
+            }
         }
     }
 }
@@ -131,12 +242,25 @@ impl<'diff, 'old, 'new, T: DiffableStr + ?Sized> Iterator
         match self.tag {
             DiffTag::Equal => {
                 if self.old_i < self.old_range.end {
-                    let value = self
-                        .diff
-                        .old_side()
-                        .get(self.old_i)
-                        .expect("diff operation old range out of bounds");
+                    let value = if self.diff.whitespace_mode == WhitespaceMode::Exact {
+                        self.diff
+                            .old_side()
+                            .get(self.old_i)
+                            .expect("diff operation old range out of bounds")
+                    } else {
+                        // Validate both sides, but render whitespace-equivalent
+                        // context from the new side to match Git's behavior.
+                        self.diff
+                            .old_side()
+                            .get(self.old_i)
+                            .expect("diff operation old range out of bounds");
+                        self.diff
+                            .new_side()
+                            .get(self.new_i)
+                            .expect("diff operation new range out of bounds")
+                    };
                     self.old_i += 1;
+                    self.new_i += 1;
                     self.old_index += 1;
                     self.new_index += 1;
                     Some(Change {
@@ -232,6 +356,7 @@ pub struct TextDiffConfig {
     algorithm: Algorithm,
     newline_terminated: Option<bool>,
     deadline: Option<Deadline>,
+    whitespace_mode: WhitespaceMode,
 }
 
 impl TextDiffConfig {
@@ -241,6 +366,7 @@ impl TextDiffConfig {
             algorithm: Algorithm::Myers,
             newline_terminated: None,
             deadline: None,
+            whitespace_mode: WhitespaceMode::Exact,
         }
     }
 
@@ -282,6 +408,25 @@ impl TextDiffConfig {
         self
     }
 
+    /// Changes how whitespace is compared in line diffs.
+    ///
+    /// The default is [`WhitespaceMode::Exact`]. This setting only affects
+    /// [`diff_lines`](Self::diff_lines); other tokenization modes always compare
+    /// whitespace exactly.
+    ///
+    /// ```rust
+    /// use similar::{TextDiff, WhitespaceMode};
+    ///
+    /// let diff = TextDiff::configure()
+    ///     .whitespace_mode(WhitespaceMode::IgnoreChanges)
+    ///     .diff_lines("  unchanged\n", "    unchanged\n");
+    /// assert!(diff.ops().iter().all(|op| op.tag() == similar::DiffTag::Equal));
+    /// ```
+    pub fn whitespace_mode(&mut self, mode: WhitespaceMode) -> &mut Self {
+        self.whitespace_mode = mode;
+        self
+    }
+
     /// Creates a diff of lines.
     ///
     /// This splits the text `old` and `new` into lines preserving newlines
@@ -316,6 +461,7 @@ impl TextDiffConfig {
             TextDiffSide::from_tokenized(old.into_diff_input(), DiffableStr::tokenize_lines),
             TextDiffSide::from_tokenized(new.into_diff_input(), DiffableStr::tokenize_lines),
             true,
+            self.whitespace_mode,
         )
     }
 
@@ -357,6 +503,7 @@ impl TextDiffConfig {
             TextDiffSide::from_tokenized(old.into_diff_input(), DiffableStr::tokenize_words),
             TextDiffSide::from_tokenized(new.into_diff_input(), DiffableStr::tokenize_words),
             false,
+            WhitespaceMode::Exact,
         )
     }
 
@@ -398,6 +545,7 @@ impl TextDiffConfig {
             TextDiffSide::from_tokenized(old.into_diff_input(), DiffableStr::tokenize_chars),
             TextDiffSide::from_tokenized(new.into_diff_input(), DiffableStr::tokenize_chars),
             false,
+            WhitespaceMode::Exact,
         )
     }
 
@@ -454,6 +602,7 @@ impl TextDiffConfig {
                 DiffableStr::tokenize_unicode_words,
             ),
             false,
+            WhitespaceMode::Exact,
         )
     }
 
@@ -499,6 +648,7 @@ impl TextDiffConfig {
             TextDiffSide::from_tokenized(old.into_diff_input(), DiffableStr::tokenize_graphemes),
             TextDiffSide::from_tokenized(new.into_diff_input(), DiffableStr::tokenize_graphemes),
             false,
+            WhitespaceMode::Exact,
         )
     }
 
@@ -531,6 +681,7 @@ impl TextDiffConfig {
             TextDiffSide::from_slices(old),
             TextDiffSide::from_slices(new),
             false,
+            WhitespaceMode::Exact,
         )
     }
 
@@ -539,9 +690,52 @@ impl TextDiffConfig {
         old: TextDiffSide<'old, T>,
         new: TextDiffSide<'new, T>,
         newline_terminated: bool,
+        whitespace_mode: WhitespaceMode,
     ) -> TextDiff<'old, 'new, T> {
+        let ops = if whitespace_mode == WhitespaceMode::Exact {
+            self.capture_ops(&old, old.len(), &new, new.len())
+        } else {
+            let old_keys = old
+                .iter()
+                .map(|value| WhitespaceKey {
+                    bytes: value.as_bytes(),
+                    mode: whitespace_mode,
+                })
+                .collect::<Vec<_>>();
+            let new_keys = new
+                .iter()
+                .map(|value| WhitespaceKey {
+                    bytes: value.as_bytes(),
+                    mode: whitespace_mode,
+                })
+                .collect::<Vec<_>>();
+            self.capture_ops(&old_keys, old_keys.len(), &new_keys, new_keys.len())
+        };
+        TextDiff {
+            old,
+            new,
+            ops,
+            newline_terminated: self.newline_terminated.unwrap_or(newline_terminated),
+            algorithm: self.algorithm,
+            whitespace_mode,
+        }
+    }
+
+    fn capture_ops<Old, New>(
+        &self,
+        old: &Old,
+        old_len: usize,
+        new: &New,
+        new_len: usize,
+    ) -> Vec<DiffOp>
+    where
+        Old: Index<usize> + ?Sized,
+        New: Index<usize> + ?Sized,
+        Old::Output: Hash + Eq,
+        New::Output: PartialEq<Old::Output> + Hash + Eq,
+    {
         let deadline = self.deadline.and_then(|x| x.into_instant());
-        let remap_to_integers = (old.len() > 100 || new.len() > 100)
+        let remap_to_integers = (old_len > 100 || new_len > 100)
             && !matches!(self.algorithm, Algorithm::Hunt | Algorithm::Histogram);
         // Only pre-scan equality when it can avoid the integer-remapping pass
         // and no timeout needs to be observed. Hunt and Histogram already trim
@@ -549,19 +743,16 @@ impl TextDiffConfig {
         // duplicate their prefix comparison.
         let inputs_are_equal = deadline.is_none()
             && remap_to_integers
-            && old.len() == new.len()
-            && old
-                .iter()
-                .zip(new.iter())
-                .all(|(old_value, new_value)| old_value == new_value);
-        let ops = if inputs_are_equal {
+            && old_len == new_len
+            && (0..old_len).all(|index| new[index] == old[index]);
+        if inputs_are_equal {
             vec![DiffOp::Equal {
                 old_index: 0,
                 new_index: 0,
-                len: old.len(),
+                len: old_len,
             }]
         } else if remap_to_integers {
-            let ih = IdentifyDistinct::<u32>::new(&old, 0..old.len(), &new, 0..new.len());
+            let ih = IdentifyDistinct::<u32>::new(old, 0..old_len, new, 0..new_len);
             capture_diff_deadline(
                 self.algorithm,
                 ih.old_lookup(),
@@ -571,21 +762,7 @@ impl TextDiffConfig {
                 deadline,
             )
         } else {
-            capture_diff_deadline(
-                self.algorithm,
-                &old,
-                0..old.len(),
-                &new,
-                0..new.len(),
-                deadline,
-            )
-        };
-        TextDiff {
-            old,
-            new,
-            ops,
-            newline_terminated: self.newline_terminated.unwrap_or(newline_terminated),
-            algorithm: self.algorithm,
+            capture_diff_deadline(self.algorithm, old, 0..old_len, new, 0..new_len, deadline)
         }
     }
 }
@@ -604,6 +781,7 @@ pub struct TextDiff<'old, 'new, T: DiffableStr + ?Sized> {
     ops: Vec<DiffOp>,
     newline_terminated: bool,
     algorithm: Algorithm,
+    whitespace_mode: WhitespaceMode,
 }
 
 impl<'old, 'new> TextDiff<'old, 'new, str> {
@@ -690,6 +868,11 @@ impl<'old, 'new, T: DiffableStr + ?Sized> TextDiff<'old, 'new, T> {
     /// The name of the algorithm that created the diff.
     pub fn algorithm(&self) -> Algorithm {
         self.algorithm
+    }
+
+    /// Returns the whitespace comparison mode used for this diff.
+    pub fn whitespace_mode(&self) -> WhitespaceMode {
+        self.whitespace_mode
     }
 
     /// Returns `true` if items in the slice are newline terminated.
@@ -1032,6 +1215,100 @@ fn test_unified_diff() {
             .header("old", "new")
             .to_string()
     );
+}
+
+#[test]
+fn test_whitespace_mode_issue_94() {
+    let old = "\
+<foo>
+  <bar/>
+  <baz/>
+</foo>
+";
+    let new = "\
+<foo>
+  <foo2>
+    <bar/>
+    <baz/>
+  </foo2>
+</foo>
+";
+    let expected = "\
+@@ -1,4 +1,6 @@
+ <foo>
++  <foo2>
+     <bar/>
+     <baz/>
++  </foo2>
+ </foo>
+";
+
+    for algorithm in [
+        Algorithm::Myers,
+        Algorithm::RawMyers,
+        Algorithm::Patience,
+        Algorithm::Lcs,
+        Algorithm::Hunt,
+        Algorithm::Histogram,
+    ] {
+        let diff = TextDiff::configure()
+            .algorithm(algorithm)
+            .whitespace_mode(WhitespaceMode::IgnoreChanges)
+            .diff_lines(old, new);
+        assert_eq!(diff.whitespace_mode(), WhitespaceMode::IgnoreChanges);
+        assert_eq!(diff.unified_diff().to_string(), expected, "{algorithm:?}");
+    }
+}
+
+#[test]
+fn test_whitespace_mode_semantics() {
+    let ignore_changes = TextDiff::configure()
+        .whitespace_mode(WhitespaceMode::IgnoreChanges)
+        .diff_lines("  foo  bar  \n", "\tfoo bar\t\n");
+    assert!(ignore_changes.unified_diff().to_string().is_empty());
+
+    let changed_presence = TextDiff::configure()
+        .whitespace_mode(WhitespaceMode::IgnoreChanges)
+        .diff_lines("foo bar\n", "foobar\n");
+    assert!(!changed_presence.unified_diff().to_string().is_empty());
+
+    let ignore_all = TextDiff::configure()
+        .whitespace_mode(WhitespaceMode::IgnoreAll)
+        .diff_lines("foo bar\n", "foobar\n");
+    assert!(ignore_all.unified_diff().to_string().is_empty());
+
+    let exact = TextDiff::from_lines("  foo\n", "    foo\n");
+    assert_eq!(exact.whitespace_mode(), WhitespaceMode::Exact);
+    assert!(!exact.unified_diff().to_string().is_empty());
+
+    let words = TextDiff::configure()
+        .whitespace_mode(WhitespaceMode::IgnoreAll)
+        .diff_words("foo bar", "foobar");
+    assert_eq!(words.whitespace_mode(), WhitespaceMode::Exact);
+    assert!(words.ops().iter().any(|op| op.tag() != DiffTag::Equal));
+}
+
+#[test]
+fn test_whitespace_mode_large_input_remapping() {
+    let old = (0..128)
+        .map(|index| format!("  line {index}\n"))
+        .collect::<String>();
+    let new = (0..128)
+        .map(|index| format!("    line  {index}\n"))
+        .collect::<String>();
+    let diff = TextDiff::configure()
+        .whitespace_mode(WhitespaceMode::IgnoreChanges)
+        .diff_lines(old, new);
+    assert!(diff.unified_diff().to_string().is_empty());
+}
+
+#[test]
+#[cfg(feature = "bytes")]
+fn test_whitespace_mode_bytes() {
+    let diff = TextDiff::configure()
+        .whitespace_mode(WhitespaceMode::IgnoreAll)
+        .diff_lines(&b"foo bar\n"[..], &b"foobar\n"[..]);
+    assert!(diff.unified_diff().to_string().is_empty());
 }
 
 #[test]

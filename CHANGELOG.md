@@ -4,6 +4,9 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+* Added `WhitespaceMode` and `TextDiffConfig::whitespace_mode` for Git-style
+  line comparisons that ignore changes in whitespace (`-b`) or all whitespace
+  (`-w`).
 * Changed `Algorithm::Myers` to reduce unmatched/confusing records and use
   Git-style bounded, non-minimal splits on expensive searches, and added
   `Algorithm::RawMyers` for the previous shortest-edit-script behavior without
