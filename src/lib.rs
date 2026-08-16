@@ -13,6 +13,7 @@
 //!   module's **"Which algorithm should you use?"** section for practical
 //!   recommendations beyond the default [`Algorithm::Myers`].
 //! * [`udiff`]: Unified diff functionality.
+//! * [`merge`]: Three-way, line-oriented text merging.
 //! * [`utils`]: utilities for common diff related operations.  This module
 //!   provides additional diffing functions for working with text diffs.
 //!
@@ -171,6 +172,8 @@ extern crate std;
 pub mod algorithms;
 pub mod iter;
 #[cfg(feature = "text")]
+pub mod merge;
+#[cfg(feature = "text")]
 pub mod udiff;
 #[cfg(feature = "text")]
 pub mod utils;
@@ -183,6 +186,8 @@ mod text;
 mod types;
 
 pub use self::common::*;
+#[cfg(feature = "text")]
+pub use self::merge::{ConflictStyle, MergeRegion, MergeResolution, TextMerge, TextMergeConfig};
 #[cfg(feature = "text")]
 pub use self::text::*;
 pub use self::types::*;

@@ -68,9 +68,9 @@ fn is_git_whitespace(byte: u8) -> bool {
 }
 
 #[derive(Clone, Copy)]
-struct WhitespaceKey<'a> {
-    bytes: &'a [u8],
-    mode: WhitespaceMode,
+pub(crate) struct WhitespaceKey<'a> {
+    pub(crate) bytes: &'a [u8],
+    pub(crate) mode: WhitespaceMode,
 }
 
 impl WhitespaceKey<'_> {
@@ -157,7 +157,10 @@ pub(crate) enum TextDiffSide<'a, T: DiffableStr + ?Sized> {
 }
 
 impl<'a, T: DiffableStr + ?Sized> TextDiffSide<'a, T> {
-    fn from_tokenized(input: DiffInput<'a, T>, tokenize: impl FnOnce(&T) -> Vec<&T>) -> Self {
+    pub(crate) fn from_tokenized(
+        input: DiffInput<'a, T>,
+        tokenize: impl FnOnce(&T) -> Vec<&T>,
+    ) -> Self {
         match input {
             DiffInput::Borrowed(value) => TextDiffSide::BorrowedTokens(tokenize(value)),
             DiffInput::Owned(value) => {
@@ -174,21 +177,21 @@ impl<'a, T: DiffableStr + ?Sized> TextDiffSide<'a, T> {
         TextDiffSide::BorrowedTokens(slices.to_vec())
     }
 
-    fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         match self {
             TextDiffSide::BorrowedTokens(slices) => slices.len(),
             TextDiffSide::OwnedTokens(slices) => slices.len(),
         }
     }
 
-    fn get(&self, index: usize) -> Option<&T> {
+    pub(crate) fn get(&self, index: usize) -> Option<&T> {
         match self {
             TextDiffSide::BorrowedTokens(slices) => slices.get(index).copied(),
             TextDiffSide::OwnedTokens(slices) => slices.get(index).map(Borrow::borrow),
         }
     }
 
-    fn iter(&self) -> impl Iterator<Item = &T> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &T> {
         (0..self.len()).map(|idx| self.get(idx).expect("slice out of bounds"))
     }
 }

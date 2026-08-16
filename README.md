@@ -45,6 +45,7 @@ fn main() {
 * Line, word, character and grapheme level diffing
 * Text and Byte diffing
 * Unified diff generation
+* Structured three-way line merging with merge and diff3 conflict output
 
 ## no_std Support
 

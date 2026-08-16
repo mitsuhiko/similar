@@ -4,6 +4,9 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+* Added structured, line-oriented three-way merging through `TextMerge`, with
+  merge and diff3 conflict output, configurable labels and marker sizes, owned
+  and borrowed inputs, byte output, and whitespace-insensitive comparison.
 * Added `WhitespaceMode` and `TextDiffConfig::whitespace_mode` for Git-style
   line comparisons that ignore changes in whitespace (`-b`) or all whitespace
   (`-w`).
