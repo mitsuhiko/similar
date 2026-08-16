@@ -48,6 +48,10 @@ name = "patience"
 required-features = ["text", "inline"]
 
 [[example]]
+name = "whitespace"
+required-features = ["text"]
+
+[[example]]
 name = "terminal"
 required-features = ["text"]
 
