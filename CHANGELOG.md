@@ -4,6 +4,8 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+## 3.2.0
+
 * Added structured, line-oriented three-way merging through `TextMerge`, with
   merge and diff3 conflict output, configurable labels and marker sizes, owned
   and borrowed inputs, byte output, and whitespace-insensitive comparison.
