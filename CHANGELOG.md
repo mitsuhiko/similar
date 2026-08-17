@@ -14,10 +14,8 @@ All notable changes to similar are documented here.
   Git-style bounded, non-minimal splits on expensive searches, and added
   `Algorithm::RawMyers` for the previous shortest-edit-script behavior without
   output-changing heuristics.
+* Improved heuristics and performance for most algorithms other than LCS.
 * Improved large-input performance by avoiding quadratic Histogram scans.
-* Reduced allocations in hash-based indexing, changed LCS tables to compact
-  contiguous storage, and sized Myers working memory after trimming common
-  input edges.
 
 ## 3.1.2
 
