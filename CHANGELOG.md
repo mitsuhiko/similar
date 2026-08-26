@@ -4,6 +4,11 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+* Fixed `TextMerge::labels` writing carriage returns and newlines verbatim into
+  conflict markers, which let a label add lines to the output that looked like
+  merged content.  Line terminators in labels are now replaced with spaces.
+  #101
+
 ## 3.2.0
 
 * Added structured, line-oriented three-way merging through `TextMerge`, with

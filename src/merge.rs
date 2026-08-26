@@ -256,10 +256,14 @@ impl<'base, 'ours, 'theirs, T: DiffableStr + ?Sized> TextMerge<'base, 'ours, 'th
     }
 
     /// Changes the labels shown in conflict markers.
+    ///
+    /// Labels are written on the conflict marker lines themselves, so carriage
+    /// returns and newlines in them are replaced with spaces.  Without this a
+    /// label could add lines to the output that look like merged content.
     pub fn labels(&mut self, ancestor: &str, ours: &str, theirs: &str) -> &mut Self {
-        self.ancestor_label = ancestor.to_string();
-        self.ours_label = ours.to_string();
-        self.theirs_label = theirs.to_string();
+        self.ancestor_label = sanitize_label(ancestor);
+        self.ours_label = sanitize_label(ours);
+        self.theirs_label = sanitize_label(theirs);
         self
     }
 
@@ -809,6 +813,18 @@ fn fmt_range<T: DiffableStr + ?Sized>(
     Ok(())
 }
 
+/// Replaces the line terminators in a conflict marker label with spaces so the
+/// label cannot introduce additional lines into the output.
+fn sanitize_label(label: &str) -> String {
+    label
+        .chars()
+        .map(|character| match character {
+            '\r' | '\n' => ' ',
+            other => other,
+        })
+        .collect()
+}
+
 fn fmt_marker(
     f: &mut fmt::Formatter<'_>,
     character: char,
@@ -920,6 +936,30 @@ fn test_conflicting_changes_are_structured_and_rendered() {
         merge.to_string(),
         "one\n<<<<<<< left\nours\n||||||| ancestor\ntwo\n=======\ntheirs\n>>>>>>> right\n"
     );
+}
+
+#[test]
+fn test_labels_with_line_endings_stay_on_one_line() {
+    let mut merge = TextMerge::from_lines("one\ntwo\n", "one\nours\n", "one\ntheirs\n");
+    merge
+        .conflict_style(ConflictStyle::Diff3)
+        .labels("anc\nestor", "le\r\nft", "rig\rht");
+    assert_eq!(
+        merge.to_string(),
+        "one\n<<<<<<< le  ft\nours\n||||||| anc estor\ntwo\n=======\ntheirs\n>>>>>>> rig ht\n"
+    );
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn test_labels_with_line_endings_match_in_writer() {
+    let mut merge = TextMerge::from_lines("one\ntwo\n", "one\nours\n", "one\ntheirs\n");
+    merge
+        .conflict_style(ConflictStyle::Diff3)
+        .labels("anc\nestor", "le\r\nft", "rig\rht");
+    let mut written = Vec::new();
+    merge.to_writer(&mut written).unwrap();
+    assert_eq!(String::from_utf8(written).unwrap(), merge.to_string());
 }
 
 #[test]
