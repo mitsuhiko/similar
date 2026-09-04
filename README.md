@@ -73,6 +73,7 @@ algorithm, captures stacks on timeouts, and saves reproducible input pairs.
 
 * [insta](https://insta.rs) snapshot testing library
 * [similar-asserts](https://github.com/mitsuhiko/similar-asserts) assertion library
+* [similar-rs](https://github.com/Maksim-Burtsev/similar-rs) Python bindings
 
 ## License and Links
 
