@@ -160,33 +160,107 @@ pub trait DiffableStr: Hash + PartialEq + PartialOrd + Ord + Eq + ToOwned {
     }
 }
 
+/// Upper bound for the number of tokens reserved up front by the tokenizers.
+///
+/// The estimates below are proportional to the input length, which is a good
+/// guess for typical text but would reserve hundreds of megabytes for a huge
+/// input that consists of a single line or word.  Beyond this many tokens the
+/// vectors simply grow as needed.
+const MAX_INITIAL_TOKEN_CAPACITY: usize = 16 * 1024;
+
+/// Returns a mask with the high bit set in every byte of `word` that is zero.
+///
+/// Unlike the shorter `(x - LO) & !x & HI` trick this is exact for every
+/// byte, not just the lowest zero byte, which matters because a single word
+/// can contain several line terminators.
+#[inline(always)]
+fn zero_bytes(word: u64) -> u64 {
+    const HI: u64 = 0x8080_8080_8080_8080;
+    let t = ((word & !HI).wrapping_add(!HI)) | word;
+    !t & HI
+}
+
+/// Collects the byte offsets of every `\r` and `\n` in `bytes`.
+///
+/// Line terminators are ASCII, so byte scanning never lands inside a
+/// multi-byte UTF-8 sequence.  The scan is eight bytes at a time and, more
+/// importantly, free of data dependent branches in the common case: it
+/// unconditionally pushes the first candidate of a word and then truncates
+/// the vector back when the word contained no terminator.  Line lengths are
+/// effectively random, so a branch per word would mispredict roughly once
+/// per line and dominate the tokenizer.
+#[inline]
+fn line_terminator_offsets(bytes: &[u8]) -> Vec<usize> {
+    const LO: u64 = 0x0101_0101_0101_0101;
+    const CR: u64 = LO * b'\r' as u64;
+    const LF: u64 = LO * b'\n' as u64;
+
+    // Real world text averages a few dozen bytes per line; a modest
+    // estimate avoids most of the regrowth without over-allocating on
+    // inputs with very long lines.  The constant keeps small inputs (which
+    // are common for inline diffs) at a single allocation.
+    let mut offsets = Vec::with_capacity((bytes.len() / 32 + 16).min(MAX_INITIAL_TOKEN_CAPACITY));
+    let mut pos = 0usize;
+    let mut chunks = bytes.chunks_exact(8);
+    for chunk in &mut chunks {
+        let word = u64::from_le_bytes(chunk.try_into().unwrap());
+        let found = zero_bytes(word ^ CR) | zero_bytes(word ^ LF);
+        let len = offsets.len();
+        offsets.push(pos + (found.trailing_zeros() >> 3) as usize);
+        offsets.truncate(len + (found != 0) as usize);
+        // Further terminators in the same word are rare (blank lines and
+        // CRLF pairs); handle them in a loop that is usually not entered.
+        let mut rest = found & found.wrapping_sub(1);
+        while rest != 0 {
+            offsets.push(pos + (rest.trailing_zeros() >> 3) as usize);
+            rest &= rest - 1;
+        }
+        pos += 8;
+    }
+    for &byte in chunks.remainder() {
+        if byte == b'\n' || byte == b'\r' {
+            offsets.push(pos);
+        }
+        pos += 1;
+    }
+    offsets
+}
+
+/// Splits the byte string into lines keeping the terminators attached.
+///
+/// `slice` converts a byte range into the token type.  `\r\n` is treated as a
+/// single terminator.
+#[inline]
+pub(crate) fn tokenize_lines_by_bytes<'a, T: ?Sized>(
+    bytes: &[u8],
+    slice: impl Fn(Range<usize>) -> &'a T,
+) -> Vec<&'a T> {
+    let offsets = line_terminator_offsets(bytes);
+    let mut lines = Vec::with_capacity(offsets.len() + 1);
+    let mut last_pos = 0;
+    let mut index = 0;
+    while index < offsets.len() {
+        let idx = offsets[index];
+        index += 1;
+        let end = if bytes[idx] == b'\r' && bytes.get(idx + 1) == Some(&b'\n') {
+            // Skip the offset recorded for the `\n` of this pair.
+            index += 1;
+            idx + 2
+        } else {
+            idx + 1
+        };
+        lines.push(slice(last_pos..end));
+        last_pos = end;
+    }
+    if last_pos < bytes.len() {
+        lines.push(slice(last_pos..bytes.len()));
+    }
+    lines
+}
+
 impl DiffableStr for str {
     fn tokenize_lines(&self) -> Vec<&Self> {
-        let mut iter = self.char_indices().peekable();
-        let mut last_pos = 0;
-        let mut lines = vec![];
-
-        while let Some((idx, c)) = iter.next() {
-            if c == '\r' {
-                if iter.peek().is_some_and(|x| x.1 == '\n') {
-                    lines.push(&self[last_pos..=idx + 1]);
-                    iter.next();
-                    last_pos = idx + 2;
-                } else {
-                    lines.push(&self[last_pos..=idx]);
-                    last_pos = idx + 1;
-                }
-            } else if c == '\n' {
-                lines.push(&self[last_pos..=idx]);
-                last_pos = idx + 1;
-            }
-        }
-
-        if last_pos < self.len() {
-            lines.push(&self[last_pos..]);
-        }
-
-        lines
+        tokenize_lines_by_bytes(self.as_bytes(), |range| &self[range])
     }
 
     fn tokenize_lines_and_newlines(&self) -> Vec<&Self> {
@@ -211,21 +285,36 @@ impl DiffableStr for str {
     }
 
     fn tokenize_words(&self) -> Vec<&Self> {
-        let mut iter = self.char_indices().peekable();
-        let mut rv = vec![];
+        let bytes = self.as_bytes();
+        // Words and the whitespace runs between them are usually short; the
+        // cap keeps a single long word from reserving four times its size.
+        let mut rv = Vec::with_capacity((bytes.len() / 4 + 1).min(MAX_INITIAL_TOKEN_CAPACITY));
+        let mut start = 0;
+        let mut pos = 0;
+        let mut current_is_whitespace = false;
 
-        while let Some((idx, c)) = iter.next() {
-            let is_whitespace = c.is_whitespace();
-            let start = idx;
-            let mut end = idx + c.len_utf8();
-            while let Some(&(_, next_char)) = iter.peek() {
-                if next_char.is_whitespace() != is_whitespace {
-                    break;
+        while pos < bytes.len() {
+            let byte = bytes[pos];
+            // ASCII fast path: `char::is_whitespace` is true for exactly
+            // U+0009..=U+000D and U+0020 below U+0080.
+            let (is_whitespace, width) = if byte < 0x80 {
+                (matches!(byte, b'\t'..=b'\r' | b' '), 1)
+            } else {
+                let c = self[pos..].chars().next().unwrap();
+                (c.is_whitespace(), c.len_utf8())
+            };
+            if is_whitespace != current_is_whitespace {
+                if pos > start {
+                    rv.push(&self[start..pos]);
                 }
-                iter.next();
-                end += next_char.len_utf8();
+                start = pos;
+                current_is_whitespace = is_whitespace;
             }
-            rv.push(&self[start..end]);
+            pos += width;
+        }
+
+        if start < bytes.len() {
+            rv.push(&self[start..]);
         }
 
         rv
@@ -311,31 +400,10 @@ mod bytes_support {
     /// Requires the `bytes` feature.
     impl DiffableStr for [u8] {
         fn tokenize_lines(&self) -> Vec<&Self> {
-            let mut iter = self.char_indices().peekable();
-            let mut last_pos = 0;
-            let mut lines = vec![];
-
-            while let Some((_, end, c)) = iter.next() {
-                if c == '\r' {
-                    if iter.peek().is_some_and(|x| x.2 == '\n') {
-                        lines.push(&self[last_pos..end + 1]);
-                        iter.next();
-                        last_pos = end + 1;
-                    } else {
-                        lines.push(&self[last_pos..end]);
-                        last_pos = end;
-                    }
-                } else if c == '\n' {
-                    lines.push(&self[last_pos..end]);
-                    last_pos = end;
-                }
-            }
-
-            if last_pos < self.len() {
-                lines.push(&self[last_pos..]);
-            }
-
-            lines
+            // Line terminators are ASCII bytes which lossy UTF-8 decoding
+            // never merges into a replacement character, so scanning bytes
+            // matches the char based behavior exactly.
+            tokenize_lines_by_bytes(self, |range| &self[range])
         }
 
         fn tokenize_lines_and_newlines(&self) -> Vec<&Self> {
@@ -427,6 +495,96 @@ fn test_split_lines() {
     assert_eq!(DiffableStr::tokenize_lines("\n\n"), vec!["\n", "\n"]);
     assert_eq!(DiffableStr::tokenize_lines("\n"), vec!["\n"]);
     assert!(DiffableStr::tokenize_lines("").is_empty());
+}
+
+#[test]
+fn test_split_lines_word_boundaries() {
+    // Reference implementation: the original char based tokenizer.
+    fn reference(s: &str) -> Vec<&str> {
+        let mut iter = s.char_indices().peekable();
+        let mut last_pos = 0;
+        let mut lines = vec![];
+        while let Some((idx, c)) = iter.next() {
+            if c == '\r' {
+                if iter.peek().is_some_and(|x| x.1 == '\n') {
+                    lines.push(&s[last_pos..=idx + 1]);
+                    iter.next();
+                    last_pos = idx + 2;
+                } else {
+                    lines.push(&s[last_pos..=idx]);
+                    last_pos = idx + 1;
+                }
+            } else if c == '\n' {
+                lines.push(&s[last_pos..=idx]);
+                last_pos = idx + 1;
+            }
+        }
+        if last_pos < s.len() {
+            lines.push(&s[last_pos..]);
+        }
+        lines
+    }
+
+    // Exercise terminators at every offset relative to the eight byte scan
+    // words, including CRLF pairs that straddle a word boundary, several
+    // terminators inside one word, and multi-byte characters.
+    let pieces = ["a", "\n", "\r", "\r\n", "ö", "xyz", "\n\n", "\r\r\n", "❄️"];
+    let mut input = String::new();
+    for round in 0..64 {
+        for (index, piece) in pieces.iter().enumerate() {
+            if (round + index) % 3 != 0 {
+                input.push_str(piece);
+            }
+            for prefix_len in [0, 1, 7, 8, 9, 15, 16, 17] {
+                let padded = format!("{}{}", "p".repeat(prefix_len), input);
+                assert_eq!(
+                    DiffableStr::tokenize_lines(padded.as_str()),
+                    reference(&padded)
+                );
+            }
+        }
+    }
+
+    let long_line = "x".repeat(1000);
+    let input = format!("{long_line}\r\n{long_line}\r{long_line}\n{long_line}");
+    assert_eq!(
+        DiffableStr::tokenize_lines(input.as_str()),
+        reference(&input)
+    );
+    let input = "\r\n".repeat(50);
+    assert_eq!(
+        DiffableStr::tokenize_lines(input.as_str()),
+        reference(&input)
+    );
+    let input = "\r".repeat(17);
+    assert_eq!(
+        DiffableStr::tokenize_lines(input.as_str()),
+        reference(&input)
+    );
+}
+
+#[test]
+fn test_long_token_capacity() {
+    let input = "x".repeat(1024 * 1024);
+    let words = input.tokenize_words();
+    assert_eq!(words, [input.as_str()]);
+    assert!(words.capacity() <= 16 * 1024);
+    let offsets = line_terminator_offsets(input.as_bytes());
+    assert!(offsets.is_empty());
+    assert!(offsets.capacity() <= 16 * 1024);
+}
+
+#[test]
+fn test_tokenizer_capacity_is_bounded() {
+    // A large input that produces a single token must not reserve a token
+    // vector proportional to its byte length.
+    let input = "x".repeat(4 * 1024 * 1024);
+    let words = DiffableStr::tokenize_words(input.as_str());
+    assert_eq!(words.len(), 1);
+    assert!(words.capacity() <= MAX_INITIAL_TOKEN_CAPACITY);
+    let lines = DiffableStr::tokenize_lines(input.as_str());
+    assert_eq!(lines.len(), 1);
+    assert!(lines.capacity() <= MAX_INITIAL_TOKEN_CAPACITY);
 }
 
 #[test]
