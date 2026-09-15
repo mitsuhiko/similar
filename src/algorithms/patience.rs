@@ -136,6 +136,16 @@ where
         return Ok(());
     }
 
+    // A one sided input has no anchors; emit it without building the maps.
+    if old_range.is_empty() || new_range.is_empty() {
+        if !new_range.is_empty() {
+            d.insert(old_range.start, new_range.start, new_range.len())?;
+        } else if !old_range.is_empty() {
+            d.delete(old_range.start, old_range.len(), new_range.start)?;
+        }
+        return d.finish();
+    }
+
     // Uniqueness must be computed over the complete ranges: values repeated
     // in a common edge still are not valid Patience anchors in the middle.
     // Identical input is the one case where the maps can be skipped safely,

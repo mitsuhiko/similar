@@ -178,6 +178,13 @@ fn main() {
     let disjoint = disjoint(20_000);
     run_slice_case("disjoint_20k", ALL, &disjoint.0, &disjoint.1);
 
+    // One sided and heavily unbalanced inputs: index structures must scale
+    // with the small side, not with the sum of both.
+    let empty: Vec<u32> = Vec::new();
+    run_slice_case("insert_only_20k", SCALABLE, &empty, &identical);
+    let small = (0..100u32).map(|value| value * 200).collect::<Vec<_>>();
+    run_slice_case("unbalanced_100_vs_20k", SCALABLE, &small, &identical);
+
     for size in [128, 256, 512, 1024] {
         let repeated = repeated_shift(size);
         run_slice_case(
