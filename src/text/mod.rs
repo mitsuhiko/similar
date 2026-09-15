@@ -18,7 +18,10 @@ pub use self::abstraction::{DiffInput, DiffableStr, DiffableStrRef, IntoDiffInpu
 pub use self::inline::{InlineChange, InlineChangeMode, InlineChangeOptions};
 
 use self::utils::{QuickSeqRatio, upper_seq_ratio};
-use crate::algorithms::IdentifyDistinct;
+use crate::algorithms::utils::{common_prefix_len, common_suffix_len};
+use crate::algorithms::{
+    Capture, Compact, DiffHook, IdentifyDistinct, NoFinishHook, Replace, diff_deadline,
+};
 use crate::deadline_support::{Instant, duration_to_deadline};
 use crate::udiff::UnifiedDiff;
 use crate::{
@@ -740,6 +743,20 @@ impl TextDiffConfig {
         let deadline = self.deadline.and_then(|x| x.into_instant());
         let remap_to_integers = (old_len > 100 || new_len > 100)
             && !matches!(self.algorithm, Algorithm::Hunt | Algorithm::Histogram);
+
+        // Myers starts by trimming the common prefix and suffix and only
+        // then decides on its heuristics, so trimming here first is
+        // output-neutral and lets the integer remapping (hashing every
+        // token) run on the changed middle only.  Real world edits usually
+        // leave most of a file untouched which makes this a large saving.
+        //
+        // Patience deliberately computes uniqueness over the complete ranges
+        // and the remaining algorithms run their disjoint-input fast path
+        // before trimming, so they keep seeing the full input.
+        if remap_to_integers && matches!(self.algorithm, Algorithm::Myers | Algorithm::RawMyers) {
+            return self.capture_ops_pretrimmed(old, old_len, new, new_len, deadline);
+        }
+
         // Only pre-scan equality when it can avoid the integer-remapping pass
         // and no timeout needs to be observed. Hunt and Histogram already trim
         // equal ranges before building their indexes, so scanning here would
@@ -767,6 +784,77 @@ impl TextDiffConfig {
         } else {
             capture_diff_deadline(self.algorithm, old, 0..old_len, new, 0..new_len, deadline)
         }
+    }
+
+    /// Diffs the changed middle only and wraps it into the common edges.
+    ///
+    /// The hook chain (compaction and replace detection) still observes the
+    /// full range so that the resulting ops are identical to a diff over the
+    /// complete input.
+    fn capture_ops_pretrimmed<Old, New>(
+        &self,
+        old: &Old,
+        old_len: usize,
+        new: &New,
+        new_len: usize,
+        deadline: Option<Instant>,
+    ) -> Vec<DiffOp>
+    where
+        Old: Index<usize> + ?Sized,
+        New: Index<usize> + ?Sized,
+        Old::Output: Hash + Eq,
+        New::Output: PartialEq<Old::Output> + Hash + Eq,
+    {
+        let prefix = common_prefix_len(old, 0..old_len, new, 0..new_len);
+        let suffix = common_suffix_len(old, prefix..old_len, new, prefix..new_len);
+        let old_middle = prefix..old_len - suffix;
+        let new_middle = prefix..new_len - suffix;
+
+        let mut d = Compact::new(Replace::new(Capture::new()), old, new);
+        if prefix > 0 {
+            d.equal(0, 0, prefix).unwrap();
+        }
+        if !old_middle.is_empty() && !new_middle.is_empty() {
+            let mut middle_d = NoFinishHook::new(&mut d);
+            if old_middle.len() > 100 || new_middle.len() > 100 {
+                // Myers only compares old against new, so lines that only
+                // occur in the new side can share one identifier.
+                let ih =
+                    IdentifyDistinct::<u32>::new_matching_old(old, old_middle, new, new_middle);
+                diff_deadline(
+                    self.algorithm,
+                    &mut middle_d,
+                    ih.old_lookup(),
+                    ih.old_range(),
+                    ih.new_lookup(),
+                    ih.new_range(),
+                    deadline,
+                )
+                .unwrap();
+            } else {
+                diff_deadline(
+                    self.algorithm,
+                    &mut middle_d,
+                    old,
+                    old_middle,
+                    new,
+                    new_middle,
+                    deadline,
+                )
+                .unwrap();
+            }
+        } else if !old_middle.is_empty() {
+            d.delete(old_middle.start, old_middle.len(), new_middle.start)
+                .unwrap();
+        } else if !new_middle.is_empty() {
+            d.insert(old_middle.start, new_middle.start, new_middle.len())
+                .unwrap();
+        }
+        if suffix > 0 {
+            d.equal(old_len - suffix, new_len - suffix, suffix).unwrap();
+        }
+        d.finish().unwrap();
+        d.into_inner().into_inner().into_ops()
     }
 }
 

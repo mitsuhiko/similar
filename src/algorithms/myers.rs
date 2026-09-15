@@ -1140,9 +1140,17 @@ where
         let mut good_split = None;
         let mut forward_split = None;
         let mut backward_split = None;
+        // The furthest reaching splits are only consulted once the work limit
+        // is hit, and good long snakes are only accepted after the search has
+        // become expensive.  Skip the per-diagonal bookkeeping until then; it
+        // is otherwise a noticeable share of the inner loop.
+        let track_limit_split = search.mode == MyersMode::Heuristic && d as usize >= max_cost;
+        let track_good_split =
+            search.mode == MyersMode::Heuristic && d as usize > HEURISTIC_MIN_COST;
 
         // Forward path
-        for k in (-d..=d).rev().step_by(2) {
+        let mut k = d;
+        while k >= -d {
             let mut x = if k == -d || (k != d && vf[k - 1] < vf[k + 1]) {
                 vf[k + 1]
             } else {
@@ -1178,7 +1186,7 @@ where
                 ));
             }
 
-            if search.mode == MyersMode::Heuristic {
+            if track_limit_split {
                 if let Some((split_old, split_new)) = clamp_diagonal_point(x, k, n, m) {
                     if is_interior_split(split_old, split_new, n, m) {
                         update_best_split(
@@ -1192,13 +1200,11 @@ where
                         );
                     }
                 }
+            }
 
+            if track_good_split && snake_len >= HEURISTIC_MIN_SNAKE && x < n && y < m {
                 let useful_progress = x.saturating_add(y).saturating_sub(k.unsigned_abs());
-                if d as usize > HEURISTIC_MIN_COST
-                    && snake_len >= HEURISTIC_MIN_SNAKE
-                    && x < n
-                    && y < m
-                    && useful_progress > HEURISTIC_PROGRESS_FACTOR.saturating_mul(d as usize)
+                if useful_progress > HEURISTIC_PROGRESS_FACTOR.saturating_mul(d as usize)
                     && is_interior_split(x0, y0, n, m)
                 {
                     update_best_split(
@@ -1212,10 +1218,13 @@ where
                     );
                 }
             }
+
+            k -= 2;
         }
 
         // Backward path
-        for k in (-d..=d).rev().step_by(2) {
+        let mut k = d;
+        while k >= -d {
             let mut x = if k == -d || (k != d && vb[k - 1] < vb[k + 1]) {
                 vb[k + 1]
             } else {
@@ -1248,7 +1257,7 @@ where
                 ));
             }
 
-            if search.mode == MyersMode::Heuristic {
+            if track_limit_split {
                 if let Some((distance_old, distance_new)) = clamp_diagonal_point(x, k, n, m) {
                     let split_old = n - distance_old;
                     let split_new = m - distance_new;
@@ -1264,29 +1273,29 @@ where
                         );
                     }
                 }
+            }
 
-                if x <= n && y <= m {
-                    let split_old = n - x;
-                    let split_new = m - y;
-                    let useful_progress = x.saturating_add(y).saturating_sub(k.unsigned_abs());
-                    if d as usize > HEURISTIC_MIN_COST
-                        && snake_len >= HEURISTIC_MIN_SNAKE
-                        && split_old > 0
-                        && split_new > 0
-                        && useful_progress > HEURISTIC_PROGRESS_FACTOR.saturating_mul(d as usize)
-                    {
-                        update_best_split(
-                            &mut good_split,
-                            HeuristicSplit {
-                                old_index: split_old,
-                                new_index: split_new,
-                                progress: useful_progress,
-                                direction: SplitDirection::Backward,
-                            },
-                        );
-                    }
+            if track_good_split && snake_len >= HEURISTIC_MIN_SNAKE && x <= n && y <= m {
+                let split_old = n - x;
+                let split_new = m - y;
+                let useful_progress = x.saturating_add(y).saturating_sub(k.unsigned_abs());
+                if split_old > 0
+                    && split_new > 0
+                    && useful_progress > HEURISTIC_PROGRESS_FACTOR.saturating_mul(d as usize)
+                {
+                    update_best_split(
+                        &mut good_split,
+                        HeuristicSplit {
+                            old_index: split_old,
+                            new_index: split_new,
+                            progress: useful_progress,
+                            direction: SplitDirection::Backward,
+                        },
+                    );
                 }
             }
+
+            k -= 2;
         }
 
         if let Some(split) = good_split {
