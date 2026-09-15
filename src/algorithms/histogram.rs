@@ -21,7 +21,7 @@ use alloc::vec::Vec;
 use core::hash::Hash;
 use core::ops::{Index, Range};
 
-use crate::types::MapType;
+use crate::types::IntKeyMap;
 
 use crate::algorithms::utils::{HashBucket, common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::{DiffHook, IdentifyDistinct, NoFinishHook, myers, preflight};
@@ -329,7 +329,7 @@ where
         return SearchResult::Fallback;
     }
 
-    let mut old_positions = MapType::<usize, HashBucket<usize>>::new();
+    let mut old_positions = IntKeyMap::<usize, HashBucket<usize>>::default();
 
     for old_idx in old_range.clone() {
         let value = old[old_idx];
@@ -346,7 +346,7 @@ where
     // Extending every matching item across the same equal run makes nearly
     // identical inputs quadratic.  Remember the furthest covered new index on
     // each diagonal so every equal run is extended only once.
-    let mut covered_diagonals = MapType::<(bool, usize), usize>::new();
+    let mut covered_diagonals = IntKeyMap::<(bool, usize), usize>::default();
 
     for new_idx in new_range.clone() {
         if deadline_exceeded(deadline) {

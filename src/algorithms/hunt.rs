@@ -21,7 +21,7 @@ use alloc::vec::Vec;
 use core::hash::Hash;
 use core::ops::{Index, Range};
 
-use crate::types::MapType;
+use crate::types::{IntKeyMap, int_key_map_with_capacity};
 
 use crate::algorithms::utils::{HashBucket, common_prefix_len, common_suffix_len, is_empty_range};
 use crate::algorithms::{DiffHook, IdentifyDistinct, NoFinishHook, myers, preflight};
@@ -164,10 +164,18 @@ where
         d.equal(old_range.start, new_range.start, prefix)?;
     }
 
-    if !old_middle.is_empty() || !new_middle.is_empty() {
+    // A one sided middle needs neither the integer domain nor a match list;
+    // both would be proportional to the remaining side for nothing.
+    if old_middle.is_empty() {
+        if !new_middle.is_empty() {
+            d.insert(old_middle.start, new_middle.start, new_middle.len())?;
+        }
+    } else if new_middle.is_empty() {
+        d.delete(old_middle.start, old_middle.len(), new_middle.start)?;
+    } else {
         // Build a shared integer domain first so we can use a compact key type
         // for match lists while supporting differing old/new output types.
-        let h = IdentifyDistinct::<usize>::new(old, old_middle, new, new_middle);
+        let h = IdentifyDistinct::<usize>::new_matching_old(old, old_middle, new, new_middle);
         let mut no_finish_d = NoFinishHook::new(&mut *d);
         diff_deadline_int(
             &mut no_finish_d,
@@ -175,6 +183,7 @@ where
             h.old_range(),
             h.new_lookup(),
             h.new_range(),
+            h.old_distinct_count(),
             deadline,
             options.use_raw_myers,
         )?;
@@ -187,12 +196,16 @@ where
     d.finish()
 }
 
+/// Diffs dense integer identifiers where every old value is below
+/// `old_distinct`; new values at or above it cannot match anything.
+#[allow(clippy::too_many_arguments)]
 fn diff_deadline_int<Old, New, D>(
     d: &mut D,
     old: &Old,
     old_range: Range<usize>,
     new: &New,
     new_range: Range<usize>,
+    old_distinct: usize,
     deadline: Option<Instant>,
     use_raw_myers: bool,
 ) -> Result<(), D::Error>
@@ -251,8 +264,16 @@ where
             old_mid_range.len(),
             new_mid_range.start,
         )?;
-    } else if let Some(match_list) = build_match_list(new, new_mid_range.clone(), deadline) {
-        if let Some(anchors) = hunt_anchors(old, old_mid_range.clone(), &match_list, deadline) {
+    } else if let Some(match_list) =
+        build_match_list(new, new_mid_range.clone(), old_distinct, deadline)
+    {
+        if let Some(anchors) = hunt_anchors(
+            old,
+            old_mid_range.clone(),
+            new_mid_range.len(),
+            &match_list,
+            deadline,
+        ) {
             emit_anchored_script(
                 d,
                 old_mid_range.start,
@@ -320,15 +341,23 @@ where
 fn build_match_list<New>(
     new: &New,
     new_range: Range<usize>,
+    old_distinct: usize,
     deadline: Option<Instant>,
-) -> Option<MapType<usize, HashBucket<usize>>>
+) -> Option<IntKeyMap<usize, HashBucket<usize>>>
 where
     New: Index<usize, Output = usize> + ?Sized,
 {
-    let mut rv = MapType::<usize, HashBucket<usize>>::new();
+    // Only values with an old counterpart are inserted, so the map holds at
+    // most `old_distinct` keys.
+    let mut rv =
+        int_key_map_with_capacity::<usize, HashBucket<usize>>(new_range.len().min(old_distinct));
     for new_index in new_range {
         if deadline_exceeded(deadline) {
             return None;
+        }
+        // Values without an old counterpart can never be looked up.
+        if new[new_index] >= old_distinct {
+            continue;
         }
         if let Some(positions) = rv.get_mut(&new[new_index]) {
             positions.push(new_index);
@@ -356,7 +385,8 @@ fn lower_bound(slice: &[usize], value: usize) -> usize {
 fn hunt_anchors<Old>(
     old: &Old,
     old_range: Range<usize>,
-    match_list: &MapType<usize, HashBucket<usize>>,
+    new_len: usize,
+    match_list: &IntKeyMap<usize, HashBucket<usize>>,
     deadline: Option<Instant>,
 ) -> Option<Vec<(usize, usize)>>
 where
@@ -365,9 +395,11 @@ where
     const MAX_MATCH_PAIRS_PER_INPUT_ITEM: usize = 64;
     const MAX_MATCH_PAIRS: usize = 1_000_000;
 
+    // The budget scales with the total input size (the match list only
+    // covers new items that have an old counterpart).
     let max_match_pairs = old_range
         .len()
-        .saturating_add(match_list.values().map(HashBucket::len).sum())
+        .saturating_add(new_len)
         .saturating_mul(MAX_MATCH_PAIRS_PER_INPUT_ITEM)
         .min(MAX_MATCH_PAIRS);
     let mut match_pairs = 0usize;
@@ -390,6 +422,10 @@ where
     let mut thresh = Vec::new();
     let mut links = Vec::new();
     let mut candidates = Vec::new();
+    // Real world inputs consist mostly of long equal runs.  Each match in
+    // such a run lands one threshold slot after the previous match, so try
+    // that slot before paying for a binary search.
+    let mut last_k = usize::MAX;
 
     for old_index in old_range {
         if deadline_exceeded(deadline) {
@@ -398,7 +434,16 @@ where
 
         if let Some(new_indexes) = match_list.get(&old[old_index]) {
             for &new_index in new_indexes.iter().rev() {
-                let k = lower_bound(&thresh, new_index);
+                let guess = last_k.wrapping_add(1);
+                let k = if guess <= thresh.len()
+                    && (guess == 0 || thresh[guess - 1] < new_index)
+                    && (guess == thresh.len() || new_index <= thresh[guess])
+                {
+                    guess
+                } else {
+                    lower_bound(&thresh, new_index)
+                };
+                last_k = k;
 
                 if k == thresh.len() || new_index < thresh[k] {
                     let prev = if k > 0 { links[k - 1] } else { usize::MAX };
@@ -629,9 +674,9 @@ fn test_repetitive_match_list_uses_memory_safety_valve() {
     let size = 512;
     let old = (0..size).map(|index| index & 1).collect::<Vec<_>>();
     let new = (0..size).map(|index| (index + 1) & 1).collect::<Vec<_>>();
-    let match_list = build_match_list(&new, 0..new.len(), None).unwrap();
+    let match_list = build_match_list(&new, 0..new.len(), 2, None).unwrap();
 
-    assert!(hunt_anchors(&old, 0..old.len(), &match_list, None).is_none());
+    assert!(hunt_anchors(&old, 0..old.len(), new.len(), &match_list, None).is_none());
 }
 
 #[test]

@@ -1,12 +1,99 @@
 use core::fmt;
 use core::ops::{Index, Range};
 
+/// A map keyed by values that are already well distributed hashes or small
+/// dense integers.
+///
+/// The default `std` hasher (SipHash) is unnecessarily expensive for keys
+/// that were already produced by [`stable_hash`](crate::algorithms::utils::stable_hash)
+/// or that are dense integer identifiers, so this map applies only a cheap
+/// multiplicative mix to spread the key bits.
 #[cfg(all(not(feature = "std"), not(feature = "hashbrown")))]
-pub(crate) type MapType<K, V> = alloc::collections::BTreeMap<K, V>;
+pub(crate) type IntKeyMap<K, V> = alloc::collections::BTreeMap<K, V>;
 #[cfg(all(not(feature = "std"), feature = "hashbrown"))]
-pub(crate) type MapType<K, V> = hashbrown::HashMap<K, V>;
+pub(crate) type IntKeyMap<K, V> =
+    hashbrown::HashMap<K, V, core::hash::BuildHasherDefault<IntKeyHasher>>;
 #[cfg(feature = "std")]
-pub(crate) type MapType<K, V> = std::collections::HashMap<K, V>;
+pub(crate) type IntKeyMap<K, V> =
+    std::collections::HashMap<K, V, core::hash::BuildHasherDefault<IntKeyHasher>>;
+
+/// Upper bound for the initial capacity of an [`IntKeyMap`].
+///
+/// Callers pass the number of input items as the capacity hint.  Most inputs
+/// have mostly distinct items so this avoids repeated rehashing, but highly
+/// repetitive inputs would otherwise reserve space proportional to their
+/// length for a handful of entries.  The cap keeps that waste bounded while
+/// still covering typical file sizes in one allocation.
+#[cfg(any(feature = "std", feature = "hashbrown"))]
+const INT_KEY_MAP_MAX_INITIAL_CAPACITY: usize = 16 * 1024;
+
+/// Creates an [`IntKeyMap`] with room for roughly `capacity` entries.
+#[inline]
+pub(crate) fn int_key_map_with_capacity<K, V>(capacity: usize) -> IntKeyMap<K, V>
+where
+    K: Ord + core::hash::Hash + Eq,
+{
+    #[cfg(all(not(feature = "std"), not(feature = "hashbrown")))]
+    {
+        let _ = capacity;
+        IntKeyMap::new()
+    }
+    #[cfg(any(feature = "std", feature = "hashbrown"))]
+    {
+        IntKeyMap::with_capacity_and_hasher(
+            capacity.min(INT_KEY_MAP_MAX_INITIAL_CAPACITY),
+            Default::default(),
+        )
+    }
+}
+
+/// A cheap hasher for integer keys.
+///
+/// This mixes the key with a single folded multiplication which is enough to
+/// distribute both the high and low bits for open addressing hash tables.
+#[cfg(any(feature = "std", feature = "hashbrown"))]
+#[derive(Default, Clone, Copy)]
+pub(crate) struct IntKeyHasher(u64);
+
+#[cfg(any(feature = "std", feature = "hashbrown"))]
+impl core::hash::Hasher for IntKeyHasher {
+    #[inline(always)]
+    fn finish(&self) -> u64 {
+        crate::algorithms::utils::folded_multiply(self.0, 0x9E37_79B9_7F4A_7C15)
+    }
+
+    #[inline(always)]
+    fn write(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.write_u64(byte as u64);
+        }
+    }
+
+    #[inline(always)]
+    fn write_u8(&mut self, i: u8) {
+        self.write_u64(i as u64);
+    }
+
+    #[inline(always)]
+    fn write_u16(&mut self, i: u16) {
+        self.write_u64(i as u64);
+    }
+
+    #[inline(always)]
+    fn write_u32(&mut self, i: u32) {
+        self.write_u64(i as u64);
+    }
+
+    #[inline(always)]
+    fn write_u64(&mut self, i: u64) {
+        self.0 = (self.0.rotate_left(5) ^ i).wrapping_mul(0xD6E8_FEB8_6659_FD93);
+    }
+
+    #[inline(always)]
+    fn write_usize(&mut self, i: usize) {
+        self.write_u64(i as u64);
+    }
+}
 
 use crate::algorithms::DiffHook;
 use crate::algorithms::utils::is_empty_range;

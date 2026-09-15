@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::hash::Hash;
 
 use crate::algorithms::utils::stable_hash;
-use crate::types::MapType;
+use crate::types::IntKeyMap;
 
 use super::DiffableStrRef;
 
@@ -23,13 +23,13 @@ pub fn upper_seq_ratio<T: PartialEq>(seq1: &[T], seq2: &[T]) -> f32 {
 /// It counts the number of matches without regard to order, which is an
 /// obvious upper bound.
 pub struct QuickSeqRatio<'a, T: DiffableStrRef + ?Sized> {
-    counts: MapType<u64, Vec<(&'a T, i32)>>,
+    counts: IntKeyMap<u64, Vec<(&'a T, i32)>>,
     unique_count: usize,
 }
 
 impl<'a, T: DiffableStrRef + Hash + Eq + ?Sized> QuickSeqRatio<'a, T> {
     pub fn new(seq: &[&'a T]) -> QuickSeqRatio<'a, T> {
-        let mut counts = MapType::<u64, Vec<(&T, i32)>>::new();
+        let mut counts = IntKeyMap::<u64, Vec<(&T, i32)>>::default();
         let mut unique_count = 0;
         for &word in seq {
             let bucket = counts.entry(stable_hash(word)).or_default();
@@ -52,7 +52,7 @@ impl<'a, T: DiffableStrRef + Hash + Eq + ?Sized> QuickSeqRatio<'a, T> {
             return 1.0;
         }
 
-        let mut available = MapType::<u64, Vec<(&T, i32)>>::new();
+        let mut available = IntKeyMap::<u64, Vec<(&T, i32)>>::default();
         let mut matches = 0;
         for &word in seq {
             let hash = stable_hash(word);

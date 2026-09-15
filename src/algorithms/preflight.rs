@@ -6,7 +6,7 @@ use core::ops::{Index, Range};
 use crate::algorithms::DiffHook;
 use crate::algorithms::utils::{HashBucket, common_prefix_len, common_suffix_len, stable_hash};
 use crate::deadline_support::{Instant, deadline_exceeded};
-use crate::types::MapType;
+use crate::types::int_key_map_with_capacity;
 
 const DISJOINT_FAST_PATH_MIN_LEN: usize = 512;
 const DISJOINT_FAST_PATH_MIN_WORK: usize = 128 * 1024;
@@ -261,7 +261,7 @@ where
         return Some(MyersPreflight::Trimmed(trimmed));
     }
 
-    let mut by_hash = MapType::<u64, HashBucket<(usize, usize)>>::new();
+    let mut by_hash = int_key_map_with_capacity::<u64, HashBucket<(usize, usize)>>(old_range.len());
     let mut old_values = Vec::with_capacity(old_range.len());
     let mut new_values = Vec::with_capacity(new_range.len());
     let mut old_counts = Vec::<usize>::new();
@@ -383,7 +383,7 @@ where
     Old::Output: Hash,
     New::Output: PartialEq<Old::Output> + Hash,
 {
-    let mut by_hash = MapType::<u64, HashBucket<usize>>::new();
+    let mut by_hash = int_key_map_with_capacity::<u64, HashBucket<usize>>(old_range.len());
     for (idx, old_idx) in old_range.enumerate() {
         if (idx & (DISJOINT_FAST_PATH_DEADLINE_CHECK_INTERVAL - 1) == 0)
             && deadline_exceeded(deadline)
