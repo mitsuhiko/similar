@@ -4,6 +4,19 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+* Improved real-world diffing performance substantially without changing the
+  produced diffs.  On a corpus of real source file revisions, line diffs run
+  about 4x faster with `Algorithm::Myers`, 5x faster with
+  `Algorithm::Histogram`, and 2.5x faster with `Algorithm::Patience`; word
+  diffs run about 2x faster.  This comes from a faster line tokenizer, a
+  SipHash-1-3 content hash that consumes whole words (randomly keyed with
+  `std`), cheaper integer-keyed lookup tables, hashing only the changed middle
+  of Myers line diffs, flat occurrence tables in Histogram, and a gap buffer
+  in the compaction pass that was quadratic on diffs with many ops.
+  Allocation counts and peak memory dropped as well; in particular one sided
+  and heavily unbalanced inputs no longer build index structures proportional
+  to the larger side for `Algorithm::Hunt`, `Algorithm::Histogram`, and
+  `Algorithm::Patience`.
 * Fixed `TextMerge::labels` writing carriage returns and newlines verbatim into
   conflict markers, which let a label add lines to the output that looked like
   merged content.  Line terminators in labels are now replaced with spaces.
