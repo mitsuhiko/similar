@@ -34,6 +34,9 @@ fn main() {
 
 ![terminal highlighting](https://raw.githubusercontent.com/mitsuhiko/similar/main/assets/terminal-inline.png)
 
+See the [example output gallery](examples/README.md) for commands and sample
+output from the repository's runnable examples.
+
 ## What's in the box?
 
 * Practical heuristic Myers diff and raw Myers diff
@@ -80,5 +83,5 @@ algorithm, captures stacks on timeouts, and saves reproducible input pairs.
 * [Documentation](https://docs.rs/similar/)
 * [Upgrading Guide (2.7 to 3.0)](UPGRADING.md)
 * [Issue Tracker](https://github.com/mitsuhiko/similar/issues)
-* [Examples](https://github.com/mitsuhiko/similar/tree/main/examples)
+* [Examples and output gallery](examples/README.md)
 * License: [Apache-2.0](https://github.com/mitsuhiko/similar/blob/main/LICENSE)
