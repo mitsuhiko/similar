@@ -1121,7 +1121,7 @@ fn test_deterministic_tie_breaking() {
 
 /// Runs `f` on a thread with a stack far smaller than what diffing the deeply
 /// nested inputs below takes when every anchor costs a stack frame.
-#[cfg(all(test, feature = "std"))]
+#[cfg(all(test, feature = "std", not(target_os = "wasi")))]
 fn run_on_small_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
     std::thread::Builder::new()
         .stack_size(64 * 1024)
@@ -1131,7 +1131,7 @@ fn run_on_small_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static)
         .unwrap()
 }
 
-#[cfg(all(test, feature = "std"))]
+#[cfg(all(test, feature = "std", not(target_os = "wasi")))]
 fn assert_covers_inputs(ops: &[crate::DiffOp], old_len: usize, new_len: usize, equal_len: usize) {
     let mut old_pos = 0;
     let mut new_pos = 0;
@@ -1148,7 +1148,7 @@ fn assert_covers_inputs(ops: &[crate::DiffOp], old_len: usize, new_len: usize, e
     assert_eq!((old_pos, new_pos, equal), (old_len, new_len, equal_len));
 }
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(target_os = "wasi")))]
 #[test]
 fn test_scattered_changes_do_not_grow_the_stack() {
     use crate::{Algorithm, capture_diff_slices};
@@ -1164,7 +1164,7 @@ fn test_scattered_changes_do_not_grow_the_stack() {
     assert_covers_inputs(&ops, n, n, n - n / 5);
 }
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(target_os = "wasi")))]
 #[test]
 fn test_left_nested_anchors_do_not_grow_the_stack() {
     use crate::{Algorithm, capture_diff_slices};
