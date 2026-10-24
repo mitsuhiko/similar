@@ -170,6 +170,8 @@ extern crate alloc;
 #[cfg(test)]
 extern crate std;
 pub mod algorithms;
+#[cfg(feature = "text")]
+pub mod edit_script;
 pub mod iter;
 #[cfg(feature = "text")]
 pub mod merge;
@@ -186,6 +188,8 @@ mod text;
 mod types;
 
 pub use self::common::*;
+#[cfg(feature = "text")]
+pub use self::edit_script::{EditAction, EditScript, EditScriptConfig};
 #[cfg(feature = "text")]
 pub use self::merge::{ConflictStyle, MergeRegion, MergeResolution, TextMerge, TextMergeConfig};
 #[cfg(feature = "text")]

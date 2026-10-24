@@ -68,6 +68,10 @@ name = "udiff"
 required-features = ["std", "text", "bytes"]
 
 [[example]]
+name = "edit-script"
+required-features = ["text"]
+
+[[example]]
 name = "close-matches"
 required-features = ["text"]
 

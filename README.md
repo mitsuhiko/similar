@@ -46,6 +46,7 @@ output from the repository's runnable examples.
 * Classic LCS table diff
 * Anchored diffs (like `git diff --anchored`) with any algorithm
 * Git's indent heuristic for readable hunk placement
+* Block-aware edit scripts that detect moved, copied, split and merged lines
 * Diffing on arbitrary comparable sequences
 * Line, word, character and grapheme level diffing
 * Text and Byte diffing

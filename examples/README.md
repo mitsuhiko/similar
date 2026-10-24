@@ -85,6 +85,36 @@ The `bytes` feature is required by this example.
 +The exporter currently writes JSON and CSV.
 ```
 
+## Block-aware edit script
+
+[Source](edit-script.rs) · Run:
+`cargo run --example edit-script -- examples/diffs/case04.01.before_code_refactor.txt examples/diffs/case04.02.after_code_refactor.txt`
+
+`edit-script` explains a line diff with moved, copied, updated, split and
+merged lines.  Here a block was extracted into a new function, which shows up
+as a dedented move with one updated line instead of a deletion and an
+insertion.
+
+```text
+insert line 1
+  + fn normalize_label(name: &str) -> String {
+move 4 lines from line 5 to line 2, dedented by 8
+  -             let mut label = item.name.trim().to_lowercase();
+  +     let mut label = name.trim().to_lowercase();
+update line 5 to line 2
+  -             let mut label = item.name.trim().to_lowercase();
+  +     let mut label = name.trim().to_lowercase();
+insert lines 6-8
+  +     label
+  + }
+  + 
+update line 9 to line 13
+  -             out.push(format!("{}:{}", item.id, label));
+  +             out.push(format!("{}:{}", item.id, normalize_label(&item.name)));
+insert line 17
+  +     out.dedup();
+```
+
 ## Close matches
 
 [Source](close-matches.rs) · Run: `cargo run --example close-matches`

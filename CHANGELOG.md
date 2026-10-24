@@ -14,6 +14,10 @@ All notable changes to similar are documented here.
   occur exactly once on both sides aligned, and
   `algorithms::diff_anchored` / `algorithms::diff_anchored_deadline` expose
   the same for arbitrary sequences.  Anchors work with every algorithm.
+* Added `EditScript`, which explains a line diff with moved and copied
+  blocks (including re-indented ones), line updates, and split or merged
+  lines instead of only deletions and insertions.  It is based on the BDiff
+  paper (arXiv:2510.21094).
 
 ## 3.2.1
 
