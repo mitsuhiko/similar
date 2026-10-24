@@ -17,6 +17,9 @@ All notable changes to similar are documented here.
   and heavily unbalanced inputs no longer build index structures proportional
   to the larger side for `Algorithm::Hunt`, `Algorithm::Histogram`, and
   `Algorithm::Patience`.
+* Fixed `Algorithm::Histogram` overflowing the stack on inputs with many
+  scattered changes.  Pending ranges are now tracked on the heap, so stack
+  usage no longer grows with the number of anchors.  #105
 * Fixed `TextMerge::labels` writing carriage returns and newlines verbatim into
   conflict markers, which let a label add lines to the output that looked like
   merged content.  Line terminators in labels are now replaced with spaces.

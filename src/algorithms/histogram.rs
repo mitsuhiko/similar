@@ -346,13 +346,33 @@ where
     no_finish_d.into_inner().finish()
 }
 
+/// Pending work for [`diff_impl`].
+///
+/// Histogram diff splits a range around an anchor and diffs both sides.  With
+/// many anchors this nests as deep as the number of anchors (for instance
+/// when changes are scattered evenly through the input), so the pending work
+/// lives on the heap instead of the call stack.
+enum Task {
+    /// Diff the given ranges.
+    Diff {
+        old_range: Range<usize>,
+        new_range: Range<usize>,
+    },
+    /// Emit an equal run that has to follow previously queued work.
+    Equal {
+        old_index: usize,
+        new_index: usize,
+        len: usize,
+    },
+}
+
 #[allow(clippy::too_many_arguments)]
 fn diff_impl<Old, New, D>(
     d: &mut D,
     old: &Old,
-    mut old_range: Range<usize>,
+    old_range: Range<usize>,
     new: &New,
-    mut new_range: Range<usize>,
+    new_range: Range<usize>,
     deadline: Option<Instant>,
     use_raw_myers: bool,
     scratch: &mut Scratch,
@@ -362,38 +382,58 @@ where
     New: Index<usize, Output = usize> + ?Sized,
     D: DiffHook,
 {
-    if is_empty_range(&old_range) && is_empty_range(&new_range) {
-        return Ok(());
-    }
-    if is_empty_range(&old_range) {
-        d.insert(old_range.start, new_range.start, new_range.len())?;
-        return Ok(());
-    }
-    if is_empty_range(&new_range) {
-        d.delete(old_range.start, old_range.len(), new_range.start)?;
-        return Ok(());
-    }
+    // Tasks are popped from the end, so work that has to be emitted later is
+    // pushed first.
+    let mut tasks = vec![Task::Diff {
+        old_range,
+        new_range,
+    }];
 
-    let prefix = common_prefix_len(old, old_range.clone(), new, new_range.clone());
-    if prefix > 0 {
-        d.equal(old_range.start, new_range.start, prefix)?;
-        old_range.start += prefix;
-        new_range.start += prefix;
-    }
+    while let Some(task) = tasks.pop() {
+        let (mut old_range, mut new_range) = match task {
+            Task::Diff {
+                old_range,
+                new_range,
+            } => (old_range, new_range),
+            Task::Equal {
+                old_index,
+                new_index,
+                len,
+            } => {
+                d.equal(old_index, new_index, len)?;
+                continue;
+            }
+        };
 
-    let suffix = common_suffix_len(old, old_range.clone(), new, new_range.clone());
-    let suffix_old_start = old_range.end - suffix;
-    let suffix_new_start = new_range.end - suffix;
-    old_range.end -= suffix;
-    new_range.end -= suffix;
-
-    if is_empty_range(&old_range) {
-        if !is_empty_range(&new_range) {
-            d.insert(old_range.start, new_range.start, new_range.len())?;
+        let prefix = common_prefix_len(old, old_range.clone(), new, new_range.clone());
+        if prefix > 0 {
+            d.equal(old_range.start, new_range.start, prefix)?;
+            old_range.start += prefix;
+            new_range.start += prefix;
         }
-    } else if is_empty_range(&new_range) {
-        d.delete(old_range.start, old_range.len(), new_range.start)?;
-    } else {
+
+        let suffix = common_suffix_len(old, old_range.clone(), new, new_range.clone());
+        if suffix > 0 {
+            old_range.end -= suffix;
+            new_range.end -= suffix;
+            tasks.push(Task::Equal {
+                old_index: old_range.end,
+                new_index: new_range.end,
+                len: suffix,
+            });
+        }
+
+        if is_empty_range(&old_range) {
+            if !is_empty_range(&new_range) {
+                d.insert(old_range.start, new_range.start, new_range.len())?;
+            }
+            continue;
+        }
+        if is_empty_range(&new_range) {
+            d.delete(old_range.start, old_range.len(), new_range.start)?;
+            continue;
+        }
+
         match find_anchor(
             old,
             old_range.clone(),
@@ -403,33 +443,21 @@ where
             scratch,
         ) {
             SearchResult::Anchor(anchor) => {
-                let left_old = old_range.start..anchor.old_start;
-                let left_new = new_range.start..anchor.new_start;
-                diff_impl(
-                    d,
-                    old,
-                    left_old,
-                    new,
-                    left_new,
-                    deadline,
-                    use_raw_myers,
-                    scratch,
-                )?;
-
-                d.equal(anchor.old_start, anchor.new_start, anchor.len)?;
-
-                let right_old = (anchor.old_start + anchor.len)..old_range.end;
-                let right_new = (anchor.new_start + anchor.len)..new_range.end;
-                diff_impl(
-                    d,
-                    old,
-                    right_old,
-                    new,
-                    right_new,
-                    deadline,
-                    use_raw_myers,
-                    scratch,
-                )?;
+                let old_after = anchor.old_start + anchor.len;
+                let new_after = anchor.new_start + anchor.len;
+                tasks.push(Task::Diff {
+                    old_range: old_after..old_range.end,
+                    new_range: new_after..new_range.end,
+                });
+                tasks.push(Task::Equal {
+                    old_index: anchor.old_start,
+                    new_index: anchor.new_start,
+                    len: anchor.len,
+                });
+                tasks.push(Task::Diff {
+                    old_range: old_range.start..anchor.old_start,
+                    new_range: new_range.start..anchor.new_start,
+                });
             }
             SearchResult::None => {
                 d.delete(old_range.start, old_range.len(), new_range.start)?;
@@ -441,27 +469,23 @@ where
                     myers::diff_deadline_raw(
                         &mut myers_hook,
                         old,
-                        old_range.clone(),
+                        old_range,
                         new,
-                        new_range.clone(),
+                        new_range,
                         deadline,
                     )?;
                 } else {
                     myers::diff_deadline(
                         &mut myers_hook,
                         old,
-                        old_range.clone(),
+                        old_range,
                         new,
-                        new_range.clone(),
+                        new_range,
                         deadline,
                     )?;
                 }
             }
         }
-    }
-
-    if suffix > 0 {
-        d.equal(suffix_old_start, suffix_new_start, suffix)?;
     }
 
     Ok(())
@@ -1093,4 +1117,77 @@ fn test_deterministic_tie_breaking() {
         let next = capture_diff_slices(Algorithm::Histogram, &old, &new);
         assert_eq!(first, next);
     }
+}
+
+/// Runs `f` on a thread with a stack far smaller than what diffing the deeply
+/// nested inputs below takes when every anchor costs a stack frame.
+#[cfg(all(test, feature = "std"))]
+fn run_on_small_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+    std::thread::Builder::new()
+        .stack_size(64 * 1024)
+        .spawn(f)
+        .unwrap()
+        .join()
+        .unwrap()
+}
+
+#[cfg(all(test, feature = "std"))]
+fn assert_covers_inputs(ops: &[crate::DiffOp], old_len: usize, new_len: usize, equal_len: usize) {
+    let mut old_pos = 0;
+    let mut new_pos = 0;
+    let mut equal = 0;
+    for op in ops {
+        assert_eq!(op.old_range().start, old_pos);
+        assert_eq!(op.new_range().start, new_pos);
+        if let crate::DiffOp::Equal { len, .. } = *op {
+            equal += len;
+        }
+        old_pos = op.old_range().end;
+        new_pos = op.new_range().end;
+    }
+    assert_eq!((old_pos, new_pos, equal), (old_len, new_len, equal_len));
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn test_scattered_changes_do_not_grow_the_stack() {
+    use crate::{Algorithm, capture_diff_slices};
+
+    // Every common run has the same length, so ties pick the leftmost anchor
+    // and the whole remainder ends up to the right of every split.
+    let n = 20_000;
+    let old: Vec<usize> = (0..n).collect();
+    let new: Vec<usize> = (0..n).map(|i| if i % 5 == 0 { n + i } else { i }).collect();
+
+    let ops = run_on_small_stack(move || capture_diff_slices(Algorithm::Histogram, &old, &new));
+    assert_eq!(ops.len(), 2 * n / 5);
+    assert_covers_inputs(&ops, n, n, n - n / 5);
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn test_left_nested_anchors_do_not_grow_the_stack() {
+    use crate::{Algorithm, capture_diff_slices};
+
+    // Common runs of growing length, each followed by a changed item.  The
+    // longest run is always the rightmost one, so the remainder ends up to
+    // the left of every split.
+    let runs = 500;
+    let build = |changed_base: usize| -> Vec<usize> {
+        let mut next_common = 0;
+        let mut values = Vec::new();
+        for len in 1..=runs {
+            values.extend(next_common..next_common + len);
+            next_common += len;
+            values.push(changed_base + len);
+        }
+        values
+    };
+    let old = build(1_000_000);
+    let new = build(2_000_000);
+    let len = old.len();
+
+    let ops = run_on_small_stack(move || capture_diff_slices(Algorithm::Histogram, &old, &new));
+    assert_eq!(ops.len(), 2 * runs);
+    assert_covers_inputs(&ops, len, len, len - runs);
 }
