@@ -4,6 +4,17 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+* Added `TextDiffConfig::indent_heuristic` which positions ambiguous line
+  insertions and deletions the way git's `--indent-heuristic` does, based on
+  blank lines and indentation of the surrounding lines.  It is off by default.
+  On a corpus of real source file revisions it produces the same hunks as git
+  whenever the underlying diffs agree.
+* Added anchored diffs, modeled after `git diff --anchored`.
+  `TextDiffConfig::anchor` keeps lines that start with a given prefix and
+  occur exactly once on both sides aligned, and
+  `algorithms::diff_anchored` / `algorithms::diff_anchored_deadline` expose
+  the same for arbitrary sequences.  Anchors work with every algorithm.
+
 ## 3.2.1
 
 * Improved real-world diffing performance substantially without changing the

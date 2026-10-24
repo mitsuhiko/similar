@@ -1,6 +1,7 @@
 //! Text diffing utilities.
 use alloc::borrow::{Borrow, ToOwned};
 use alloc::collections::BinaryHeap;
+use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cmp::Reverse;
@@ -9,6 +10,7 @@ use core::ops::{Index, Range};
 use core::time::Duration;
 
 mod abstraction;
+mod indent;
 #[cfg(feature = "inline")]
 mod inline;
 mod utils;
@@ -17,10 +19,12 @@ pub use self::abstraction::{DiffInput, DiffableStr, DiffableStrRef, IntoDiffInpu
 #[cfg(feature = "inline")]
 pub use self::inline::{InlineChange, InlineChangeMode, InlineChangeOptions};
 
+use self::indent::{apply_indent_heuristic, line_indent};
 use self::utils::{QuickSeqRatio, upper_seq_ratio};
 use crate::algorithms::utils::{common_prefix_len, common_suffix_len};
 use crate::algorithms::{
     Capture, Compact, DiffHook, IdentifyDistinct, NoFinishHook, Replace, diff_deadline,
+    diff_with_anchors, find_anchors,
 };
 use crate::deadline_support::{Instant, duration_to_deadline};
 use crate::udiff::UnifiedDiff;
@@ -363,6 +367,8 @@ pub struct TextDiffConfig {
     newline_terminated: Option<bool>,
     deadline: Option<Deadline>,
     whitespace_mode: WhitespaceMode,
+    anchors: Vec<String>,
+    indent_heuristic: bool,
 }
 
 impl TextDiffConfig {
@@ -373,6 +379,8 @@ impl TextDiffConfig {
             newline_terminated: None,
             deadline: None,
             whitespace_mode: WhitespaceMode::Exact,
+            anchors: Vec::new(),
+            indent_heuristic: false,
         }
     }
 
@@ -433,6 +441,89 @@ impl TextDiffConfig {
         self
     }
 
+    /// Keeps lines starting with `prefix` aligned in line diffs.
+    ///
+    /// This works like `git diff --anchored=<text>`: a line that starts with
+    /// `prefix` and occurs exactly once in both the old and the new text is
+    /// never shown as deleted or inserted.  Instead the lines around it are.
+    /// This is useful when code was moved around a known line such as a
+    /// function signature.  Can be called multiple times to add more
+    /// anchors.
+    ///
+    /// Unlike git, anchors are not limited to the patience algorithm: the
+    /// configured [`algorithm`](Self::algorithm) diffs the lines between the
+    /// anchors.  If anchors were reordered, the largest set of anchors that
+    /// kept their relative order is used.  The anchor is matched against the
+    /// raw line, independent of the [`WhitespaceMode`].
+    ///
+    /// This setting only affects [`diff_lines`](Self::diff_lines).  See
+    /// [`diff_anchored`](crate::algorithms::diff_anchored) for the lower
+    /// level API.
+    ///
+    /// ```rust
+    /// use similar::{ChangeTag, TextDiff};
+    ///
+    /// let old = "a\nb\nc\nfn main() {}\n";
+    /// let new = "fn main() {}\na\nb\nc\n";
+    /// let diff = TextDiff::configure()
+    ///     .anchor("fn main")
+    ///     .diff_lines(old, new);
+    /// assert!(diff
+    ///     .iter_all_changes()
+    ///     .filter(|change| change.value().starts_with("fn main"))
+    ///     .all(|change| change.tag() == ChangeTag::Equal));
+    /// ```
+    pub fn anchor<S: Into<String>>(&mut self, prefix: S) -> &mut Self {
+        self.anchors.push(prefix.into());
+        self
+    }
+
+    /// Enables the indent heuristic for line diffs.
+    ///
+    /// Insertions and deletions can often be placed at several positions
+    /// with the same result.  For instance when a function is added between
+    /// two functions that end with the same `}` line, the inserted block can
+    /// begin with the closing line of the previous function or with the new
+    /// function's first line.  The indent heuristic looks at blank lines and
+    /// indentation around each candidate position and picks the one that is
+    /// most likely to match what a human would consider the change.  It uses
+    /// the same heuristic and weights as git (`git diff --indent-heuristic`,
+    /// enabled by default in git since 2.14).
+    ///
+    /// The heuristic also lines up insertions and deletions that can be
+    /// slid next to each other so that they are reported as a replacement.
+    ///
+    /// The default is `false`.  This setting only affects
+    /// [`diff_lines`](Self::diff_lines).
+    ///
+    /// ```rust
+    /// use similar::{ChangeTag, TextDiff};
+    ///
+    /// let old = "#[test]\nfn a() {}\n\n#[test]\nfn c() {}\n";
+    /// let new = "#[test]\nfn a() {}\n\n#[test]\nfn b() {}\n\n#[test]\nfn c() {}\n";
+    /// let inserted = |heuristic| {
+    ///     TextDiff::configure()
+    ///         .indent_heuristic(heuristic)
+    ///         .diff_lines(old, new)
+    ///         .iter_all_changes()
+    ///         .filter(|change| change.tag() == ChangeTag::Insert)
+    ///         .map(|change| change.value())
+    ///         .collect::<String>()
+    /// };
+    /// assert_eq!(inserted(false), "fn b() {}\n\n#[test]\n");
+    /// assert_eq!(inserted(true), "#[test]\nfn b() {}\n\n");
+    /// ```
+    pub fn indent_heuristic(&mut self, yes: bool) -> &mut Self {
+        self.indent_heuristic = yes;
+        self
+    }
+
+    fn is_anchor(&self, line: &[u8]) -> bool {
+        self.anchors
+            .iter()
+            .any(|prefix| line.starts_with(prefix.as_bytes()))
+    }
+
     /// Creates a diff of lines.
     ///
     /// This splits the text `old` and `new` into lines preserving newlines
@@ -467,7 +558,6 @@ impl TextDiffConfig {
             TextDiffSide::from_tokenized(old.into_diff_input(), DiffableStr::tokenize_lines),
             TextDiffSide::from_tokenized(new.into_diff_input(), DiffableStr::tokenize_lines),
             true,
-            self.whitespace_mode,
         )
     }
 
@@ -509,7 +599,6 @@ impl TextDiffConfig {
             TextDiffSide::from_tokenized(old.into_diff_input(), DiffableStr::tokenize_words),
             TextDiffSide::from_tokenized(new.into_diff_input(), DiffableStr::tokenize_words),
             false,
-            WhitespaceMode::Exact,
         )
     }
 
@@ -551,7 +640,6 @@ impl TextDiffConfig {
             TextDiffSide::from_tokenized(old.into_diff_input(), DiffableStr::tokenize_chars),
             TextDiffSide::from_tokenized(new.into_diff_input(), DiffableStr::tokenize_chars),
             false,
-            WhitespaceMode::Exact,
         )
     }
 
@@ -608,7 +696,6 @@ impl TextDiffConfig {
                 DiffableStr::tokenize_unicode_words,
             ),
             false,
-            WhitespaceMode::Exact,
         )
     }
 
@@ -654,7 +741,6 @@ impl TextDiffConfig {
             TextDiffSide::from_tokenized(old.into_diff_input(), DiffableStr::tokenize_graphemes),
             TextDiffSide::from_tokenized(new.into_diff_input(), DiffableStr::tokenize_graphemes),
             false,
-            WhitespaceMode::Exact,
         )
     }
 
@@ -687,7 +773,6 @@ impl TextDiffConfig {
             TextDiffSide::from_slices(old),
             TextDiffSide::from_slices(new),
             false,
-            WhitespaceMode::Exact,
         )
     }
 
@@ -695,11 +780,15 @@ impl TextDiffConfig {
         &self,
         old: TextDiffSide<'old, T>,
         new: TextDiffSide<'new, T>,
-        newline_terminated: bool,
-        whitespace_mode: WhitespaceMode,
+        lines: bool,
     ) -> TextDiff<'old, 'new, T> {
+        let whitespace_mode = if lines {
+            self.whitespace_mode
+        } else {
+            WhitespaceMode::Exact
+        };
         let ops = if whitespace_mode == WhitespaceMode::Exact {
-            self.capture_ops(&old, old.len(), &new, new.len())
+            self.capture_text_ops(&old, &new, &old, &new, lines, |value: &T| value.as_bytes())
         } else {
             let old_keys = old
                 .iter()
@@ -715,16 +804,66 @@ impl TextDiffConfig {
                     mode: whitespace_mode,
                 })
                 .collect::<Vec<_>>();
-            self.capture_ops(&old_keys, old_keys.len(), &new_keys, new_keys.len())
+            self.capture_text_ops(
+                &old_keys[..],
+                &new_keys[..],
+                &old,
+                &new,
+                lines,
+                |key: &WhitespaceKey<'_>| key.bytes,
+            )
         };
         TextDiff {
             old,
             new,
             ops,
-            newline_terminated: self.newline_terminated.unwrap_or(newline_terminated),
+            newline_terminated: self.newline_terminated.unwrap_or(lines),
             algorithm: self.algorithm,
             whitespace_mode,
         }
+    }
+
+    /// Captures the ops for text tokens.
+    ///
+    /// `old` and `new` are the sequences to compare, `raw_old` and `raw_new`
+    /// the original tokens at the same indexes.  For lines, anchors and the
+    /// indent heuristic are applied.
+    fn capture_text_ops<Old, New, T>(
+        &self,
+        old: &Old,
+        new: &New,
+        raw_old: &TextDiffSide<'_, T>,
+        raw_new: &TextDiffSide<'_, T>,
+        lines: bool,
+        anchor_bytes: impl Fn(&Old::Output) -> &[u8],
+    ) -> Vec<DiffOp>
+    where
+        Old: Index<usize> + ?Sized,
+        New: Index<usize> + ?Sized,
+        Old::Output: Hash + Eq,
+        New::Output: PartialEq<Old::Output> + Hash + Eq,
+        T: DiffableStr + ?Sized,
+    {
+        let old_len = raw_old.len();
+        let new_len = raw_new.len();
+        let anchors = if lines && !self.anchors.is_empty() {
+            find_anchors(old, 0..old_len, new, 0..new_len, |value| {
+                self.is_anchor(anchor_bytes(value))
+            })
+        } else {
+            Vec::new()
+        };
+        let mut ops = self.capture_ops(old, old_len, new, new_len, &anchors);
+        if lines && self.indent_heuristic {
+            apply_indent_heuristic(
+                &mut ops,
+                old,
+                new,
+                |idx| line_indent(raw_old[idx].as_bytes()),
+                |idx| line_indent(raw_new[idx].as_bytes()),
+            );
+        }
+        ops
     }
 
     fn capture_ops<Old, New>(
@@ -733,6 +872,7 @@ impl TextDiffConfig {
         old_len: usize,
         new: &New,
         new_len: usize,
+        anchors: &[(usize, usize)],
     ) -> Vec<DiffOp>
     where
         Old: Index<usize> + ?Sized,
@@ -743,6 +883,37 @@ impl TextDiffConfig {
         let deadline = self.deadline.and_then(|x| x.into_instant());
         let remap_to_integers = (old_len > 100 || new_len > 100)
             && !matches!(self.algorithm, Algorithm::Hunt | Algorithm::Histogram);
+
+        if !anchors.is_empty() {
+            let mut d = Compact::new(Replace::new(Capture::new()), old, new);
+            if remap_to_integers {
+                let ih = IdentifyDistinct::<u32>::new(old, 0..old_len, new, 0..new_len);
+                diff_with_anchors(
+                    self.algorithm,
+                    &mut d,
+                    ih.old_lookup(),
+                    ih.old_range(),
+                    ih.new_lookup(),
+                    ih.new_range(),
+                    anchors,
+                    deadline,
+                )
+                .unwrap();
+            } else {
+                diff_with_anchors(
+                    self.algorithm,
+                    &mut d,
+                    old,
+                    0..old_len,
+                    new,
+                    0..new_len,
+                    anchors,
+                    deadline,
+                )
+                .unwrap();
+            }
+            return d.into_inner().into_inner().into_ops();
+        }
 
         // Myers starts by trimming the common prefix and suffix and only
         // then decides on its heuristics, so trimming here first is
@@ -1598,4 +1769,113 @@ fn test_regression_issue_95() {
     }
     assert_eq!(old_cursor, old_lines.len());
     assert_eq!(new_cursor, new_lines.len());
+}
+
+#[cfg(test)]
+fn assert_line_kept(diff: &TextDiff<'_, '_, str>, line: &str) {
+    let changes = diff
+        .iter_all_changes()
+        .filter(|change| change.value() == line)
+        .map(|change| change.tag())
+        .collect::<Vec<_>>();
+    assert_eq!(changes, vec![ChangeTag::Equal], "{line:?}");
+}
+
+#[test]
+fn test_anchor_lines() {
+    let old = "a\nb\nc\nfn main() {}\nd\n";
+    let new = "fn main() {}\na\nb\nc\nd\n";
+    for algorithm in [
+        Algorithm::Myers,
+        Algorithm::RawMyers,
+        Algorithm::Patience,
+        Algorithm::Histogram,
+        Algorithm::Hunt,
+        Algorithm::Lcs,
+    ] {
+        let plain = TextDiff::configure()
+            .algorithm(algorithm)
+            .diff_lines(old, new);
+        assert!(
+            plain.iter_all_changes().any(
+                |change| change.value() == "fn main() {}\n" && change.tag() != ChangeTag::Equal
+            ),
+            "{algorithm:?}"
+        );
+        let diff = TextDiff::configure()
+            .algorithm(algorithm)
+            .anchor("fn ")
+            .diff_lines(old, new);
+        assert_line_kept(&diff, "fn main() {}\n");
+        assert_eq!(
+            diff.iter_all_changes()
+                .filter(|change| change.tag() != ChangeTag::Insert)
+                .map(|change| change.value())
+                .collect::<String>(),
+            old
+        );
+    }
+}
+
+#[test]
+fn test_anchor_lines_large_input() {
+    let body = (0..200)
+        .map(|idx| format!("line {idx}\n"))
+        .collect::<String>();
+    let old = format!("{body}fn anchor() {{}}\n");
+    let new = format!("fn anchor() {{}}\n{body}");
+    for algorithm in [Algorithm::Myers, Algorithm::Patience, Algorithm::Histogram] {
+        let diff = TextDiff::configure()
+            .algorithm(algorithm)
+            .anchor("fn anchor")
+            .diff_lines(&old, &new);
+        assert_line_kept(&diff, "fn anchor() {}\n");
+        assert_eq!(diff.ops().len(), 3, "{algorithm:?}: {:?}", diff.ops());
+    }
+}
+
+#[test]
+fn test_anchor_lines_whitespace_mode() {
+    let old = "a\nb\nfn x()  {}\n";
+    let new = "fn x() {}\na\nb\n";
+    let diff = TextDiff::configure()
+        .whitespace_mode(WhitespaceMode::IgnoreChanges)
+        .anchor("fn ")
+        .diff_lines(old, new);
+    assert_eq!(
+        diff.iter_all_changes()
+            .map(|change| (change.tag(), change.value()))
+            .collect::<Vec<_>>(),
+        vec![
+            (ChangeTag::Delete, "a\n"),
+            (ChangeTag::Delete, "b\n"),
+            (ChangeTag::Equal, "fn x() {}\n"),
+            (ChangeTag::Insert, "a\n"),
+            (ChangeTag::Insert, "b\n"),
+        ]
+    );
+}
+
+#[test]
+fn test_anchors_only_apply_to_lines() {
+    let diff = TextDiff::configure().anchor("x").diff_chars("abcx", "xabc");
+    let plain = TextDiff::configure().diff_chars("abcx", "xabc");
+    assert_eq!(diff.ops(), plain.ops());
+}
+
+#[test]
+fn test_indent_heuristic_whitespace_mode() {
+    let old = "#[test]\nfn a() {}\n\n#[test]\nfn c() {}\n";
+    let new = "#[test]\nfn a() {}\n\n#[test]\nfn b() {}\n\n#[test]\nfn c()  {}\n";
+    let diff = TextDiff::configure()
+        .whitespace_mode(WhitespaceMode::IgnoreChanges)
+        .indent_heuristic(true)
+        .diff_lines(old, new);
+    assert_eq!(
+        diff.iter_all_changes()
+            .filter(|change| change.tag() != ChangeTag::Equal)
+            .map(|change| change.value())
+            .collect::<String>(),
+        "#[test]\nfn b() {}\n\n"
+    );
 }

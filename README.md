@@ -44,6 +44,8 @@ output from the repository's runnable examples.
 * Hunt-style diff
 * Histogram diff
 * Classic LCS table diff
+* Anchored diffs (like `git diff --anchored`) with any algorithm
+* Git's indent heuristic for readable hunk placement
 * Diffing on arbitrary comparable sequences
 * Line, word, character and grapheme level diffing
 * Text and Byte diffing

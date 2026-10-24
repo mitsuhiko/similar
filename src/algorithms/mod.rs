@@ -99,6 +99,14 @@
 //! entrypoints except for [`Algorithm::RawMyers`], which dispatches to Myers'
 //! raw implementation.
 //!
+//! # Anchors
+//!
+//! [`diff_anchored`] and [`diff_anchored_deadline`] run any of the algorithms
+//! but keep selected items that occur exactly once on both sides aligned.  This
+//! is modeled after `git diff --anchored` and helps when the chosen algorithm
+//! would otherwise show a well known item (for instance a function signature)
+//! as removed and re-added.
+//!
 //! # Sequence Adapters
 //!
 //! Two helpers are available when your input is not already a plain slice:
@@ -126,6 +134,7 @@
 
 pub use crate::lookup::CachedLookup;
 
+mod anchored;
 mod capture;
 mod compact;
 mod hook;
@@ -139,6 +148,9 @@ use core::hash::Hash;
 use core::ops::{Index, Range};
 
 use crate::deadline_support::Instant;
+pub use anchored::{diff_anchored, diff_anchored_deadline};
+#[cfg(feature = "text")]
+pub(crate) use anchored::{diff_with_anchors, find_anchors};
 pub use capture::Capture;
 pub use compact::Compact;
 pub use hook::{DiffHook, NoFinishHook};
