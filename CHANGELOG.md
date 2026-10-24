@@ -4,6 +4,8 @@ All notable changes to similar are documented here.
 
 ## Unreleased
 
+## 3.2.1
+
 * Improved real-world diffing performance substantially without changing the
   produced diffs.  On a corpus of real source file revisions, line diffs run
   about 4x faster with `Algorithm::Myers`, 5x faster with
