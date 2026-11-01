@@ -162,6 +162,42 @@ fn b() {
 }
 
 #[test]
+fn test_copy_does_not_grow_into_deleted_lines() {
+    // The copy candidate seeded on the first "let y = derive(x);" line used to
+    // grow into the following deleted lines ("let x = compute();" and
+    // "fn a() {"), so the script claimed those lines as copy sources even
+    // though a copy leaves its source lines in the text: the same line was
+    // both copied from and deleted.
+    let old = concat!(
+        "    let y = derive(x);\n",
+        "    unrelated();\n",
+        "    let x = compute();\n",
+        "    let x = compute();\n",
+        "fn a() {",
+    );
+    let new = concat!(
+        "    let y = derive(x);\n",
+        "    unrelated();\n",
+        "    let y = derive(x);\n",
+        "    unrelated();\n",
+        "    let y = derive(x);\n",
+        "    let y = derive(x);\n",
+        "fn a() {\n",
+        "}",
+    );
+    assert_eq!(
+        describe(old, new),
+        vec![
+            "update line 3 to line 3",
+            "insert lines 4-5",
+            "update line 4 to line 6",
+            "update line 5 to line 7",
+            "insert line 8",
+        ]
+    );
+}
+
+#[test]
 fn test_split_and_merge() {
     insta::assert_debug_snapshot!(
         describe("call(alpha, beta, gamma)\nend\n", "call(alpha,\n     beta,\n     gamma)\nend\n"),
@@ -357,6 +393,17 @@ fn check_invariants(old: &str, new: &str, config: &EditScriptConfig) {
                     assert_eq!(b.indent as isize - a.indent as isize, indent);
                 }
             }
+        }
+    }
+
+    // A copy leaves its source lines in the text, so they cannot be lines
+    // that the diff deleted.
+    for action in script.iter() {
+        if let EditAction::Copy { old_index, len, .. } = *action {
+            assert!(
+                !old_changed[old_index..old_index + len].contains(&true),
+                "copy source is deleted: {script:?}"
+            );
         }
     }
 }
