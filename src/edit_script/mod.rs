@@ -945,7 +945,14 @@ impl<'c, 'a> Analysis<'c, 'a> {
         let fuzzy_budget = core::cell::Cell::new(
             FUZZY_BUDGET_PER_LINE * self.new_added.iter().filter(|&&x| x).count(),
         );
-        let in_pool = |l: usize| kind == Kind::Copy || (self.old_deleted[l] && !self.old_used[l]);
+        // Copy sources are lines that remain in the new text, so lines
+        // that the diff deleted cannot seed a copy (that would be a move).
+        // Moves are seeded by deleted lines that nothing consumed yet.
+        let in_pool = |l: usize| match kind {
+            Kind::Copy => !self.old_deleted[l],
+            Kind::Move => self.old_deleted[l] && !self.old_used[l],
+            Kind::Update => false,
+        };
         let mut seeds = BTreeMap::<&[u8], Vec<usize>>::new();
         for (l, line) in self.old.iter().enumerate() {
             if line.significant && in_pool(l) {
@@ -1019,6 +1026,9 @@ impl<'c, 'a> Analysis<'c, 'a> {
             return false;
         }
         if kind == Kind::Move && (!self.old_deleted[l] || self.old_used[l]) {
+            return false;
+        }
+        if kind == Kind::Copy && self.old_deleted[l] {
             return false;
         }
         let (a, b) = (&self.old[l], &self.new[r]);
